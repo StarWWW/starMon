@@ -1,5 +1,5 @@
 # starmon-rs
-(Yes i used claude bcz RUST is hard.)
+## (Yes i used claude bcz RUST is hard.)
 [StarMon](https://github.com/StarWWW/StarMon)'un (HP Omen/Victus donanım izleme
 ve fan/klavye kontrol aracı) Rust portu. GUI: egui/eframe · Sürücü: PawnIO ·
 Lisans: GPL-3.0.
