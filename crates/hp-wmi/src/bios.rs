@@ -313,6 +313,35 @@ impl HpWmiBios {
             .ok_or(HpWmiError::NoData)?)
     }
 
+    // ---- Yazma metodları (P4; C# BiosCtl.cs karşılıkları) ----
+
+    /// Fan hız seviyelerini ayarlar: (CPU, GPU) [krpm*100] (Cmd.Default 0x2E).
+    /// `0xFF, 0xFF` otomatik kontrole geri döner.
+    pub fn set_fan_level(&self, cpu: u8, gpu: u8) -> Result<(), HpWmiError> {
+        tracing::info!(cpu, gpu, "BIOS SetFanLevel");
+        self.send(Cmd::Default, 0x2E, Some(&[cpu, gpu, 0, 0]), 0).map(drop)
+    }
+
+    /// Fan performans modunu ayarlar (Cmd.Default 0x1A, girdi `[0xFF, mod]`).
+    pub fn set_fan_mode(&self, mode: data::FanMode) -> Result<(), HpWmiError> {
+        tracing::info!(?mode, "BIOS SetFanMode");
+        self.send(Cmd::Default, 0x1A, Some(&[0xFF, mode as u8, 0, 0]), 0)
+            .map(drop)
+    }
+
+    /// Maksimum fan modunu açar/kapatır (Cmd.Default 0x27).
+    pub fn set_max_fan(&self, on: bool) -> Result<(), HpWmiError> {
+        tracing::info!(on, "BIOS SetMaxFan");
+        self.send(Cmd::Default, 0x27, Some(&[on as u8, 0, 0, 0]), 0).map(drop)
+    }
+
+    /// GPU güç ayarlarını yazar (Cmd.Default 0x22); Victus'ta desteklenmeyebilir.
+    pub fn set_gpu_power(&self, power: &data::GpuPowerData) -> Result<(), HpWmiError> {
+        tracing::info!(?power, "BIOS SetGpuPower");
+        self.send(Cmd::Default, 0x22, Some(zerocopy::IntoBytes::as_bytes(power)), 0)
+            .map(drop)
+    }
+
     /// Tek seferlik yetenek raporu; alan bazında hataya dayanıklı,
     /// hatalar log'a düşer (Victus'ta bazı çağrıların hata vermesi normal).
     pub fn capabilities(&self) -> Capabilities {

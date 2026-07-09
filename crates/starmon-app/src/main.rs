@@ -1,10 +1,16 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod fan_ctl;
+mod fan_test;
 mod hw;
 mod logging;
 mod single_instance;
 
 use anyhow::Result;
+use crossbeam_channel::Sender;
+use fan_ctl::HwCommand;
+use hp_wmi::data::FanMode;
+use starmon_core::fan::{percent_to_level, FanControl};
 use starmon_core::snapshot::Snapshot;
 
 const WINDOW_TITLE: &str = "StarMon";
@@ -30,6 +36,17 @@ fn main() -> Result<()> {
         return Ok(());
     };
 
+    // P4 aşamalı canlı fan yazma testi: GUI açılmadan koşar ve çıkar.
+    if let Some(i) = args.iter().position(|a| a == "--fan-test") {
+        return match args.get(i + 1).map(String::as_str) {
+            Some("kill") => fan_test::run(true),
+            Some("watch") => fan_test::watch(),
+            Some("auto") => fan_test::restore_auto(),
+            Some("ec") => fan_test::ec_level_test(),
+            _ => fan_test::run(false),
+        };
+    }
+
     tracing::info!(version = env!("CARGO_PKG_VERSION"), "StarMon başlatılıyor");
 
     let options = eframe::NativeOptions {
@@ -39,23 +56,35 @@ fn main() -> Result<()> {
             .with_min_inner_size([714.0, 590.0]),
         ..Default::default()
     };
+    // hw thread'in JoinHandle'ı: kapanışta beklenir ki FanSafetyGuard
+    // temizliği (fanı otomatiğe döndürme) süreç ölmeden tamamlansın.
+    let join = std::sync::Mutex::new(None);
     eframe::run_native(
         WINDOW_TITLE,
         options,
         Box::new(|cc| {
             cc.egui_ctx.set_theme(egui::Theme::Dark);
-            let hw = hw::spawn(cc.egui_ctx.clone());
-            Ok(Box::new(StarMonApp { hw }))
+            let (hw, hw_join) = hw::spawn(cc.egui_ctx.clone());
+            *join.lock().unwrap() = Some(hw_join);
+            Ok(Box::new(StarMonApp { hw, manual_percent: 40 }))
         }),
     )
     .map_err(|e| anyhow::anyhow!("eframe başlatılamadı: {e}"))?;
 
+    // Pencere kapandı → uygulama (ve komut kanalı) düştü → hw thread
+    // döngüden çıkıp fan temizliğini yapar; burada bitmesini bekleriz.
+    if let Some(h) = join.lock().unwrap().take() {
+        tracing::info!("hw thread kapanışı bekleniyor (fan temizliği)");
+        let _ = h.join();
+    }
     tracing::info!("StarMon kapandı");
     Ok(())
 }
 
 struct StarMonApp {
     hw: hw::HwHandle,
+    /// Sabit fan modu için hedef yüzde (UI durumu).
+    manual_percent: u8,
 }
 
 impl eframe::App for StarMonApp {
@@ -77,6 +106,8 @@ impl eframe::App for StarMonApp {
                 battery_card(ui, &snap);
                 memory_card(ui, &snap);
             });
+            ui.add_space(8.0);
+            fan_controls(ui, &snap, &mut self.manual_percent, &self.hw.commands);
             ui.add_space(8.0);
             ui.label(status_line(&snap));
             ui.add_space(8.0);
@@ -144,6 +175,93 @@ fn fan_card(ui: &mut egui::Ui, s: &Snapshot) {
         }
         None => stat_card(ui, "Fan", "—".into(), "BIOS erişimi yok".into()),
     }
+}
+
+/// P4 fan kontrol paneli; yalnız EC+BIOS yazma yolu açıkken görünür.
+fn fan_controls(ui: &mut egui::Ui, s: &Snapshot, manual_percent: &mut u8, tx: &Sender<HwCommand>) {
+    let Some(f) = &s.fan_ctl else { return };
+    let send = |cmd: HwCommand| {
+        let _ = tx.send(cmd);
+    };
+    egui::Frame::group(ui.style())
+        .inner_margin(egui::Margin::same(10))
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Fan kontrolü").strong());
+                ui.separator();
+                let is_auto = f.control == FanControl::Auto && f.program.is_none();
+                let is_manual = matches!(f.control, FanControl::Manual { .. });
+                let is_max = f.control == FanControl::Max;
+                if ui.selectable_label(is_auto, "Otomatik").clicked() && !is_auto {
+                    if f.program.is_some() {
+                        send(HwCommand::FanProgram(false));
+                    }
+                    send(HwCommand::FanAuto);
+                }
+                if ui.selectable_label(is_manual, "Sabit").clicked() && !is_manual {
+                    let level = percent_to_level(*manual_percent);
+                    send(HwCommand::FanManual { cpu: level, gpu: level });
+                }
+                if ui.selectable_label(is_max, "Maks").clicked() && !is_max {
+                    send(HwCommand::FanMax(true));
+                }
+                ui.separator();
+                let slider = ui.add(
+                    egui::Slider::new(manual_percent, 20..=100)
+                        .suffix("%")
+                        .show_value(true),
+                );
+                // Sabit moddayken sürükleme bitince yeni seviyeyi uygula
+                if is_manual && slider.drag_stopped() {
+                    let level = percent_to_level(*manual_percent);
+                    send(HwCommand::FanManual { cpu: level, gpu: level });
+                }
+            });
+            ui.horizontal(|ui| {
+                ui.label("Mod:");
+                let current = f.sticky_mode;
+                let text = current.map_or("(sistem)".to_string(), |m| format!("{m:?}"));
+                egui::ComboBox::from_id_salt("fan_mode")
+                    .selected_text(text)
+                    .show_ui(ui, |ui| {
+                        let options = [
+                            ("(sistem)", None),
+                            ("Default", Some(FanMode::Default)),
+                            ("Performance", Some(FanMode::Performance)),
+                            ("Cool", Some(FanMode::Cool)),
+                            ("Quiet", Some(FanMode::Quiet)),
+                        ];
+                        for (label, value) in options {
+                            if ui.selectable_label(current == value, label).clicked()
+                                && current != value
+                            {
+                                send(HwCommand::FanMode(value));
+                            }
+                        }
+                    });
+                let mut program_on = f.program.is_some();
+                if ui.checkbox(&mut program_on, "Fan programı").changed() {
+                    send(HwCommand::FanProgram(program_on));
+                }
+                if let Some(m) = f.mode {
+                    ui.label(format!("EC modu: {m:?}"));
+                }
+                if let Some(cd) = f.countdown {
+                    if cd > 0 {
+                        ui.label(format!("failsafe sayacı: {cd}s")).on_hover_text(
+                            "Yenilenmezse manuel seviye bırakılıp otomatiğe dönülür \
+                             (uygulama yazar; bu modelde EC kendisi geri almıyor)",
+                        );
+                    }
+                }
+                if f.guard_active {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(240, 80, 80),
+                        format!("TERMAL KORUMA ({}\u{b0}C)", f.max_temp_c),
+                    );
+                }
+            });
+        });
 }
 
 fn core_temps_section(ui: &mut egui::Ui, s: &Snapshot) {

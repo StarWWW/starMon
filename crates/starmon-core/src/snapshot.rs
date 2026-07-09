@@ -3,7 +3,10 @@
 
 use std::sync::Arc;
 
+use hp_wmi::data::FanMode;
 use hp_wmi::Capabilities;
+
+use crate::fan::FanControl;
 use starmon_metrics::battery::BatteryInfo;
 use starmon_metrics::disk::DiskInfo;
 use starmon_metrics::network::NetworkRates;
@@ -28,6 +31,25 @@ pub struct CpuMsrSnapshot {
     pub package_power_w: Option<f32>,
     /// Mantıksal işlemci başına DTS sıcaklığı.
     pub core_temps: Vec<Option<u32>>,
+}
+
+/// Fan kontrol katmanının anlık durumu (P4).
+#[derive(Clone, Debug, Default)]
+pub struct FanCtlSnapshot {
+    /// Kullanıcının seçtiği kontrol durumu.
+    pub control: FanControl,
+    /// EC `HPCM` — geçerli performans modu.
+    pub mode: Option<FanMode>,
+    /// Kullanıcının kalıcı (sticky) mod isteği, varsa.
+    pub sticky_mode: Option<FanMode>,
+    /// EC `XFCD` — manuel kontrolün otomatiğe dönmesine kalan saniye.
+    pub countdown: Option<u8>,
+    /// Termal koruma devrede mi (fanlar maksimuma zorlanıyor).
+    pub guard_active: bool,
+    /// Çalışan fan programının adı, varsa.
+    pub program: Option<String>,
+    /// Koruma kararlarında kullanılan son maksimum sıcaklık.
+    pub max_temp_c: u8,
 }
 
 /// HP WMI BIOS'tan periyodik okunan canlı değerler.
@@ -56,6 +78,8 @@ pub struct Snapshot {
     pub bios_caps: Option<Arc<Capabilities>>,
     pub ec: Option<EcSnapshot>,
     pub cpu_msr: Option<CpuMsrSnapshot>,
+    /// Fan kontrol katmanı durumu; yalnız EC+BIOS erişimi varken dolar.
+    pub fan_ctl: Option<FanCtlSnapshot>,
     /// PawnIO kuruluysa sürümü; değilse None (driverless mod).
     pub driver_version: Option<String>,
     pub uptime_secs: u64,

@@ -1,7 +1,7 @@
 //! Donanım örnekleme thread'i: tüm donanım handle'larının tek sahibi.
 //! 1 saniyelik drift'siz master tick; C# `GuiTray.cs` timer semantiğinin
 //! karşılığı. UI, `ArcSwap<Snapshot>` üzerinden kilitsiz okur ve
-//! `HwCommand` kanalıyla komut gönderir (P4'te fan komutları eklenecek).
+//! `HwCommand` kanalıyla komut gönderir; EC/BIOS'a yalnız bu thread yazar.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -9,6 +9,7 @@ use std::time::{Duration, Instant};
 use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use hp_wmi::HpWmiBios;
+use starmon_core::fan::{GUARD_TICK_SECS, PROGRAM_TICK_SECS};
 use starmon_core::snapshot::{BiosSnapshot, CpuMsrSnapshot, EcSnapshot, Snapshot};
 use starmon_hw::cpu::CpuMsr;
 use starmon_hw::ec::EmbeddedController;
@@ -20,25 +21,23 @@ use starmon_metrics::network::NetworkSampler;
 use starmon_metrics::nvidia::GpuReader;
 use starmon_metrics::system::{self, CpuLoadSampler};
 
-pub enum HwCommand {
-    // P4: SetFanMode, SetFanLevels, ...
-}
+use crate::fan_ctl::{FanController, HwCommand, HwDevs};
 
 pub struct HwHandle {
     pub snapshot: Arc<ArcSwap<Snapshot>>,
-    #[allow(dead_code)] // P4'te UI'dan fan komutları gönderilecek
     pub commands: Sender<HwCommand>,
 }
 
-pub fn spawn(ctx: egui::Context) -> HwHandle {
+pub fn spawn(ctx: egui::Context) -> (HwHandle, std::thread::JoinHandle<()>) {
     let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::default()));
     let (tx, rx) = crossbeam_channel::unbounded();
     let snap = snapshot.clone();
-    std::thread::Builder::new()
+    let join = std::thread::Builder::new()
         .name("hw-sampler".into())
         .spawn(move || {
-            // P4'te FanSafetyGuard bu catch_unwind'in İÇİNDE yaratılacak;
-            // panik dahil her çıkışta Drop ile fan auto'ya dönecek.
+            // Dış emniyet kemeri: okuyucu kurulumunda panik olursa log'la.
+            // Döngü panikleri run() içindeki iç catch_unwind'de yakalanır ve
+            // fan temizliği (restore) orada her koşulda çalışır.
             if let Err(e) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 run(ctx, snap, rx)
             })) {
@@ -46,7 +45,7 @@ pub fn spawn(ctx: egui::Context) -> HwHandle {
             }
         })
         .expect("hw thread başlatılamadı");
-    HwHandle { snapshot, commands: tx }
+    (HwHandle { snapshot, commands: tx }, join)
 }
 
 fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwCommand>) {
@@ -81,11 +80,30 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
         tracing::info!("PawnIO kurulu değil — EC/MSR katmanı devre dışı (driverless mod)");
         (None, None)
     };
+
+    let devs = HwDevs { ec: ec.as_ref(), bios: bios.as_ref() };
+    // Yazma yolu: seviye/mod BIOS'tan, failsafe geri sayımı EC'den gider;
+    // ikisi de yoksa fan kontrolü kapalı kalır (UI kontrolleri gizler).
+    let fan_write_ok = devs.bios.is_some() && devs.ec.is_some();
+    let mut ctl = FanController::new();
+    let mut last_hpcm: Option<u8> = None;
+    let mut last_xfcd: Option<u8> = None;
+
     let mut next_tick = Instant::now() + Duration::from_secs(1);
-    loop {
+    // İç emniyet kemeri: döngü ne şekilde biterse bitsin (normal kapanış
+    // veya panik) çıkışta fan otomatik kontrole döndürülür.
+    let loop_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| loop {
         match rx.recv_deadline(next_tick) {
-            Ok(_cmd) => {
-                // P4: komutlar tick beklemeden hemen işlenecek
+            Ok(cmd) => {
+                if !fan_write_ok {
+                    tracing::warn!(?cmd, "fan komutu yok sayıldı: EC/BIOS yazma yolu kapalı");
+                    continue;
+                }
+                ctl.handle(cmd, devs, last_hpcm);
+                // Komut sonucunu tick beklemeden UI'a yansıt
+                state.fan_ctl = Some(ctl.snapshot(last_hpcm, last_xfcd));
+                snapshot.store(Arc::new(state.clone()));
+                ctx.request_repaint();
             }
             Err(RecvTimeoutError::Timeout) => {
                 next_tick += Duration::from_secs(1);
@@ -99,7 +117,7 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                 d.read_bytes_per_sec = disk_r;
                 d.write_bytes_per_sec = disk_w;
                 // WMI/NVML/NVMe-log maliyetli: 3 saniyede bir (ilk tick dahil)
-                if state.tick % 3 == 1 {
+                if state.tick % GUARD_TICK_SECS == 1 {
                     state.battery = battery.sample();
                     state.gpu = gpu.sample();
                     state.brightness_percent = brightness.sample();
@@ -120,6 +138,37 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                         package_power_w: m.package_power(),
                         core_temps: m.core_temps(),
                     });
+
+                    if fan_write_ok {
+                        last_hpcm = ec.as_ref().and_then(|e| e.read_byte(reg::HPCM).ok());
+                        last_xfcd = ec.as_ref().and_then(|e| e.read_byte(reg::XFCD).ok());
+                        // Koruma sıcaklığı: kullanılan sensör kümesinin maksimumu
+                        // (C# varsayılanı CPUT/GPTM + MSR; RTMP/TMP1 vb. P5'te
+                        // yapılandırılabilir kümeye eklenecek)
+                        let max_temp = [
+                            state.ec.and_then(|e| e.cpu_temp_c),
+                            state.ec.and_then(|e| e.gpu_temp_c),
+                            state
+                                .cpu_msr
+                                .as_ref()
+                                .and_then(|m| m.package_temp_c)
+                                .map(|t| t.min(255) as u8),
+                        ]
+                        .into_iter()
+                        .flatten()
+                        .max()
+                        .unwrap_or(0);
+                        ctl.guard_tick(devs, max_temp, last_hpcm);
+                        // Fan programı / geri sayım yenileme: 15 saniyede bir
+                        // (15, 3'ün katı olduğundan taze okumalarla çakışır)
+                        if state.tick % PROGRAM_TICK_SECS == 1 {
+                            ctl.program_tick(devs, max_temp, last_xfcd, last_hpcm);
+                            // Program seviye yazdıysa geri sayım değişmiştir; tazele
+                            last_xfcd =
+                                ec.as_ref().and_then(|e| e.read_byte(reg::XFCD).ok());
+                        }
+                        state.fan_ctl = Some(ctl.snapshot(last_hpcm, last_xfcd));
+                    }
                 }
                 state.disk = Some(d);
                 snapshot.store(Arc::new(state.clone()));
@@ -138,13 +187,22 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                     ec_rpm = ?state.ec.map(|e| e.fan_rpm),
                     msr_pkg = ?state.cpu_msr.as_ref().and_then(|m| m.package_temp_c),
                     msr_w = ?state.cpu_msr.as_ref().and_then(|m| m.package_power_w),
+                    fan_ctl = ?state.fan_ctl.as_ref().map(|f| (f.control, f.countdown, f.guard_active)),
                     disk_temp = ?state.disk.and_then(|d| d.temp_c),
-                    disk_r = ?state.disk.and_then(|d| d.read_bytes_per_sec),
                     parlaklik = ?state.brightness_percent,
                     "örnekleme"
                 );
             }
             Err(RecvTimeoutError::Disconnected) => break,
         }
+    }));
+
+    // FanSafetyGuard: normal kapanışta da panik sonrasında da fanı
+    // otomatiğe döndür. Bu Victus'ta XFCD donanımsal failsafe'i çalışmadığı
+    // için (canlı test 2026-07-10) sert kill sonrası fan manuel kalır;
+    // tek donanım güvencesi EC firmware'inin kendi kritik termal eşiğidir.
+    ctl.restore(devs);
+    if let Err(e) = loop_result {
+        tracing::error!("örnekleme döngüsü panikledi: {e:?}");
     }
 }

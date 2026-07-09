@@ -79,6 +79,21 @@ impl EmbeddedController {
         }
     }
 
+    /// C# `WriteByteImpl`: wait → CMD_WRITE → wait → register → wait → değer.
+    fn write_byte_impl(&self, register: u8, value: u8) -> Option<()> {
+        if self.wait_write() {
+            self.write_port(PORT_COMMAND, CMD_WRITE)?;
+            if self.wait_write() {
+                self.write_port(PORT_DATA, register)?;
+                if self.wait_write() {
+                    self.write_port(PORT_DATA, value)?;
+                    return Some(());
+                }
+            }
+        }
+        None
+    }
+
     fn read_byte_impl(&self, register: u8) -> Option<u8> {
         if self.wait_write() {
             self.write_port(PORT_COMMAND, CMD_READ)?;
@@ -117,6 +132,23 @@ impl EmbeddedController {
             let hi = lo.and_then(|_| self.read_byte_impl(register.wrapping_add(1)));
             if let (Some(lo), Some(hi)) = (lo, hi) {
                 return Ok(u16::from_le_bytes([lo, hi]));
+            }
+        }
+        Err(EcError::Handshake(register))
+    }
+
+    /// Bir byte yazar: yalnız `EcWritable` allowlist'indeki hedeflere,
+    /// mutex + retry sarmalayıcısıyla (C# `WriteByte` + `Hw.EcExec`).
+    pub fn write_byte(&self, target: EcWritable, value: u8) -> Result<(), EcError> {
+        let register = target.register();
+        let _guard = self
+            .mutex
+            .acquire(Duration::from_millis(MUTEX_TIMEOUT_MS))
+            .ok_or(EcError::MutexTimeout(MUTEX_TIMEOUT_MS as u32))?;
+        for _ in 0..RETRY_LIMIT {
+            if self.write_byte_impl(register, value).is_some() {
+                tracing::debug!(?target, register, value, "EC yazma");
+                return Ok(());
             }
         }
         Err(EcError::Handshake(register))

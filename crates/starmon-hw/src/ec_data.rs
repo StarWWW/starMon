@@ -19,6 +19,51 @@ pub const FAIL_LIMIT: u32 = 15;
 pub const MUTEX_TIMEOUT_MS: u64 = 200;
 pub const MUTEX_NAME: &str = "Global\\Access_EC";
 
+/// Yazılabilir EC registerları — yazma API'si yalnız bu allowlist'i kabul eder.
+/// Rastgele register yazmak EC durumunu bozabilir; yeni hedefler ancak C#
+/// referansındaki karşılığı doğrulanarak eklenmeli.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EcWritable {
+    /// Sol fan hedef hız [%] (XSS1).
+    LeftFanTargetPercent,
+    /// Sağ fan hedef hız [%] (XSS2).
+    RightFanTargetPercent,
+    /// Sol fan hedef hız [krpm*100] (SRP1).
+    LeftFanTargetLevel,
+    /// Sağ fan hedef hız [krpm*100] (SRP2).
+    RightFanTargetLevel,
+    /// Manuel fan kontrolü aç/kapa (OMCC, 0x06 = açık, 0x00 = kapalı).
+    ManualToggle,
+    /// Manuel fan geri sayımı [s] (XFCD). Bazı Omen modellerinde 0'a inince
+    /// EC fan kontrolünü otomatiğe geri alır; test edilen Victus'ta (2026-07)
+    /// sayaç işlese de geri alma YOK — failsafe'e donanım güvencesi gibi
+    /// yaslanılmamalı.
+    Countdown,
+    /// Performans modu (HPCM).
+    PerformanceMode,
+    /// Fan aç/kapa anahtarı (SFAN, 0x02 = kapalı).
+    FanSwitch,
+}
+
+impl EcWritable {
+    pub const fn register(self) -> u8 {
+        match self {
+            Self::LeftFanTargetPercent => reg::XSS1,
+            Self::RightFanTargetPercent => reg::XSS2,
+            Self::LeftFanTargetLevel => reg::SRP1,
+            Self::RightFanTargetLevel => reg::SRP2,
+            Self::ManualToggle => reg::OMCC,
+            Self::Countdown => reg::XFCD,
+            Self::PerformanceMode => reg::HPCM,
+            Self::FanSwitch => reg::SFAN,
+        }
+    }
+}
+
+/// OMCC manuel fan kontrolü değerleri (C# `PlatformData.FanManual`).
+pub const FAN_MANUAL_ON: u8 = 0x06;
+pub const FAN_MANUAL_OFF: u8 = 0x00;
+
 /// Sık kullanılan registerlar (tam liste `EcData.cs`'te; port ilerledikçe genişler).
 pub mod reg {
     pub const XSS1: u8 = 0x2C; // Sol fan hedef hız [%]

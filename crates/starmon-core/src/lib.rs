@@ -4,4 +4,5 @@
 //!
 //! P2 ve sonrasında kademeli doldurulacak.
 
+pub mod fan;
 pub mod snapshot;

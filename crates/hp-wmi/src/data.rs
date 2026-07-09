@@ -17,6 +17,20 @@ pub enum FanMode {
     Extreme = 4,
 }
 
+impl FanMode {
+    /// EC `HPCM` okuması için; bilinmeyen değerler `None`.
+    pub fn from_u8(v: u8) -> Option<Self> {
+        match v {
+            0 => Some(Self::Default),
+            1 => Some(Self::Performance),
+            2 => Some(Self::Cool),
+            3 => Some(Self::Quiet),
+            4 => Some(Self::Extreme),
+            _ => None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum GpuMode {
