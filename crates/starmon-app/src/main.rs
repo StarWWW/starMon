@@ -63,6 +63,12 @@ impl eframe::App for StarMonApp {
         let snap = self.hw.snapshot.load();
         egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("StarMon");
+            if snap.driver_version.is_none() {
+                ui.colored_label(
+                    egui::Color32::from_rgb(230, 180, 60),
+                    "PawnIO kurulu değil — EC sıcaklıkları, fan RPM ve MSR telemetrisi devre dışı (pawnio.eu)",
+                );
+            }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 cpu_card(ui, &snap);
@@ -74,6 +80,7 @@ impl eframe::App for StarMonApp {
             ui.add_space(8.0);
             ui.label(status_line(&snap));
             ui.add_space(8.0);
+            core_temps_section(ui, &snap);
             caps_section(ui, &snap);
         });
     }
@@ -93,17 +100,37 @@ fn stat_card(ui: &mut egui::Ui, title: &str, value: String, sub: String) {
 }
 
 fn cpu_card(ui: &mut egui::Ui, s: &Snapshot) {
-    // P3'te MSR ile gerçek CPU sıcaklığı + saat hızı gelecek; şimdilik
-    // değer olarak BIOS termal sensörü, alt satırda yük gösteriliyor.
-    let bios_temp = s.bios.and_then(|b| b.temperature_c);
-    let load = s.cpu_load_percent.map_or("—".into(), |v| format!("{v:.0}% yük"));
-    match bios_temp {
-        Some(t) => stat_card(ui, "CPU", format!("{t}°C"), load),
-        None => stat_card(ui, "CPU", load, "BIOS sensörü yok".into()),
+    // Sıcaklık önceliği: MSR paket > EC CPUT > BIOS termal sensörü.
+    let temp = s
+        .cpu_msr
+        .as_ref()
+        .and_then(|m| m.package_temp_c)
+        .or_else(|| s.ec.and_then(|e| e.cpu_temp_c.map(u32::from)))
+        .or_else(|| s.bios.and_then(|b| b.temperature_c.map(u32::from)));
+    let mut sub = Vec::new();
+    if let Some(l) = s.cpu_load_percent {
+        sub.push(format!("{l:.0}% yük"));
     }
+    if let Some(w) = s.cpu_msr.as_ref().and_then(|m| m.package_power_w) {
+        sub.push(format!("{w:.0} W"));
+    }
+    let value = temp.map_or("—".into(), |t| format!("{t}°C"));
+    stat_card(ui, "CPU", value, sub.join(" · "));
 }
 
 fn fan_card(ui: &mut egui::Ui, s: &Snapshot) {
+    // RPM (EC) varsa onu, yoksa BIOS seviyelerini göster.
+    if let Some((Some(r1), Some(r2))) = s.ec.map(|e| e.fan_rpm) {
+        let mut sub = Vec::new();
+        if let (Some(p1), Some(p2)) = s.ec.map(|e| e.fan_percent).unwrap_or_default() {
+            sub.push(format!("%{p1} / %{p2}"));
+        }
+        if s.bios.and_then(|b| b.max_fan) == Some(true) {
+            sub.push("MAX".into());
+        }
+        stat_card(ui, "Fan", format!("{r1} / {r2} rpm"), sub.join(" · "));
+        return;
+    }
     match &s.bios {
         Some(b) => {
             let value = b
@@ -117,6 +144,21 @@ fn fan_card(ui: &mut egui::Ui, s: &Snapshot) {
         }
         None => stat_card(ui, "Fan", "—".into(), "BIOS erişimi yok".into()),
     }
+}
+
+fn core_temps_section(ui: &mut egui::Ui, s: &Snapshot) {
+    let Some(m) = &s.cpu_msr else { return };
+    if m.core_temps.is_empty() {
+        return;
+    }
+    egui::CollapsingHeader::new("Çekirdek sıcaklıkları (MSR)").show(ui, |ui| {
+        ui.horizontal_wrapped(|ui| {
+            for (i, t) in m.core_temps.iter().enumerate() {
+                let text = t.map_or(format!("#{i}: —"), |t| format!("#{i}: {t}°C"));
+                ui.label(text);
+            }
+        });
+    });
 }
 
 fn caps_section(ui: &mut egui::Ui, s: &Snapshot) {

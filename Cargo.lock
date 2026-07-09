@@ -2516,6 +2516,10 @@ dependencies = [
 [[package]]
 name = "pawnio-client"
 version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "windows",
+]
 
 [[package]]
 name = "peniko"
@@ -2777,6 +2781,15 @@ name = "range-alloc"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca45419789ae5a7899559e9512e58ca889e41f04f1f2445e9f4b290ceccd1d08"
+
+[[package]]
+name = "raw-cpuid"
+version = "11.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "498cd0dc59d73224351ee52a95fee0f1a617a2eae0e7d9d720cc622c73a54186"
+dependencies = [
+ "bitflags 2.13.0",
+]
 
 [[package]]
 name = "raw-window-handle"
@@ -3178,7 +3191,9 @@ dependencies = [
  "egui",
  "embed-manifest",
  "hp-wmi",
+ "pawnio-client",
  "starmon-core",
+ "starmon-hw",
  "starmon-metrics",
  "tracing",
  "tracing-appender",
@@ -3200,6 +3215,10 @@ name = "starmon-hw"
 version = "0.1.0"
 dependencies = [
  "pawnio-client",
+ "raw-cpuid",
+ "thiserror 2.0.18",
+ "tracing",
+ "windows",
 ]
 
 [[package]]

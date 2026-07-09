@@ -20,6 +20,8 @@ elevated = []
 starmon-core = { path = "../starmon-core" }
 starmon-metrics = { path = "../starmon-metrics" }
 hp-wmi = { path = "../hp-wmi" }
+starmon-hw = { path = "../starmon-hw" }
+pawnio-client = { path = "../pawnio-client" }
 arc-swap.workspace = true
 crossbeam-channel.workspace = true
 eframe.workspace = true

@@ -9,7 +9,10 @@ use std::time::{Duration, Instant};
 use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use hp_wmi::HpWmiBios;
-use starmon_core::snapshot::{BiosSnapshot, Snapshot};
+use starmon_core::snapshot::{BiosSnapshot, CpuMsrSnapshot, EcSnapshot, Snapshot};
+use starmon_hw::cpu::CpuMsr;
+use starmon_hw::ec::EmbeddedController;
+use starmon_hw::ec_data::reg;
 use starmon_metrics::battery::BatteryReader;
 use starmon_metrics::brightness::BrightnessReader;
 use starmon_metrics::disk::DiskSampler;
@@ -66,6 +69,18 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
         state.bios_caps = Some(std::sync::Arc::new(b.capabilities()));
         tracing::info!(caps = ?state.bios_caps, "BIOS yetenekleri toplandı");
     }
+
+    // PawnIO katmanı: kurulu değilse driverless modda devam (P1+P2 tam çalışır).
+    state.driver_version = pawnio_client::installed_version();
+    let (ec, msr) = if state.driver_version.is_some() {
+        let ec = EmbeddedController::new()
+            .map_err(|e| tracing::warn!("EC başlatılamadı: {e}"))
+            .ok();
+        (ec, CpuMsr::new())
+    } else {
+        tracing::info!("PawnIO kurulu değil — EC/MSR katmanı devre dışı (driverless mod)");
+        (None, None)
+    };
     let mut next_tick = Instant::now() + Duration::from_secs(1);
     loop {
         match rx.recv_deadline(next_tick) {
@@ -94,6 +109,17 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                         temperature_c: b.get_temperature().ok(),
                         max_fan: b.get_max_fan().ok(),
                     });
+                    state.ec = ec.as_ref().map(|e| EcSnapshot {
+                        cpu_temp_c: e.read_byte(reg::CPUT).ok(),
+                        gpu_temp_c: e.read_byte(reg::GPTM).ok(),
+                        fan_rpm: (e.read_word(reg::RPM1).ok(), e.read_word(reg::RPM3).ok()),
+                        fan_percent: (e.read_byte(reg::XGS1).ok(), e.read_byte(reg::XGS2).ok()),
+                    });
+                    state.cpu_msr = msr.as_ref().map(|m| CpuMsrSnapshot {
+                        package_temp_c: m.package_temp(),
+                        package_power_w: m.package_power(),
+                        core_temps: m.core_temps(),
+                    });
                 }
                 state.disk = Some(d);
                 snapshot.store(Arc::new(state.clone()));
@@ -107,6 +133,11 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                     net_rx = ?state.network.map(|n| n.rx_bytes_per_sec),
                     bios_temp = ?state.bios.and_then(|b| b.temperature_c),
                     bios_fan = ?state.bios.and_then(|b| b.fan_level),
+                    ec_cpu = ?state.ec.and_then(|e| e.cpu_temp_c),
+                    ec_gpu = ?state.ec.and_then(|e| e.gpu_temp_c),
+                    ec_rpm = ?state.ec.map(|e| e.fan_rpm),
+                    msr_pkg = ?state.cpu_msr.as_ref().and_then(|m| m.package_temp_c),
+                    msr_w = ?state.cpu_msr.as_ref().and_then(|m| m.package_power_w),
                     disk_temp = ?state.disk.and_then(|d| d.temp_c),
                     disk_r = ?state.disk.and_then(|d| d.read_bytes_per_sec),
                     parlaklik = ?state.brightness_percent,

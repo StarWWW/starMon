@@ -8,3 +8,10 @@ repository.workspace = true
 
 [dependencies]
 pawnio-client = { path = "../pawnio-client" }
+windows = { workspace = true, features = [
+    "Win32_Foundation",
+    "Win32_System_Threading",
+] }
+thiserror.workspace = true
+tracing.workspace = true
+raw-cpuid.workspace = true
