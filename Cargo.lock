@@ -1580,6 +1580,12 @@ checksum = "dfa686283ad6dd069f105e5ab091b04c62850d3e4cf5d67debad1933f55023df"
 [[package]]
 name = "hp-wmi"
 version = "0.1.0"
+dependencies = [
+ "thiserror 2.0.18",
+ "tracing",
+ "windows",
+ "zerocopy",
+]
 
 [[package]]
 name = "iana-time-zone"
@@ -3171,6 +3177,7 @@ dependencies = [
  "eframe",
  "egui",
  "embed-manifest",
+ "hp-wmi",
  "starmon-core",
  "starmon-metrics",
  "tracing",

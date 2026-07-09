@@ -19,6 +19,7 @@ elevated = []
 [dependencies]
 starmon-core = { path = "../starmon-core" }
 starmon-metrics = { path = "../starmon-metrics" }
+hp-wmi = { path = "../hp-wmi" }
 arc-swap.workspace = true
 crossbeam-channel.workspace = true
 eframe.workspace = true

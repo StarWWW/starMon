@@ -18,7 +18,12 @@ pub fn init() -> Result<WorkerGuard> {
     let (writer, guard) =
         tracing_appender::non_blocking(tracing_appender::rolling::daily(&dir, "starmon.log"));
     tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info")))
+        .with_env_filter(
+            // RunAs ile başlatılan süreçlere env geçmediği için varsayılan
+            // filtre uygulamanın kendi debug satırlarını da içerir.
+            EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| EnvFilter::new("info,starmon=debug,hp_wmi=debug")),
+        )
         .with_writer(writer)
         .with_ansi(false)
         .init();

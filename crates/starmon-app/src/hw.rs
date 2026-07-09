@@ -8,7 +8,8 @@ use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
-use starmon_core::snapshot::Snapshot;
+use hp_wmi::HpWmiBios;
+use starmon_core::snapshot::{BiosSnapshot, Snapshot};
 use starmon_metrics::battery::BatteryReader;
 use starmon_metrics::brightness::BrightnessReader;
 use starmon_metrics::disk::DiskSampler;
@@ -52,8 +53,19 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
     let battery = BatteryReader::new(); // COM bu thread'e bağlı
     let brightness = BrightnessReader::new();
     let gpu = GpuReader::new();
+    let bios = match HpWmiBios::new() {
+        Ok(b) => Some(b),
+        Err(e) => {
+            tracing::warn!("HP WMI BIOS erişilemedi (HP dışı cihaz olabilir): {e}");
+            None
+        }
+    };
 
     let mut state = Snapshot::default();
+    if let Some(b) = &bios {
+        state.bios_caps = Some(std::sync::Arc::new(b.capabilities()));
+        tracing::info!(caps = ?state.bios_caps, "BIOS yetenekleri toplandı");
+    }
     let mut next_tick = Instant::now() + Duration::from_secs(1);
     loop {
         match rx.recv_deadline(next_tick) {
@@ -77,6 +89,11 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                     state.gpu = gpu.sample();
                     state.brightness_percent = brightness.sample();
                     d.temp_c = disk.sample_temp();
+                    state.bios = bios.as_ref().map(|b| BiosSnapshot {
+                        fan_level: b.get_fan_level().ok(),
+                        temperature_c: b.get_temperature().ok(),
+                        max_fan: b.get_max_fan().ok(),
+                    });
                 }
                 state.disk = Some(d);
                 snapshot.store(Arc::new(state.clone()));
@@ -88,6 +105,8 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                     gpu_temp = ?state.gpu.and_then(|g| g.temp_c),
                     batt = ?state.battery.and_then(|b| b.percent),
                     net_rx = ?state.network.map(|n| n.rx_bytes_per_sec),
+                    bios_temp = ?state.bios.and_then(|b| b.temperature_c),
+                    bios_fan = ?state.bios.and_then(|b| b.fan_level),
                     disk_temp = ?state.disk.and_then(|d| d.temp_c),
                     disk_r = ?state.disk.and_then(|d| d.read_bytes_per_sec),
                     parlaklik = ?state.brightness_percent,

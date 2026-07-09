@@ -12,6 +12,19 @@ const WINDOW_TITLE: &str = "StarMon";
 fn main() -> Result<()> {
     let _log_guard = logging::init()?;
 
+    // Smoke testleri için: "--exit-after <saniye>" ile sınırlı süre çalış.
+    // Yükseltilmiş süreç dışarıdan öldürülemediğinden kendi kendine kapanır.
+    let args: Vec<String> = std::env::args().collect();
+    if let Some(i) = args.iter().position(|a| a == "--exit-after") {
+        if let Some(secs) = args.get(i + 1).and_then(|s| s.parse::<u64>().ok()) {
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_secs(secs));
+                tracing::info!("--exit-after {secs} doldu, çıkılıyor");
+                std::process::exit(0);
+            });
+        }
+    }
+
     let Some(_instance) = single_instance::acquire() else {
         single_instance::focus_existing(WINDOW_TITLE);
         return Ok(());
@@ -53,12 +66,15 @@ impl eframe::App for StarMonApp {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 cpu_card(ui, &snap);
-                memory_card(ui, &snap);
                 gpu_card(ui, &snap);
+                fan_card(ui, &snap);
                 battery_card(ui, &snap);
+                memory_card(ui, &snap);
             });
             ui.add_space(8.0);
             ui.label(status_line(&snap));
+            ui.add_space(8.0);
+            caps_section(ui, &snap);
         });
     }
 }
@@ -77,11 +93,78 @@ fn stat_card(ui: &mut egui::Ui, title: &str, value: String, sub: String) {
 }
 
 fn cpu_card(ui: &mut egui::Ui, s: &Snapshot) {
-    let value = s
-        .cpu_load_percent
-        .map_or("—".into(), |v| format!("{v:.0}%"));
-    // P3'te sıcaklık + saat hızı eklenecek (MSR)
-    stat_card(ui, "CPU", value, "yük".into());
+    // P3'te MSR ile gerçek CPU sıcaklığı + saat hızı gelecek; şimdilik
+    // değer olarak BIOS termal sensörü, alt satırda yük gösteriliyor.
+    let bios_temp = s.bios.and_then(|b| b.temperature_c);
+    let load = s.cpu_load_percent.map_or("—".into(), |v| format!("{v:.0}% yük"));
+    match bios_temp {
+        Some(t) => stat_card(ui, "CPU", format!("{t}°C"), load),
+        None => stat_card(ui, "CPU", load, "BIOS sensörü yok".into()),
+    }
+}
+
+fn fan_card(ui: &mut egui::Ui, s: &Snapshot) {
+    match &s.bios {
+        Some(b) => {
+            let value = b
+                .fan_level
+                .map_or("—".into(), |(c, g)| format!("{c} / {g}"));
+            let mut sub = vec!["seviye (CPU/GPU)".to_string()];
+            if b.max_fan == Some(true) {
+                sub.push("MAX".into());
+            }
+            stat_card(ui, "Fan", value, sub.join(" · "));
+        }
+        None => stat_card(ui, "Fan", "—".into(), "BIOS erişimi yok".into()),
+    }
+}
+
+fn caps_section(ui: &mut egui::Ui, s: &Snapshot) {
+    let Some(caps) = &s.bios_caps else { return };
+    egui::CollapsingHeader::new("BIOS yetenekleri").show(ui, |ui| {
+        let mut line = |k: &str, v: String| {
+            ui.label(format!("{k}: {v}"));
+        };
+        if let Some(sys) = &caps.system {
+            line("Termal politika", format!("V{}", sys.thermal_policy));
+            line(
+                "Yazılımla fan kontrolü",
+                if sys.supports_sw_fan_ctl() { "var" } else { "yok" }.into(),
+            );
+            line("Varsayılan PL4", format!("{} W", sys.default_cpu_power_limit4));
+            line("Durum bayrakları", format!("{:#06x}", sys.status_flags.get()));
+        }
+        if let Some(d) = &caps.born_date {
+            line("Üretim tarihi (BOD)", d.clone());
+        }
+        if let (Some(n), Some(t)) = (caps.fan_count, caps.fan_type) {
+            line("Fan", format!("{n} adet · tip {:#04x}", t));
+        }
+        if let Some(ft) = &caps.fan_table {
+            line(
+                "Fan tablosu",
+                format!("{} fan · {} seviye", ft.fan_count, ft.level_count),
+            );
+        }
+        if let Some(g) = caps.gpu_mode {
+            line("GPU modu", format!("{:?}", hp_wmi::data::GpuMode::from_u8(g)));
+        }
+        if let Some(gp) = &caps.gpu_power {
+            line(
+                "GPU güç",
+                format!(
+                    "cTGP {} · PPAB {} · tepe {}°C",
+                    gp.custom_tgp, gp.ppab, gp.peak_temperature
+                ),
+            );
+        }
+        if let Some(k) = caps.kbd_type {
+            line("Klavye tipi", format!("{k:#04x}"));
+        }
+        if let Some(b) = caps.has_backlight {
+            line("Klavye aydınlatması", if b { "destekleniyor" } else { "yok" }.into());
+        }
+    });
 }
 
 fn memory_card(ui: &mut egui::Ui, s: &Snapshot) {
