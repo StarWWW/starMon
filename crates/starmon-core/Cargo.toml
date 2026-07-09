@@ -1,0 +1,12 @@
+[package]
+name = "starmon-core"
+description = "Platform model, fan engine, thermal guard and configuration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+starmon-hw = { path = "../starmon-hw" }
+hp-wmi = { path = "../hp-wmi" }
+starmon-metrics = { path = "../starmon-metrics" }

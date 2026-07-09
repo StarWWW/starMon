@@ -1,0 +1,10 @@
+[package]
+name = "starmon-hw"
+description = "EC protocol, register map and MSR/SMN readers on top of pawnio-client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+pawnio-client = { path = "../pawnio-client" }

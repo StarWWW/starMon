@@ -1,0 +1,53 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/pawnio-client",
+    "crates/starmon-hw",
+    "crates/hp-wmi",
+    "crates/starmon-metrics",
+    "crates/starmon-core",
+    "crates/starmon-app",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/StarWWW/starmon-rs"
+
+[workspace.dependencies]
+# Windows FFI
+windows = "0.62"
+windows-sys = "0.61"
+# GUI
+eframe = "0.35"
+egui = "0.35"
+egui_plot = "0.36"
+tray-icon = "0.24"
+# Hata / log
+thiserror = "2"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
+# Veri
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+quick-xml = "0.41"
+zerocopy = { version = "0.8", features = ["derive"] }
+# Yardımcılar
+crossbeam-channel = "0.5"
+parking_lot = "0.12"
+arc-swap = "1"
+libloading = "0.9"
+nvml-wrapper = "0.12"
+image = "0.25"
+raw-cpuid = "11"
+wmi = "0.18"
+# Build
+embed-manifest = "1.5"
+
+# Fan güvenliği catch_unwind'e dayanır: panic = "abort" ASLA kullanılmamalı.
+[profile.release]
+lto = "thin"
+strip = true

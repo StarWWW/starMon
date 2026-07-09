@@ -1,0 +1,9 @@
+[package]
+name = "pawnio-client"
+description = "PawnIO kernel driver raw ioctl client (no PawnIOLib.dll dependency)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
