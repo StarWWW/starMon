@@ -4,5 +4,7 @@
 //!
 //! P2 ve sonrasında kademeli doldurulacak.
 
+pub mod config;
 pub mod fan;
+pub mod history;
 pub mod snapshot;

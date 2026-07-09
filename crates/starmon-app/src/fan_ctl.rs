@@ -16,8 +16,9 @@ use std::time::Instant;
 
 use hp_wmi::data::FanMode;
 use hp_wmi::HpWmiBios;
+use starmon_core::config::Config;
 use starmon_core::fan::{
-    default_program, FanControl, FanProgram, GuardAction, ThermalGuard, COUNTDOWN_EXTEND_SECS,
+    FanControl, FanProgram, GuardAction, ThermalGuard, COUNTDOWN_EXTEND_SECS,
     COUNTDOWN_EXTEND_THRESHOLD, FAN_LEVEL_AUTO, MODE_KEEPALIVE_MS, PROGRAM_TICK_SECS,
 };
 use starmon_core::snapshot::FanCtlSnapshot;
@@ -25,7 +26,7 @@ use starmon_hw::ec::EmbeddedController;
 use starmon_hw::ec_data::{EcWritable, FAN_MANUAL_OFF};
 
 /// UI'dan hw thread'ine gönderilen komutlar; tick beklemeden işlenir.
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub enum HwCommand {
     /// Otomatik kontrole dön (tüm manuel durumu temizler).
     FanAuto,
@@ -35,8 +36,8 @@ pub enum HwCommand {
     FanMax(bool),
     /// Kalıcı (sticky) fan modu; `None` = isteği temizle.
     FanMode(Option<FanMode>),
-    /// Yerleşik varsayılan fan programını başlat/durdur.
-    FanProgram(bool),
+    /// Adı verilen fan programını başlat; `None` = çalışanı durdur.
+    FanProgram(Option<String>),
 }
 
 /// hw thread'inin sahip olduğu donanım handle'larına kısa erişim.
@@ -49,6 +50,8 @@ pub struct HwDevs<'a> {
 pub struct FanController {
     control: FanControl,
     guard: ThermalGuard,
+    /// Config'ten yüklenen kullanılabilir programlar.
+    programs: Vec<FanProgram>,
     program: Option<FanProgram>,
     sticky_mode: Option<FanMode>,
     sticky_applied: Instant,
@@ -67,10 +70,15 @@ fn log_err<T, E: std::fmt::Display>(what: &str, r: Result<T, E>) -> Option<T> {
 }
 
 impl FanController {
-    pub fn new() -> Self {
+    pub fn new(cfg: &Config) -> Self {
         Self {
             control: FanControl::Auto,
-            guard: ThermalGuard::default(),
+            guard: ThermalGuard::with_config(
+                cfg.thermal.enabled,
+                cfg.thermal.high_c,
+                cfg.thermal.low_c,
+            ),
+            programs: cfg.fan_programs.iter().map(|p| p.to_program()).collect(),
             program: None,
             sticky_mode: None,
             sticky_applied: Instant::now(),
@@ -152,19 +160,24 @@ impl FanController {
                 self.apply_mode(hw, mode, current_hpcm);
             }
             HwCommand::FanMode(None) => self.sticky_mode = None,
-            HwCommand::FanProgram(true) => {
+            HwCommand::FanProgram(Some(ref name)) => {
+                let Some(program) = self.programs.iter().find(|p| &p.name == name).cloned()
+                else {
+                    tracing::warn!("bilinmeyen fan programı: {name}");
+                    return;
+                };
                 if self.control == FanControl::Max {
                     self.set_max_fan(hw, false);
                 }
                 self.control = FanControl::Auto;
-                self.program = Some(default_program());
+                self.program = Some(program);
                 // İlk adımı beklemeden uygula (henüz sıcaklık okuması yoksa
                 // ilk program tick'ine bırak — 0°C en düşük seviyeye kenetlenirdi)
                 if self.last_max_temp > 0 {
                     self.program_tick(hw, self.last_max_temp, None, current_hpcm);
                 }
             }
-            HwCommand::FanProgram(false) => {
+            HwCommand::FanProgram(None) => {
                 if self.program.take().is_some() {
                     // C# Terminate: seviyeler auto, manuel kapalı, mod geri
                     self.set_levels(hw, FAN_LEVEL_AUTO, FAN_LEVEL_AUTO);
@@ -275,6 +288,22 @@ impl FanController {
                 _ => {}
             }
         }
+    }
+
+    /// Uykudan dönüş: EC uykuda sıfırlanmış olabilir; kullanıcının seçtiği
+    /// durumu yeniden uygula (C# `FanProgram.Resume` + sticky mod muadili).
+    pub fn on_resume(&mut self, hw: HwDevs, current_hpcm: Option<u8>) {
+        if let Some(mode) = self.sticky_mode {
+            self.apply_mode(hw, mode, current_hpcm);
+        }
+        if let FanControl::Manual { cpu, gpu } = self.control {
+            self.set_levels(hw, cpu, gpu);
+            self.set_countdown(hw, COUNTDOWN_EXTEND_SECS);
+        }
+        if self.control == FanControl::Max {
+            self.set_max_fan(hw, true);
+        }
+        // Program varsa bir sonraki program tick'i zaten yeniden uygular
     }
 
     // ---- Çıkış temizliği ----

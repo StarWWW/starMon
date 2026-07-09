@@ -10,3 +10,7 @@ repository.workspace = true
 starmon-hw = { path = "../starmon-hw" }
 hp-wmi = { path = "../hp-wmi" }
 starmon-metrics = { path = "../starmon-metrics" }
+serde.workspace = true
+toml.workspace = true
+quick-xml.workspace = true
+tracing.workspace = true

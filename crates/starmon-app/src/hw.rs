@@ -3,13 +3,14 @@
 //! karşılığı. UI, `ArcSwap<Snapshot>` üzerinden kilitsiz okur ve
 //! `HwCommand` kanalıyla komut gönderir; EC/BIOS'a yalnız bu thread yazar.
 
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
 use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use hp_wmi::HpWmiBios;
 use starmon_core::fan::{GUARD_TICK_SECS, PROGRAM_TICK_SECS};
+use starmon_core::history::{History, HistorySample};
 use starmon_core::snapshot::{BiosSnapshot, CpuMsrSnapshot, EcSnapshot, Snapshot};
 use starmon_hw::cpu::CpuMsr;
 use starmon_hw::ec::EmbeddedController;
@@ -26,12 +27,19 @@ use crate::fan_ctl::{FanController, HwCommand, HwDevs};
 pub struct HwHandle {
     pub snapshot: Arc<ArcSwap<Snapshot>>,
     pub commands: Sender<HwCommand>,
+    /// Grafikler için zaman serisi; hw thread yazar, UI okur.
+    pub history: Arc<RwLock<History>>,
 }
 
-pub fn spawn(ctx: egui::Context) -> (HwHandle, std::thread::JoinHandle<()>) {
+pub fn spawn(
+    ctx: egui::Context,
+    cfg: starmon_core::config::Config,
+) -> (HwHandle, std::thread::JoinHandle<()>) {
     let snapshot = Arc::new(ArcSwap::from_pointee(Snapshot::default()));
+    let history = Arc::new(RwLock::new(History::default()));
     let (tx, rx) = crossbeam_channel::unbounded();
     let snap = snapshot.clone();
+    let hist = history.clone();
     let join = std::thread::Builder::new()
         .name("hw-sampler".into())
         .spawn(move || {
@@ -39,16 +47,22 @@ pub fn spawn(ctx: egui::Context) -> (HwHandle, std::thread::JoinHandle<()>) {
             // Döngü panikleri run() içindeki iç catch_unwind'de yakalanır ve
             // fan temizliği (restore) orada her koşulda çalışır.
             if let Err(e) = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                run(ctx, snap, rx)
+                run(ctx, cfg, snap, hist, rx)
             })) {
                 tracing::error!("hw thread panikledi: {e:?}");
             }
         })
         .expect("hw thread başlatılamadı");
-    (HwHandle { snapshot, commands: tx }, join)
+    (HwHandle { snapshot, commands: tx, history }, join)
 }
 
-fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwCommand>) {
+fn run(
+    ctx: egui::Context,
+    cfg: starmon_core::config::Config,
+    snapshot: Arc<ArcSwap<Snapshot>>,
+    history: Arc<RwLock<History>>,
+    rx: Receiver<HwCommand>,
+) {
     let mut cpu = CpuLoadSampler::default();
     let mut net = NetworkSampler::default();
     let mut disk = DiskSampler::default();
@@ -85,7 +99,7 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
     // Yazma yolu: seviye/mod BIOS'tan, failsafe geri sayımı EC'den gider;
     // ikisi de yoksa fan kontrolü kapalı kalır (UI kontrolleri gizler).
     let fan_write_ok = devs.bios.is_some() && devs.ec.is_some();
-    let mut ctl = FanController::new();
+    let mut ctl = FanController::new(&cfg);
     let mut last_hpcm: Option<u8> = None;
     let mut last_xfcd: Option<u8> = None;
 
@@ -106,7 +120,22 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                 ctx.request_repaint();
             }
             Err(RecvTimeoutError::Timeout) => {
-                next_tick += Duration::from_secs(1);
+                // Uyku/uyanma tespiti: uykuda Instant ilerlediği için deadline
+                // çok geride kalır. Yeniden hizala (tick fırtınasını önler) ve
+                // EC'de uçmuş olabilecek kullanıcı durumunu yeniden uygula.
+                let now = Instant::now();
+                if now > next_tick + Duration::from_secs(5) {
+                    tracing::info!(
+                        gecikme_s = (now - next_tick).as_secs(),
+                        "uyku/duraklama dönüşü algılandı; tick hizalanıyor"
+                    );
+                    next_tick = now + Duration::from_secs(1);
+                    if fan_write_ok {
+                        ctl.on_resume(devs, last_hpcm);
+                    }
+                } else {
+                    next_tick += Duration::from_secs(1);
+                }
                 state.tick += 1;
                 state.cpu_load_percent = cpu.sample();
                 state.memory = system::memory();
@@ -169,6 +198,22 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                         }
                         state.fan_ctl = Some(ctl.snapshot(last_hpcm, last_xfcd));
                     }
+
+                    // Geçmişe örnek it (grafikler); kilit yalnız burada yazılır
+                    if let Ok(mut h) = history.write() {
+                        h.push(HistorySample {
+                            tick: state.tick,
+                            cpu_temp_c: best_cpu_temp(&state),
+                            gpu_temp_c: state
+                                .ec
+                                .and_then(|e| e.gpu_temp_c)
+                                .or(state.gpu.and_then(|g| g.temp_c.map(|t| t as u8))),
+                            cpu_load_percent: state.cpu_load_percent,
+                            cpu_power_w: state.cpu_msr.as_ref().and_then(|m| m.package_power_w),
+                            fan_rpm: state.ec.map(|e| e.fan_rpm).unwrap_or_default(),
+                            memory_load_percent: state.memory.map(|m| m.load_percent),
+                        });
+                    }
                 }
                 state.disk = Some(d);
                 snapshot.store(Arc::new(state.clone()));
@@ -205,4 +250,14 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
     if let Err(e) = loop_result {
         tracing::error!("örnekleme döngüsü panikledi: {e:?}");
     }
+}
+
+/// CPU sıcaklığı önceliği: MSR paket > EC CPUT > BIOS sensörü (UI ile aynı).
+fn best_cpu_temp(s: &Snapshot) -> Option<u8> {
+    s.cpu_msr
+        .as_ref()
+        .and_then(|m| m.package_temp_c)
+        .map(|t| t.min(255) as u8)
+        .or_else(|| s.ec.and_then(|e| e.cpu_temp_c))
+        .or_else(|| s.bios.and_then(|b| b.temperature_c))
 }

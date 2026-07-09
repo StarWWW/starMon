@@ -5,6 +5,10 @@ mod fan_test;
 mod hw;
 mod logging;
 mod single_instance;
+mod tray;
+
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use anyhow::Result;
 use crossbeam_channel::Sender;
@@ -56,6 +60,10 @@ fn main() -> Result<()> {
             .with_min_inner_size([714.0, 590.0]),
         ..Default::default()
     };
+    // Config: TOML yükle (ilk çalıştırmada StarMon.xml içe aktarımıyla);
+    // UI tercihleri çıkışta geri yazılır.
+    let cfg = Arc::new(std::sync::Mutex::new(starmon_core::config::load()));
+
     // hw thread'in JoinHandle'ı: kapanışta beklenir ki FanSafetyGuard
     // temizliği (fanı otomatiğe döndürme) süreç ölmeden tamamlansın.
     let join = std::sync::Mutex::new(None);
@@ -64,12 +72,29 @@ fn main() -> Result<()> {
         options,
         Box::new(|cc| {
             cc.egui_ctx.set_theme(egui::Theme::Dark);
-            let (hw, hw_join) = hw::spawn(cc.egui_ctx.clone());
+            let cfg0 = cfg.lock().unwrap().clone();
+            let (hw, hw_join) = hw::spawn(cc.egui_ctx.clone(), cfg0.clone());
             *join.lock().unwrap() = Some(hw_join);
-            Ok(Box::new(StarMonApp { hw, manual_percent: 40 }))
+            let allow_exit = Arc::new(AtomicBool::new(false));
+            let tray =
+                tray::Tray::new(cc.egui_ctx.clone(), hw.commands.clone(), allow_exit.clone())
+                    .map_err(|e| tracing::warn!("tepsi ikonu kurulamadı: {e}"))
+                    .ok();
+            Ok(Box::new(StarMonApp {
+                hw,
+                tray,
+                allow_exit,
+                manual_percent: cfg0.ui.manual_percent,
+                history_window_secs: cfg0.ui.history_window_secs,
+                program_names: cfg0.fan_programs.iter().map(|p| p.name.clone()).collect(),
+                cfg: cfg.clone(),
+            }))
         }),
     )
     .map_err(|e| anyhow::anyhow!("eframe başlatılamadı: {e}"))?;
+
+    // UI tercihlerini kalıcılaştır
+    starmon_core::config::save(&cfg.lock().unwrap());
 
     // Pencere kapandı → uygulama (ve komut kanalı) düştü → hw thread
     // döngüden çıkıp fan temizliğini yapar; burada bitmesini bekleriz.
@@ -83,37 +108,88 @@ fn main() -> Result<()> {
 
 struct StarMonApp {
     hw: hw::HwHandle,
+    /// Tepsi ikonu; kurulamazsa uygulama tepsisiz devam eder.
+    tray: Option<tray::Tray>,
+    /// Pencere X'i tepsiye gizler; yalnız tepsi menüsündeki Çıkış kapatır.
+    allow_exit: Arc<AtomicBool>,
     /// Sabit fan modu için hedef yüzde (UI durumu).
     manual_percent: u8,
+    /// Geçmiş grafiklerinin zaman penceresi [s].
+    history_window_secs: u64,
+    /// Config'ten gelen fan programı adları (combo için).
+    program_names: Vec<String>,
+    /// Paylaşılan config; UI tercihleri buraya yazılır, çıkışta kaydedilir.
+    cfg: Arc<std::sync::Mutex<starmon_core::config::Config>>,
 }
 
 impl eframe::App for StarMonApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
         let snap = self.hw.snapshot.load();
-        egui::CentralPanel::default().show(ui, |ui| {
-            ui.heading("StarMon");
-            if snap.driver_version.is_none() {
-                ui.colored_label(
-                    egui::Color32::from_rgb(230, 180, 60),
-                    "PawnIO kurulu değil — EC sıcaklıkları, fan RPM ve MSR telemetrisi devre dışı (pawnio.eu)",
-                );
-            }
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                cpu_card(ui, &snap);
-                gpu_card(ui, &snap);
-                fan_card(ui, &snap);
-                battery_card(ui, &snap);
-                memory_card(ui, &snap);
+
+        // Pencereyi kapatmak tepsiye gizler; gerçek çıkış tepsi menüsünden
+        // (tepsi kurulamadıysa X normal kapatır)
+        if ctx.input(|i| i.viewport().close_requested())
+            && self.tray.is_some()
+            && !self.allow_exit.load(Ordering::Relaxed)
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ctx.send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+
+        // Dinamik tepsi ikonu: en sıcak okuma + moda göre renk (3 sn kadans,
+        // update() değişmedikçe yeniden çizmez)
+        if let Some(tray) = &mut self.tray {
+            let temp = snap
+                .fan_ctl
+                .as_ref()
+                .map(|f| f.max_temp_c)
+                .filter(|t| *t > 0)
+                .or_else(|| snap.ec.and_then(|e| e.cpu_temp_c));
+            let warm = snap.fan_ctl.as_ref().is_some_and(|f| {
+                f.guard_active || f.mode == Some(FanMode::Performance)
             });
-            ui.add_space(8.0);
-            fan_controls(ui, &snap, &mut self.manual_percent, &self.hw.commands);
-            ui.add_space(8.0);
-            ui.label(status_line(&snap));
-            ui.add_space(8.0);
-            core_temps_section(ui, &snap);
-            caps_section(ui, &snap);
+            tray.update(temp, warm);
+        }
+        egui::CentralPanel::default().show(ui, |ui| {
+            egui::ScrollArea::vertical().show(ui, |ui| {
+                ui.heading("StarMon");
+                if snap.driver_version.is_none() {
+                    ui.colored_label(
+                        egui::Color32::from_rgb(230, 180, 60),
+                        "PawnIO kurulu değil — EC sıcaklıkları, fan RPM ve MSR telemetrisi devre dışı (pawnio.eu)",
+                    );
+                }
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    cpu_card(ui, &snap);
+                    gpu_card(ui, &snap);
+                    fan_card(ui, &snap);
+                    battery_card(ui, &snap);
+                    memory_card(ui, &snap);
+                });
+                ui.add_space(8.0);
+                fan_controls(
+                    ui,
+                    &snap,
+                    &mut self.manual_percent,
+                    &self.program_names,
+                    &self.hw.commands,
+                );
+                ui.add_space(8.0);
+                ui.label(status_line(&snap));
+                ui.add_space(8.0);
+                history_section(ui, &self.hw, &mut self.history_window_secs);
+                core_temps_section(ui, &snap);
+                caps_section(ui, &snap);
+            });
         });
+
+        // UI tercihlerini paylaşılan config'e yansıt (çıkışta diske yazılır)
+        if let Ok(mut c) = self.cfg.lock() {
+            c.ui.manual_percent = self.manual_percent;
+            c.ui.history_window_secs = self.history_window_secs;
+        }
     }
 }
 
@@ -177,8 +253,71 @@ fn fan_card(ui: &mut egui::Ui, s: &Snapshot) {
     }
 }
 
+/// Geçmiş grafikleri: sıcaklık, fan RPM ve CPU yük/güç (3 sn kadans).
+fn history_section(ui: &mut egui::Ui, hw: &hw::HwHandle, window_secs: &mut u64) {
+    use egui_plot::{Legend, Line, Plot, PlotPoints};
+
+    let Ok(history) = hw.history.read() else { return };
+    if history.is_empty() {
+        return;
+    }
+    egui::CollapsingHeader::new("Geçmiş")
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.horizontal(|ui| {
+                for (label, secs) in [("5 dk", 300u64), ("15 dk", 900), ("1 sa", 3600)] {
+                    if ui.selectable_label(*window_secs == secs, label).clicked() {
+                        *window_secs = secs;
+                    }
+                }
+            });
+            let latest = history.latest_tick() as f64;
+            // x ekseni: "kaç saniye önce" (negatif); son örnek 0'da
+            let series = |f: &dyn Fn(&starmon_core::history::HistorySample) -> Option<f64>| {
+                PlotPoints::from_iter(
+                    history
+                        .window(*window_secs)
+                        .filter_map(|s| f(s).map(|v| [s.tick as f64 - latest, v])),
+                )
+            };
+            let plot = |id: &str| {
+                Plot::new(id.to_owned())
+                    .height(110.0)
+                    .legend(Legend::default())
+                    .allow_drag(false)
+                    .allow_zoom(false)
+                    .allow_scroll(false)
+                    .include_x(-(*window_secs as f64))
+                    .include_x(0.0)
+            };
+
+            plot("hist_temp").include_y(30.0).include_y(90.0).show(ui, |p| {
+                p.line(Line::new("CPU °C", series(&|s| s.cpu_temp_c.map(f64::from))));
+                p.line(Line::new("GPU °C", series(&|s| s.gpu_temp_c.map(f64::from))));
+            });
+            plot("hist_fan").include_y(0.0).show(ui, |p| {
+                p.line(Line::new("Fan 1 rpm", series(&|s| s.fan_rpm.0.map(f64::from))));
+                p.line(Line::new("Fan 2 rpm", series(&|s| s.fan_rpm.1.map(f64::from))));
+            });
+            plot("hist_load").include_y(0.0).include_y(100.0).show(ui, |p| {
+                p.line(Line::new("CPU yük %", series(&|s| s.cpu_load_percent.map(f64::from))));
+                p.line(Line::new("CPU güç W", series(&|s| s.cpu_power_w.map(f64::from))));
+                p.line(Line::new(
+                    "Bellek %",
+                    series(&|s| s.memory_load_percent.map(f64::from)),
+                ));
+            });
+        });
+}
+
 /// P4 fan kontrol paneli; yalnız EC+BIOS yazma yolu açıkken görünür.
-fn fan_controls(ui: &mut egui::Ui, s: &Snapshot, manual_percent: &mut u8, tx: &Sender<HwCommand>) {
+fn fan_controls(
+    ui: &mut egui::Ui,
+    s: &Snapshot,
+    manual_percent: &mut u8,
+    program_names: &[String],
+    tx: &Sender<HwCommand>,
+) {
     let Some(f) = &s.fan_ctl else { return };
     let send = |cmd: HwCommand| {
         let _ = tx.send(cmd);
@@ -194,7 +333,7 @@ fn fan_controls(ui: &mut egui::Ui, s: &Snapshot, manual_percent: &mut u8, tx: &S
                 let is_max = f.control == FanControl::Max;
                 if ui.selectable_label(is_auto, "Otomatik").clicked() && !is_auto {
                     if f.program.is_some() {
-                        send(HwCommand::FanProgram(false));
+                        send(HwCommand::FanProgram(None));
                     }
                     send(HwCommand::FanAuto);
                 }
@@ -239,10 +378,23 @@ fn fan_controls(ui: &mut egui::Ui, s: &Snapshot, manual_percent: &mut u8, tx: &S
                             }
                         }
                     });
-                let mut program_on = f.program.is_some();
-                if ui.checkbox(&mut program_on, "Fan programı").changed() {
-                    send(HwCommand::FanProgram(program_on));
-                }
+                ui.label("Program:");
+                let current = f.program.as_deref();
+                egui::ComboBox::from_id_salt("fan_program")
+                    .selected_text(current.unwrap_or("(kapalı)"))
+                    .show_ui(ui, |ui| {
+                        if ui.selectable_label(current.is_none(), "(kapalı)").clicked()
+                            && current.is_some()
+                        {
+                            send(HwCommand::FanProgram(None));
+                        }
+                        for name in program_names {
+                            let selected = current == Some(name.as_str());
+                            if ui.selectable_label(selected, name).clicked() && !selected {
+                                send(HwCommand::FanProgram(Some(name.clone())));
+                            }
+                        }
+                    });
                 if let Some(m) = f.mode {
                     ui.label(format!("EC modu: {m:?}"));
                 }

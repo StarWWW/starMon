@@ -108,31 +108,59 @@ pub enum GuardAction {
 
 /// Histerezisli termal koruma durum makinesi. Donanıma dokunmaz;
 /// her `step` çağrısı en fazla bir eylem döndürür.
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct ThermalGuard {
     pub active: bool,
     panic_applied: bool,
+    pub enabled: bool,
+    pub high_c: u8,
+    pub low_c: u8,
+}
+
+impl Default for ThermalGuard {
+    fn default() -> Self {
+        Self::with_config(true, THERMAL_HIGH_C, THERMAL_LOW_C)
+    }
 }
 
 impl ThermalGuard {
+    pub fn with_config(enabled: bool, high_c: u8, low_c: u8) -> Self {
+        // Ters/eşit eşikler histerezisi bozar; varsayılana düş
+        let (high_c, low_c) = if low_c >= high_c {
+            (THERMAL_HIGH_C, THERMAL_LOW_C)
+        } else {
+            (high_c, low_c)
+        };
+        Self { active: false, panic_applied: false, enabled, high_c, low_c }
+    }
+
     /// 3 saniyelik koruma tick'i; `temperature` sensör kümesinin maksimumu
     /// (0 = güvenilir okuma yok → durum değişmez).
     pub fn step(&mut self, temperature: u8) -> Option<GuardAction> {
+        if !self.enabled {
+            // Koruma kapatıldıysa, devredeyken bırakılan max isteğini geri al
+            if self.active {
+                self.active = false;
+                self.panic_applied = false;
+                return Some(GuardAction::Release);
+            }
+            return None;
+        }
         if temperature == 0 {
             return None;
         }
-        if !self.active && temperature >= THERMAL_HIGH_C {
+        if !self.active && temperature >= self.high_c {
             self.active = true;
             return Some(GuardAction::EngageMax);
         }
         if self.active
             && !self.panic_applied
-            && temperature >= THERMAL_HIGH_C.saturating_add(THERMAL_PANIC_MARGIN_C)
+            && temperature >= self.high_c.saturating_add(THERMAL_PANIC_MARGIN_C)
         {
             self.panic_applied = true;
             return Some(GuardAction::Panic);
         }
-        if self.active && temperature <= THERMAL_LOW_C {
+        if self.active && temperature <= self.low_c {
             self.active = false;
             self.panic_applied = false;
             return Some(GuardAction::Release);
@@ -144,7 +172,7 @@ impl ThermalGuard {
     /// yenilemek) yalnız koruma pasifken ve makul, eşik altı bir sıcaklık
     /// okuması varken güvenlidir. Şüphede failsafe kazanır.
     pub fn safe_to_extend(&self, temperature: u8) -> bool {
-        !self.active && temperature > 0 && temperature < THERMAL_HIGH_C
+        !self.active && temperature > 0 && temperature < self.high_c
     }
 }
 
@@ -193,6 +221,20 @@ mod tests {
         g.step(88);
         assert!(g.safe_to_extend(60));
         assert!(!g.safe_to_extend(95));
+    }
+
+    #[test]
+    fn guard_disabled_releases_and_stays_quiet() {
+        let mut g = ThermalGuard::default();
+        g.step(95);
+        assert!(g.active);
+        g.enabled = false;
+        assert_eq!(g.step(99), Some(GuardAction::Release));
+        assert_eq!(g.step(99), None);
+        assert!(!g.active);
+        // Ters eşikler varsayılana düşer
+        let g = ThermalGuard::with_config(true, 80, 90);
+        assert_eq!((g.high_c, g.low_c), (THERMAL_HIGH_C, THERMAL_LOW_C));
     }
 
     #[test]
