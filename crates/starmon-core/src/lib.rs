@@ -3,3 +3,5 @@
 //! (TOML + eski `StarMon.xml` importer).
 //!
 //! P2 ve sonrasında kademeli doldurulacak.
+
+pub mod snapshot;

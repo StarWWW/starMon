@@ -1,5 +1,13 @@
 //! Sürücü gerektirmeyen metrikler.
 //!
-//! P1'de doldurulacak modüller: `system` (CPU yükü, RAM, power overlay, uptime),
-//! `battery`, `network`, `disk` (NVMe sıcaklık + aktivite), `nvidia` (NVML),
-//! `brightness`.
+//! Tüm okuyucular hataya dayanıklıdır: donanım/sürücü yoksa `None` döner,
+//! asla panic olmaz. COM kullanan okuyucular (`battery`) hw sampler
+//! thread'inde oluşturulmalıdır.
+//!
+//! P1 devamında eklenecek: `disk` (NVMe sıcaklık + IOCTL_DISK_PERFORMANCE),
+//! `brightness` (WmiMonitorBrightness).
+
+pub mod battery;
+pub mod network;
+pub mod nvidia;
+pub mod system;
