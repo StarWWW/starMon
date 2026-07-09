@@ -4,10 +4,9 @@
 //! asla panic olmaz. COM kullanan okuyucular (`battery`) hw sampler
 //! thread'inde oluşturulmalıdır.
 //!
-//! P1 devamında eklenecek: `disk` (NVMe sıcaklık + IOCTL_DISK_PERFORMANCE),
-//! `brightness` (WmiMonitorBrightness).
-
 pub mod battery;
+pub mod brightness;
+pub mod disk;
 pub mod network;
 pub mod nvidia;
 pub mod system;

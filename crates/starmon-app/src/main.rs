@@ -141,7 +141,24 @@ fn status_line(s: &Snapshot) -> String {
             fmt_rate(n.tx_bytes_per_sec)
         )
     });
-    format!("Ağ {net}   ·   Açık kalma {}", fmt_duration(s.uptime_secs))
+    let mut parts = vec![format!("Ağ {net}")];
+    if let Some(d) = &s.disk {
+        let mut disk = Vec::new();
+        if let Some(t) = d.temp_c {
+            disk.push(format!("{t}°C"));
+        }
+        if let (Some(r), Some(w)) = (d.read_bytes_per_sec, d.write_bytes_per_sec) {
+            disk.push(format!("O {} · Y {}", fmt_rate(r), fmt_rate(w)));
+        }
+        if !disk.is_empty() {
+            parts.push(format!("Disk {}", disk.join(" · ")));
+        }
+    }
+    if let Some(b) = s.brightness_percent {
+        parts.push(format!("Parlaklık {b}%"));
+    }
+    parts.push(format!("Açık kalma {}", fmt_duration(s.uptime_secs)));
+    parts.join("   ·   ")
 }
 
 fn fmt_rate(bytes_per_sec: u64) -> String {

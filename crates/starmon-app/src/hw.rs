@@ -10,6 +10,8 @@ use arc_swap::ArcSwap;
 use crossbeam_channel::{Receiver, RecvTimeoutError, Sender};
 use starmon_core::snapshot::Snapshot;
 use starmon_metrics::battery::BatteryReader;
+use starmon_metrics::brightness::BrightnessReader;
+use starmon_metrics::disk::DiskSampler;
 use starmon_metrics::network::NetworkSampler;
 use starmon_metrics::nvidia::GpuReader;
 use starmon_metrics::system::{self, CpuLoadSampler};
@@ -46,7 +48,9 @@ pub fn spawn(ctx: egui::Context) -> HwHandle {
 fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwCommand>) {
     let mut cpu = CpuLoadSampler::default();
     let mut net = NetworkSampler::default();
+    let mut disk = DiskSampler::default();
     let battery = BatteryReader::new(); // COM bu thread'e bağlı
+    let brightness = BrightnessReader::new();
     let gpu = GpuReader::new();
 
     let mut state = Snapshot::default();
@@ -63,11 +67,18 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                 state.memory = system::memory();
                 state.network = net.sample();
                 state.uptime_secs = system::uptime_secs();
-                // WMI/NVML maliyetli: 3 saniyede bir (ilk tick dahil)
+                let (disk_r, disk_w) = disk.sample_activity();
+                let mut d = state.disk.unwrap_or_default();
+                d.read_bytes_per_sec = disk_r;
+                d.write_bytes_per_sec = disk_w;
+                // WMI/NVML/NVMe-log maliyetli: 3 saniyede bir (ilk tick dahil)
                 if state.tick % 3 == 1 {
                     state.battery = battery.sample();
                     state.gpu = gpu.sample();
+                    state.brightness_percent = brightness.sample();
+                    d.temp_c = disk.sample_temp();
                 }
+                state.disk = Some(d);
                 snapshot.store(Arc::new(state.clone()));
                 ctx.request_repaint();
                 tracing::debug!(
@@ -77,6 +88,9 @@ fn run(ctx: egui::Context, snapshot: Arc<ArcSwap<Snapshot>>, rx: Receiver<HwComm
                     gpu_temp = ?state.gpu.and_then(|g| g.temp_c),
                     batt = ?state.battery.and_then(|b| b.percent),
                     net_rx = ?state.network.map(|n| n.rx_bytes_per_sec),
+                    disk_temp = ?state.disk.and_then(|d| d.temp_c),
+                    disk_r = ?state.disk.and_then(|d| d.read_bytes_per_sec),
+                    parlaklik = ?state.brightness_percent,
                     "örnekleme"
                 );
             }
