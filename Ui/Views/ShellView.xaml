@@ -1,0 +1,242 @@
+<UserControl x:Class="StarMon.Ui.Views.ShellView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Theme/Theme.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- The window's own caption buttons. Close goes red on hover, the
+                 way every other window on the system does; anything else here
+                 would be cleverness at the user's expense. -->
+            <Style x:Key="CaptionButton" TargetType="Button">
+                <Setter Property="Width" Value="46"/>
+                <Setter Property="Height" Value="40"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+                <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+                <Setter Property="FontSize" Value="10"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Grid Background="Transparent">
+                                <Border x:Name="Wash" Background="{StaticResource Hover}" Opacity="0"/>
+                                <ContentPresenter HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Wash" Property="Opacity" Value="1"/>
+                                    <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <Style x:Key="CloseButton" TargetType="Button" BasedOn="{StaticResource CaptionButton}">
+                <Style.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                        <Setter Property="Background" Value="#FFC42B1C"/>
+                        <Setter Property="Foreground" Value="White"/>
+                    </Trigger>
+                </Style.Triggers>
+            </Style>
+
+            <!-- The rule between one reading and the next on the summary
+                 strip. Vertical, so it cannot be the shared Rule style. -->
+            <Style x:Key="StripRule" TargetType="Border">
+                <Setter Property="Width" Value="1"/>
+                <Setter Property="Height" Value="15"/>
+                <Setter Property="Background" Value="{StaticResource Divider}"/>
+                <Setter Property="Margin" Value="17,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="SnapsToDevicePixels" Value="True"/>
+            </Style>
+
+            <Style x:Key="StripLabel" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                <Setter Property="Margin" Value="0,0,9,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- Opaque: the airy theme's depth is its own surface contrast, so the
+         charcoal plane is painted rather than letting the desktop's Mica
+         through. The window keeps the rounded corners and dark chrome.
+
+         The tooltip timings are set here and inherit down the whole tree
+         (these three ToolTipService properties are inheriting): a hint that
+         takes a second to appear and vanishes after five is a hint nobody
+         reads, so they show quickly and stay while the cursor rests. -->
+    <Border Background="{StaticResource Plane}"
+            ToolTipService.InitialShowDelay="350"
+            ToolTipService.ShowDuration="30000"
+            ToolTipService.BetweenShowDelay="200">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="40"/>  <!-- title bar, tabs in it  -->
+                <RowDefinition Height="34"/>  <!-- the summary strip      -->
+                <RowDefinition Height="*"/>   <!-- the section itself     -->
+            </Grid.RowDefinitions>
+
+            <!-- The tabs live in the title bar rather than in a strip of their
+                 own. That strip cost 44 pixels of every page to say what the
+                 tabs already say, and on a window whose whole point is how
+                 much it can show at once, 44 pixels is a row of readings.
+
+                 The tabs sit inside the window chrome's caption region, so
+                 each one is marked hit-test-visible from the code-behind;
+                 everything left unmarked — the brand, the empty run after the
+                 last tab — stays draggable. -->
+            <Grid Grid.Row="0" x:Name="TitleBar">
+                <DockPanel>
+
+                    <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
+                                Margin="18,0,14,0" VerticalAlignment="Center">
+                        <Border Width="14" Height="14" CornerRadius="4"
+                                Background="{StaticResource BrandStroke}" Margin="0,0,9,0"/>
+                        <TextBlock Text="StarMon" Style="{StaticResource Body}"
+                                   Foreground="{StaticResource TextPrimary}"
+                                   FontWeight="SemiBold" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                VerticalAlignment="Top">
+                        <Button x:Name="ButtonMinimise" Content="&#xE921;"
+                                Style="{StaticResource CaptionButton}"
+                                ToolTip="{loc:Str GuiWpfTipMinimise}"/>
+                        <Button x:Name="ButtonClose" Content="&#xE8BB;"
+                                Style="{StaticResource CloseButton}"
+                                ToolTip="{loc:Str GuiWpfTipClose}"/>
+                    </StackPanel>
+
+                    <!-- Settings and about are visited, not lived in, so they
+                         are glyphs at the far end rather than two more words
+                         crowding the reading line -->
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                Margin="0,0,10,0">
+                        <RadioButton x:Name="NavSettings" GroupName="Tabs"
+                                     Style="{StaticResource TopTabIcon}"
+                                     Content="&#xE713;" ToolTip="{loc:Str GuiWpfSettings}"/>
+                        <RadioButton x:Name="NavAbout" GroupName="Tabs"
+                                     Style="{StaticResource TopTabIcon}"
+                                     Content="&#xE946;" ToolTip="{loc:Str GuiWpfAbout}"/>
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="NavDashboard" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     IsChecked="True" Content="{loc:Str GuiWpfDashboard}"
+                                     ToolTip="{loc:Str GuiWpfTipNavDashboard}"/>
+                        <RadioButton x:Name="NavSensors" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfSensors}" ToolTip="{loc:Str GuiWpfTipNavSensors}"/>
+                        <RadioButton x:Name="NavCooling" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfCooling}" ToolTip="{loc:Str GuiWpfTipNavCooling}"/>
+                        <RadioButton x:Name="NavKeyboard" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfKeyboard}" ToolTip="{loc:Str GuiWpfTipNavKeyboard}"/>
+                        <RadioButton x:Name="NavSystem" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfSystem}" ToolTip="{loc:Str GuiWpfTipNavSystem}"/>
+                        <RadioButton x:Name="NavLog" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfLog}" ToolTip="{loc:Str GuiWpfTipNavLog}"/>
+                    </StackPanel>
+
+                </DockPanel>
+            </Grid>
+
+            <!-- The summary strip. Four readings and three badges, on show
+                 whatever page is open. The figures take their colour from the
+                 same health scale the cards do, so a temperature that is
+                 amber here is amber there. -->
+            <Border Grid.Row="1" Background="{StaticResource Inset}"
+                    BorderBrush="{StaticResource Divider}" BorderThickness="0,1,0,1">
+                <DockPanel Margin="19,0,16,0">
+
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal"
+                                VerticalAlignment="Center">
+
+                        <Border Style="{StaticResource ChipAlert}" Margin="7,0,0,0"
+                                ToolTip="{loc:Str GuiWpfTipProtection}"
+                                Visibility="{Binding IsThermalProtection,
+                                             Converter={StaticResource ShowWhen}}">
+                            <TextBlock Text="{loc:Str GuiWpfChipProtection}"/>
+                        </Border>
+
+                        <Border Style="{StaticResource ChipWarning}" Margin="7,0,0,0"
+                                ToolTip="{Binding ThrottleText}"
+                                Visibility="{Binding IsThrottling,
+                                             Converter={StaticResource ShowWhen}}">
+                            <TextBlock Text="{loc:Str GuiWpfChipThrottle}"/>
+                        </Border>
+
+                        <Border Style="{StaticResource Chip}" Margin="7,0,0,0"
+                                ToolTip="{loc:Str GuiWpfTipFanProgram}"
+                                Visibility="{Binding IsProgramRunning,
+                                             Converter={StaticResource ShowWhen}}">
+                            <TextBlock Text="{Binding ProgramBadge}"/>
+                        </Border>
+
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Stretch">
+
+                        <TextBlock Text="{Binding Cpu.Caption}" Style="{StaticResource StripLabel}"/>
+                        <TextBlock Text="{Binding Cpu.Figure}" Style="{StaticResource ValueStrip}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{Binding Cpu.Health, Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Cpu.Unit}" Style="{StaticResource Micro}"
+                                   Margin="2,0,0,7" VerticalAlignment="Bottom"/>
+                        <ContentControl x:Name="SparkCpu" Width="54" Height="18"
+                                        Margin="11,0,0,0" VerticalAlignment="Center"/>
+
+                        <Border Style="{StaticResource StripRule}"/>
+
+                        <TextBlock Text="{Binding Gpu.Caption}" Style="{StaticResource StripLabel}"/>
+                        <TextBlock Text="{Binding Gpu.Figure}" Style="{StaticResource ValueStrip}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{Binding Gpu.Health, Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Gpu.Unit}" Style="{StaticResource Micro}"
+                                   Margin="2,0,0,7" VerticalAlignment="Bottom"/>
+                        <ContentControl x:Name="SparkGpu" Width="54" Height="18"
+                                        Margin="11,0,0,0" VerticalAlignment="Center"/>
+
+                        <Border Style="{StaticResource StripRule}"/>
+
+                        <TextBlock Text="{Binding Fan.Caption}" Style="{StaticResource StripLabel}"/>
+                        <TextBlock Text="{Binding Fan.Figure}" Style="{StaticResource ValueStrip}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Fan.Unit}" Style="{StaticResource Micro}"
+                                   Margin="3,0,0,7" VerticalAlignment="Bottom"/>
+
+                        <Border Style="{StaticResource StripRule}"/>
+
+                        <TextBlock Text="{Binding Battery.Caption}" Style="{StaticResource StripLabel}"/>
+                        <TextBlock Text="{Binding Battery.Figure}" Style="{StaticResource ValueStrip}"
+                                   VerticalAlignment="Center"
+                                   Foreground="{Binding Battery.Health, Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Battery.Unit}" Style="{StaticResource Micro}"
+                                   Margin="2,0,0,7" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding Battery.Detail}" Style="{StaticResource Micro}"
+                                   Margin="9,0,0,7" VerticalAlignment="Bottom"
+                                   TextTrimming="CharacterEllipsis"/>
+
+                    </StackPanel>
+
+                </DockPanel>
+            </Border>
+
+            <!-- The section itself -->
+            <ContentControl Grid.Row="2" x:Name="SectionHost"/>
+
+        </Grid>
+    </Border>
+</UserControl>

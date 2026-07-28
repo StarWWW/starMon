@@ -1,0 +1,113 @@
+<UserControl x:Class="StarMon.Ui.Views.SensorsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- One group of readings.
+                 The rows are tighter than they were - nineteen pixels rather
+                 than a body line plus seven of margin - because the point of
+                 this page is that everything is on it at once. -->
+            <DataTemplate x:Key="SensorGroup">
+                <Border Style="{StaticResource CardSurface}"
+                        Margin="0,0,10,10">
+                    <StackPanel Margin="14,11,14,12">
+
+                        <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                                   Margin="0,0,0,7"/>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,5"/>
+
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Grid Height="19" Background="Transparent"
+                                          ToolTip="{Binding Tip}">
+                                        <Grid.Style>
+                                            <Style TargetType="Grid">
+                                                <Style.Triggers>
+                                                    <!-- No tip, no tooltip box: an empty
+                                                         string would open a blank one -->
+                                                    <DataTrigger Binding="{Binding Tip}" Value="">
+                                                        <Setter Property="ToolTip" Value="{x:Null}"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Grid.Style>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="Auto"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                                   Style="{StaticResource RowName}"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                                   Style="{StaticResource Readout}"
+                                                   FontSize="{StaticResource SizeLabel}"
+                                                   TextAlignment="Right"
+                                                   Margin="10,0,0,0"
+                                                   VerticalAlignment="Center"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+
+                    </StackPanel>
+                </Border>
+            </DataTemplate>
+
+            <Style x:Key="Column" TargetType="ItemsControl">
+                <Setter Property="ItemTemplate" Value="{StaticResource SensorGroup}"/>
+                <Setter Property="VerticalAlignment" Value="Top"/>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- The scrollbar is styled by an implicit ScrollBar style in the theme,
+         so nothing is set here: Scroll targets the bar, not the viewer -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14,18,14">
+        <StackPanel>
+
+            <!-- The caption is docked and the hint fills: docking the hint
+                 instead lets a whole sentence claim its width first and
+                 squeezes the caption out entirely -->
+            <DockPanel Margin="2,0,0,10">
+                <TextBlock DockPanel.Dock="Left" Text="{loc:Str GuiWpfSensorsCaption}"
+                           Style="{StaticResource Caption}"
+                           VerticalAlignment="Center"/>
+                <TextBlock Style="{StaticResource Micro}"
+                           VerticalAlignment="Center" Margin="16,0,0,0"
+                           Text="{loc:Str GuiWpfSensorsHint}"
+                           TextAlignment="Right"
+                           TextTrimming="CharacterEllipsis"/>
+            </DockPanel>
+
+            <!-- Four columns filled by the code-behind rather than a wrap
+                 panel or a uniform grid.
+                 A wrap panel left the right-hand third of the page empty
+                 whenever the groups did not divide evenly; a uniform grid gave
+                 every card in a row the height of the tallest one in it, so a
+                 two-row group sat in a nine-row hole. The groups are dealt out
+                 by running height instead, which is the only arrangement that
+                 leaves no gaps when the cards are all different lengths. -->
+            <Grid x:Name="Columns" Margin="0,0,-10,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+                <ItemsControl x:Name="ColumnA" Grid.Column="0" Style="{StaticResource Column}"/>
+                <ItemsControl x:Name="ColumnB" Grid.Column="1" Style="{StaticResource Column}"/>
+                <ItemsControl x:Name="ColumnC" Grid.Column="2" Style="{StaticResource Column}"/>
+                <ItemsControl x:Name="ColumnD" Grid.Column="3" Style="{StaticResource Column}"/>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,155 @@
+<!-- StarMon: hardware monitoring and control
+     Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+     The colour system, carried over unchanged from the WinForms build's
+     Library/Gui/Dashboard.cs. The series slots and the status colours are not
+     chosen by eye: they come from a palette validated against the dark inset
+     surface for the lightness band, a chroma floor, colour-vision-deficiency
+     separation, a normal-vision separation floor, and contrast.
+
+     Changing any of them means re-running that validation (scratchpad's
+     PaletteCheck, a port of the dataviz validator), not picking something
+     that looks nice. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Surfaces. An airy dark rather than a deep black: the window is
+         charcoal, and the cards sit clearly lighter on it, which is what
+         carries the depth now that the fills are flat. The inset stays a
+         touch darker than the card so plots read as cut in. The chart's
+         validated series set keeps its separations regardless — those are
+         between the series colours themselves — and every series clears
+         contrast on this inset at least as well as on the near-black one
+         the set was originally validated against. -->
+    <Color x:Key="PlaneColor">#FF16181D</Color>
+    <Color x:Key="CardColor">#FF23262E</Color>
+    <Color x:Key="InsetColor">#FF1A1D23</Color>
+
+    <SolidColorBrush x:Key="Plane" Color="{StaticResource PlaneColor}"/>
+    <SolidColorBrush x:Key="Card"  Color="{StaticResource CardColor}"/>
+    <SolidColorBrush x:Key="Inset" Color="{StaticResource InsetColor}"/>
+
+    <!-- Acrylic. A translucent dark for flyouts — the colour picker, the tray
+         menu — so they let the Mica behind the window show through the way a
+         Windows 11 flyout does. The alpha is high enough that light text on it
+         stays readable over whatever it is floating above. Opaque surfaces are
+         left opaque: the charts are validated against a solid inset, and making
+         that translucent would quietly break the separations that rest on it. -->
+    <SolidColorBrush x:Key="Acrylic"       Color="#E6212429"/>
+    <SolidColorBrush x:Key="AcrylicStrong" Color="#F21C1F25"/>
+
+    <!-- The window's own light.
+         A flat fill leaves every surface on it looking equally lit from
+         nowhere, which is what makes a dark interface read as switched off
+         rather than as unlit. One very quiet source above and to the left
+         gives the cards a direction to catch their highlight from — and the
+         range is small enough (six values) that it is felt, not seen. -->
+    <!-- Kept as a plain fill: the flat theme carries depth by surface
+         contrast, not by simulated light -->
+    <SolidColorBrush x:Key="PlaneLit" Color="{StaticResource PlaneColor}"/>
+
+    <!-- Hairlines. The strong one is for a card edge, the quiet one for
+         gridlines and dividers that should be felt rather than seen. Kept
+         quiet: on a premium dark surface the edge is a suggestion, and the
+         depth is carried by the fill gradient and the drop shadow instead. -->
+    <SolidColorBrush x:Key="CardBorder" Color="#FF2B2F38"/>
+    <SolidColorBrush x:Key="Divider"    Color="#FF2F333C"/>
+
+    <!-- A one-pixel light line along the top edge of a raised surface. This is
+         what makes a flat rectangle read as lifted off the plane. In WPF it is
+         a gradient stopped immediately, so one Border can carry both the fill
+         and the highlight without a second element. -->
+    <SolidColorBrush x:Key="Highlight" Color="#12FFFFFF"/>
+
+    <!-- The card fill carries the light: a brighter line along the very top
+         that falls off within a few pixels, so the surface reads as lifted and
+         catching light from above rather than as a flat slab. -->
+    <!-- Flat now: the card is one colour, and the depth comes from the card
+         sitting lighter than the plane. Kept as a key because the surface
+         style asks for it by name. -->
+    <SolidColorBrush x:Key="CardFill" Color="{StaticResource CardColor}"/>
+
+    <!-- Ink, in three weights -->
+    <SolidColorBrush x:Key="TextPrimary"   Color="#FFF4F6F8"/>
+    <SolidColorBrush x:Key="TextSecondary" Color="#FFA6ADBB"/>
+    <SolidColorBrush x:Key="TextMuted"     Color="#FF6C7380"/>
+
+    <!-- One violet accent, used flat: selection fills, sliders, the running
+         dot. Distinct from the chart's violet series slot — one is a control
+         colour, the other a data colour, and they never appear in the same
+         role. White text sits on it. -->
+    <Color x:Key="AccentColor">#FF8B5CF6</Color>
+    <SolidColorBrush x:Key="Accent" Color="{StaticResource AccentColor}"/>
+    <SolidColorBrush x:Key="AccentDim"   Color="#808B5CF6"/>
+    <SolidColorBrush x:Key="AccentFaint" Color="#308B5CF6"/>
+
+    <!-- The deeper end of the accent, for the brand mark's gradient only -->
+    <Color x:Key="Accent2Color">#FF5B3BD6</Color>
+    <SolidColorBrush x:Key="Accent2" Color="{StaticResource Accent2Color}"/>
+    <SolidColorBrush x:Key="Accent2Faint" Color="#305B3BD6"/>
+
+    <!-- The brand stroke: the accent falling to its deeper step, for the mark
+         in the title bar and anywhere the application signs its own name -->
+    <LinearGradientBrush x:Key="BrandStroke" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Offset="0.0" Color="{StaticResource AccentColor}"/>
+        <GradientStop Offset="1.0" Color="{StaticResource Accent2Color}"/>
+    </LinearGradientBrush>
+
+    <!-- Status. Reserved: these four say good / warning / serious / critical
+         and are never reused as a series colour, so a red mark always means
+         something is wrong. -->
+    <Color x:Key="GoodColor">#FF0CA30C</Color>
+    <Color x:Key="WarningColor">#FFFAB219</Color>
+    <Color x:Key="SeriousColor">#FFEC835A</Color>
+    <Color x:Key="CriticalColor">#FFD03B3B</Color>
+
+    <SolidColorBrush x:Key="Good"     Color="{StaticResource GoodColor}"/>
+    <SolidColorBrush x:Key="Warning"  Color="{StaticResource WarningColor}"/>
+    <SolidColorBrush x:Key="Serious"  Color="{StaticResource SeriousColor}"/>
+    <SolidColorBrush x:Key="Critical" Color="{StaticResource CriticalColor}"/>
+
+    <!-- Categorical series slots, in fixed order.
+
+         Assigned in order and never cycled: the ordering is the mechanism that
+         keeps neighbouring series apart for colour-blind readers, so shuffling
+         it silently breaks that. Validated as a set against the Inset surface:
+         worst adjacent separation 8.4 under simulated protanopia (target 8),
+         19.3 under normal vision (floor 15). -->
+    <SolidColorBrush x:Key="Series1" Color="#FF3987E5"/>  <!-- blue    -->
+    <SolidColorBrush x:Key="Series2" Color="#FF008300"/>  <!-- green   -->
+    <SolidColorBrush x:Key="Series3" Color="#FFD55181"/>  <!-- magenta -->
+    <SolidColorBrush x:Key="Series4" Color="#FFC98500"/>  <!-- yellow  -->
+    <SolidColorBrush x:Key="Series5" Color="#FF199E70"/>  <!-- aqua    -->
+    <SolidColorBrush x:Key="Series6" Color="#FFD95926"/>  <!-- orange  -->
+    <SolidColorBrush x:Key="Series7" Color="#FF9085E9"/>  <!-- violet  -->
+    <SolidColorBrush x:Key="Series8" Color="#FFE66767"/>  <!-- red     -->
+
+    <!-- A ninth series would have to be an invented hue, which is exactly what
+         the palette forbids. Anything past the eight slots is drawn in this
+         neutral instead, which reads as a reference trace rather than as a
+         peer of the coloured ones. -->
+    <SolidColorBrush x:Key="SeriesMuted" Color="#FF898781"/>
+
+    <!-- Interaction tints, used by the control templates. Kept as white and
+         black washes rather than fixed greys so they compose over any surface. -->
+    <SolidColorBrush x:Key="Hover"   Color="#12FFFFFF"/>
+    <SolidColorBrush x:Key="Pressed" Color="#1A000000"/>
+    <SolidColorBrush x:Key="Focus"   Color="#668B5CF6"/>
+
+    <!-- Geometry. Cards, the surfaces inset into them, and the controls.
+         The controls are cut tighter than the surfaces: a six-pixel radius on
+         a thirty-pixel button is most of its height, which reads as a lozenge
+         rather than as a key. Four keeps the corner soft without rounding the
+         shape away, which is the register the rest of this interface is in. -->
+    <CornerRadius x:Key="RadiusCard">8</CornerRadius>
+    <CornerRadius x:Key="RadiusInset">6</CornerRadius>
+    <CornerRadius x:Key="RadiusControl">4</CornerRadius>
+    <CornerRadius x:Key="RadiusPill">999</CornerRadius>
+
+    <!-- Motion. One duration for state changes, one for reveals, one easing
+         curve throughout, so nothing in the interface moves to its own rhythm. -->
+    <Duration x:Key="DurationState">0:0:0.12</Duration>
+    <Duration x:Key="DurationReveal">0:0:0.22</Duration>
+    <CubicEase x:Key="Ease" EasingMode="EaseOut"/>
+
+</ResourceDictionary>

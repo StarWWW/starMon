@@ -1,0 +1,89 @@
+<UserControl x:Class="StarMon.Ui.Views.AboutView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- What the application is, and what machine it is running on.
+         Laid out as a page rather than as a narrow strip pinned to the left,
+         which is what made it look like half of something. -->
+    <Grid Margin="18,14,18,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="12"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- The mark and the name, across the top -->
+        <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
+                Style="{StaticResource CardSurface}">
+            <StackPanel Orientation="Horizontal" Margin="18,16,18,16">
+                <Border Width="44" Height="44" CornerRadius="12"
+                        Background="{StaticResource BrandStroke}" Margin="0,0,16,0"
+                        VerticalAlignment="Center"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="StarMon" Style="{StaticResource Display}"/>
+                    <TextBlock Style="{StaticResource Body}" Margin="0,3,0,0"
+                               TextWrapping="Wrap" MaxWidth="640"
+                               HorizontalAlignment="Left"
+                               Text="{loc:Str GuiWpfTagline}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- The machine, and the licence, side by side -->
+        <Border Grid.Row="1" Grid.Column="0" Style="{StaticResource CardSurface}"
+                Margin="0,12,0,0" VerticalAlignment="Top">
+            <StackPanel Margin="16,13,16,14">
+                <TextBlock Text="{loc:Str GuiWpfMachineCaption}"
+                           Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                <Border Style="{StaticResource Rule}" Margin="0,0,0,5"/>
+                <ItemsControl ItemsSource="{Binding Facts}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Grid Height="21">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                           Style="{StaticResource RowName}"
+                                           VerticalAlignment="Center"/>
+                                <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                           Style="{StaticResource Readout}"
+                                           FontSize="{StaticResource SizeLabel}"
+                                           TextAlignment="Right"
+                                           TextTrimming="CharacterEllipsis"
+                                           Margin="12,0,0,0" VerticalAlignment="Center"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource CardSurface}"
+                Margin="0,12,0,0" VerticalAlignment="Top">
+            <StackPanel Margin="16,13,16,14">
+                <TextBlock Text="{loc:Str GuiWpfLicenceCaption}"
+                           Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                <Border Style="{StaticResource Rule}" Margin="0,0,0,9"/>
+                <TextBlock Style="{StaticResource Micro}"
+                           TextWrapping="Wrap" LineHeight="17"
+                           Text="{loc:Str GuiWpfLicence}"/>
+            </StackPanel>
+        </Border>
+
+    </Grid>
+</UserControl>

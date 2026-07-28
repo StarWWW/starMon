@@ -1,0 +1,212 @@
+<UserControl x:Class="StarMon.Ui.Views.KeyboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- The swatch is a button: clicking it opens the colour picker on
+                 that zone. Its template is just the rounded colour chip, with a
+                 hairline that lifts on hover so it reads as pressable. -->
+            <Style x:Key="SwatchButton" TargetType="Button">
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="Width" Value="34"/>
+                <Setter Property="Height" Value="30"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="Chip" CornerRadius="7"
+                                    Background="{Binding Brush}"
+                                    BorderBrush="{StaticResource CardBorder}"
+                                    BorderThickness="1"/>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Chip" Property="BorderBrush"
+                                            Value="{StaticResource TextSecondary}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+            <!-- A zone's colour swatch and its value. The swatch opens the
+                 picker; the hex field beside it is for pasting a known value. -->
+            <DataTemplate x:Key="ZoneSwatch">
+                <Grid Margin="0,0,0,10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="82"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="128"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Grid.Column="0" Text="{Binding Caption}"
+                               Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+
+                    <Button Grid.Column="1" Style="{StaticResource SwatchButton}"
+                            Margin="0,0,10,0" Click="OnSwatchClick"
+                            ToolTip="{loc:Str GuiWpfTipSwatch}"/>
+
+                    <TextBox Grid.Column="2" Style="{StaticResource Field}"
+                             Text="{Binding Hex, UpdateSourceTrigger=LostFocus}"
+                             FontFamily="{StaticResource FontMono}"
+                             MaxLength="7" VerticalAlignment="Center"
+                             ToolTip="{loc:Str GuiWpfTipHex}"/>
+
+                </Grid>
+            </DataTemplate>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="2,0,0,14">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <TextBlock Text="{loc:Str GuiWpfBacklight}" Style="{StaticResource Caption}"
+                           VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <ToggleButton Style="{StaticResource Switch}"
+                              IsChecked="{Binding IsBacklightOn}"
+                              ToolTip="{loc:Str GuiWpfTipBacklightSwitch}"/>
+            </StackPanel>
+            <TextBlock Text="{loc:Str GuiWpfKeyboard}" Style="{StaticResource Caption}"
+                       VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- The diagram goes into MapHost from the code-behind; markup here
+             cannot name a type from this assembly. See Ui/Views/Cards.xaml. -->
+        <Border Grid.Row="1" Style="{StaticResource InsetSurface}" Height="240">
+            <ContentControl x:Name="MapHost" Margin="12" ToolTip="{loc:Str GuiTipKbdPic}"/>
+        </Border>
+
+        <Grid Grid.Row="2" Margin="0,16,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="14"/>
+                <ColumnDefinition Width="300"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Absent on decks that switch but take no colour from here:
+                 per-key RGB boards, and any whose colour table will not read.
+                 Swatches that change nothing are worse than no swatches. -->
+            <Border Grid.Column="0" Style="{StaticResource CardSurface}"
+                    Visibility="{Binding HasColour, Converter={StaticResource ShowWhen}}">
+                <StackPanel Margin="16,14,16,14">
+                    <TextBlock Text="{loc:Str GuiWpfColour}" Style="{StaticResource Caption}"
+                               Margin="0,0,0,12"/>
+                    <ItemsControl ItemsSource="{Binding Zones}"
+                                  ItemTemplate="{StaticResource ZoneSwatch}"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Takes the whole row on a deck with no colour swatches beside
+                 it, rather than sitting in its column with the space where
+                 the colour card would have been left blank -->
+            <Border>
+                <!-- The column is set here rather than on the element: a local
+                     value outranks a trigger, so setting it inline would leave
+                     the trigger below with nothing to move. -->
+                <Border.Style>
+                    <Style TargetType="Border" BasedOn="{StaticResource CardSurface}">
+                        <Setter Property="Grid.Column" Value="2"/>
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding HasColour}" Value="False">
+                                <Setter Property="Grid.Column" Value="0"/>
+                                <Setter Property="Grid.ColumnSpan" Value="3"/>
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+                <StackPanel Margin="16,14,16,14">
+
+                    <TextBlock Text="{loc:Str GuiWpfMode}" Style="{StaticResource Caption}"
+                               Margin="0,0,0,10"/>
+
+                    <!-- Stacked rather than in a row: four labels of very
+                         different widths in a segmented strip leave it lopsided,
+                         and there is room here for the honest version -->
+                    <Border Style="{StaticResource SegmentGroup}" Margin="0,0,0,16">
+                        <StackPanel>
+                            <ToggleButton Content="{loc:Str GuiWpfKbdStatic}" Style="{StaticResource Segment}"
+                                          HorizontalContentAlignment="Left"
+                                          IsChecked="{Binding IsStatic}" ToolTip="{loc:Str GuiWpfTipKbdStatic}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfKbdTemperature}" Style="{StaticResource Segment}"
+                                          HorizontalContentAlignment="Left"
+                                          IsChecked="{Binding IsTemperature}" ToolTip="{loc:Str GuiWpfTipKbdTemperature}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfKbdCycle}" Style="{StaticResource Segment}"
+                                          HorizontalContentAlignment="Left"
+                                          IsChecked="{Binding IsCycle}" ToolTip="{loc:Str GuiWpfTipKbdCycle}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfKbdBreathe}" Style="{StaticResource Segment}"
+                                          HorizontalContentAlignment="Left"
+                                          IsChecked="{Binding IsBreathe}" ToolTip="{loc:Str GuiWpfTipKbdBreathe}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Effect speed. Shown only while an animated effect is
+                         running, so the control is there when it has something
+                         to speed up and gone when it would do nothing. -->
+                    <StackPanel Margin="0,0,0,16"
+                                Visibility="{Binding IsEffectActive, Converter={StaticResource ShowWhen}}">
+                        <DockPanel Margin="0,0,0,8">
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Readout}"
+                                       FontSize="{StaticResource SizeLabel}" VerticalAlignment="Center"
+                                       Text="{Binding EffectSpeed, StringFormat={}{0}×}"/>
+                            <TextBlock Text="{loc:Str GuiWpfKbdSpeed}" Style="{StaticResource Caption}"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Slider Style="{StaticResource Track}"
+                                Minimum="1" Maximum="5" TickFrequency="1" IsSnapToTickEnabled="True"
+                                Value="{Binding EffectSpeed}" ToolTip="{loc:Str GuiWpfTipKbdSpeed}"/>
+                    </StackPanel>
+
+                    <DockPanel Margin="0,0,0,8">
+                        <TextBlock Text="{Binding IdleOffCaption}" Style="{StaticResource Readout}"
+                                   FontSize="{StaticResource SizeLabel}"
+                                   DockPanel.Dock="Right" VerticalAlignment="Center"/>
+                        <TextBlock Text="{loc:Str GuiWpfKbdIdleOff}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"/>
+                    </DockPanel>
+
+                    <Slider Style="{StaticResource Track}"
+                            Minimum="0" Maximum="30" TickFrequency="1" IsSnapToTickEnabled="True"
+                            Value="{Binding IdleOffMinutes}" ToolTip="{loc:Str GuiWpfTipKbdIdle}"/>
+
+                </StackPanel>
+            </Border>
+
+        </Grid>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="2,14,0,0">
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Body}"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+        <!-- The colour picker flyout. Opened from a swatch, positioned beneath
+             it. The picker itself is placed into PickerHost from code-behind. -->
+        <Popup x:Name="PickerPopup" AllowsTransparency="True"
+               Placement="Bottom" PopupAnimation="Fade"
+               StaysOpen="False" HorizontalOffset="-4" VerticalOffset="6">
+            <Border Background="{StaticResource AcrylicStrong}"
+                    BorderBrush="{StaticResource CardBorder}" BorderThickness="1"
+                    CornerRadius="10" Padding="16" Margin="12" Width="272">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="28" ShadowDepth="6"
+                                      Opacity="0.5" Color="Black"/>
+                </Border.Effect>
+                <ContentControl x:Name="PickerHost" Height="230"/>
+            </Border>
+        </Popup>
+
+    </Grid>
+</UserControl>

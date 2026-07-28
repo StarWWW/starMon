@@ -1,0 +1,448 @@
+<UserControl x:Class="StarMon.Ui.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- One row of a block's table: name on the left, value right
+                 aligned in the tabular face so a column of them lines up.
+                 Twenty pixels tall, which is as tight as thirteen-point text
+                 goes before the rows stop reading as separate. -->
+            <!-- The name column sizes to its text and the value column takes
+                 what is left, rather than the other way round: with the value
+                 on Auto a long one — a power plan and a power mode on one
+                 line — squeezed the label out of existence entirely. The
+                 value trims instead, and the row still says what it is. -->
+            <DataTemplate x:Key="BlockRow">
+                <Grid Height="20" ToolTip="{Binding Tip}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Name}"
+                               Style="{StaticResource RowName}"
+                               VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Value}"
+                               Style="{StaticResource Readout}"
+                               FontSize="{StaticResource SizeLabel}"
+                               TextTrimming="CharacterEllipsis"
+                               TextAlignment="Right"
+                               Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </Grid>
+            </DataTemplate>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- The instrument panel.
+         Four blocks across the top, the history under them, the cooling
+         controls along the bottom. The rings and the hundred-point figures
+         the old dashboard led with are gone: they filled a third of the
+         window to say one number the summary strip now carries on every
+         page, and what they were taking the room from is the supporting
+         detail that answers why the number is what it is. -->
+    <Grid Margin="18,14,18,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>  <!-- the four blocks  -->
+            <RowDefinition Height="*"/>     <!-- history          -->
+            <RowDefinition Height="Auto"/>  <!-- cooling controls -->
+            <RowDefinition Height="Auto"/>  <!-- status           -->
+        </Grid.RowDefinitions>
+
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="1.15*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Processor. The widest of the four because it carries the two
+                 per-core strips, which are the only thing on the page that
+                 says which core rather than how hot. -->
+            <Border Grid.Column="0" Style="{StaticResource CardSurface}"
+                    ToolTip="{loc:Str GuiWpfTipCpu}">
+                <Grid Margin="14,11,14,11">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- The caption is docked and the part name fills. Docking
+                         the name instead lets it claim its full width first
+                         and trims the heading away, which is what turned
+                         "EKRAN KARTI" into "EKRAN KAI". -->
+                    <DockPanel Grid.Row="0">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding CpuBlock.Caption}"
+                                   Style="{StaticResource Caption}"/>
+                        <TextBlock Text="{Binding CpuName}"
+                                   Style="{StaticResource Micro}"
+                                   TextAlignment="Right"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="8,0,0,0"/>
+                    </DockPanel>
+
+                    <!-- The figure and its trend, on one line. The trend is
+                         what a figure on its own can never say: whether the
+                         machine is settling or running away. -->
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,0">
+                        <TextBlock Text="{Binding Cpu.Figure}"
+                                   Style="{StaticResource ValueLarge}"
+                                   Foreground="{Binding Cpu.Health,
+                                                Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Cpu.Unit}" Style="{StaticResource Micro}"
+                                   Margin="3,0,0,3" VerticalAlignment="Bottom"/>
+                        <ContentControl x:Name="SparkCpuHost" Width="72" Height="24"
+                                        Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="2" Style="{StaticResource Rule}" Margin="0,9,0,7"/>
+
+                    <ItemsControl Grid.Row="3" ItemsSource="{Binding CpuBlock.Rows}"
+                                  ItemTemplate="{StaticResource BlockRow}"/>
+
+                    <!-- Per-core, twice over: how hot each one is and how fast
+                         it is running. Two labelled rows of equal weight — the
+                         second strip used to be an unlabelled stub under the
+                         first, which read as a rendering fault rather than as
+                         a second measurement. -->
+                    <Grid Grid.Row="4" Margin="0,9,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="°C"
+                                   Style="{StaticResource Micro}"
+                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                        <ContentControl Grid.Row="0" Grid.Column="1" x:Name="CoreTempHost"
+                                        Height="18"
+                                        ToolTip="{loc:Str GuiWpfCoresTip}"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="MHz"
+                                   Style="{StaticResource Micro}"
+                                   VerticalAlignment="Center" Margin="0,5,8,0"/>
+                        <ContentControl Grid.Row="1" Grid.Column="1" x:Name="CoreClockHost"
+                                        Height="18" Margin="0,5,0,0"
+                                        ToolTip="{loc:Str GuiWpfCoreClockTip}"/>
+
+                    </Grid>
+
+                </Grid>
+            </Border>
+
+            <!-- Graphics -->
+            <Border Grid.Column="2" Style="{StaticResource CardSurface}"
+                    ToolTip="{loc:Str GuiWpfTipGpu}">
+                <Grid Margin="14,11,14,11">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0">
+                        <TextBlock DockPanel.Dock="Left" Text="{Binding GpuBlock.Caption}"
+                                   Style="{StaticResource Caption}"/>
+                        <TextBlock Text="{Binding GpuName}"
+                                   Style="{StaticResource Micro}"
+                                   TextAlignment="Right"
+                                   TextTrimming="CharacterEllipsis"
+                                   Margin="8,0,0,0"/>
+                    </DockPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,0">
+                        <TextBlock Text="{Binding Gpu.Figure}"
+                                   Style="{StaticResource ValueLarge}"
+                                   Foreground="{Binding Gpu.Health,
+                                                Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Gpu.Unit}" Style="{StaticResource Micro}"
+                                   Margin="3,0,0,3" VerticalAlignment="Bottom"/>
+                        <ContentControl x:Name="SparkGpuHost" Width="66" Height="24"
+                                        Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="2" Style="{StaticResource Rule}" Margin="0,9,0,7"/>
+
+                    <ItemsControl Grid.Row="3" ItemsSource="{Binding GpuBlock.Rows}"
+                                  ItemTemplate="{StaticResource BlockRow}"/>
+
+                </Grid>
+            </Border>
+
+            <!-- Cooling -->
+            <Border Grid.Column="4" Style="{StaticResource CardSurface}"
+                    ToolTip="{loc:Str GuiWpfTipFans}">
+                <Grid Margin="14,11,14,11">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="{Binding CoolingBlock.Caption}"
+                               Style="{StaticResource Caption}"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,0">
+                        <TextBlock Text="{Binding FanCpu.Figure}"
+                                   Style="{StaticResource ValueLarge}"/>
+                        <TextBlock Text="{Binding FanCpu.Unit}" Style="{StaticResource Micro}"
+                                   Margin="3,0,0,3" VerticalAlignment="Bottom"/>
+                        <ContentControl x:Name="SparkFanHost" Width="66" Height="24"
+                                        Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="2" Style="{StaticResource Rule}" Margin="0,9,0,7"/>
+
+                    <ItemsControl Grid.Row="3" ItemsSource="{Binding CoolingBlock.Rows}"
+                                  ItemTemplate="{StaticResource BlockRow}"/>
+
+                </Grid>
+            </Border>
+
+            <!-- Power and battery -->
+            <Border Grid.Column="6" Style="{StaticResource CardSurface}"
+                    ToolTip="{loc:Str GuiWpfTipBattery}">
+                <Grid Margin="14,11,14,11">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <TextBlock Grid.Row="0" Text="{Binding PowerBlock.Caption}"
+                               Style="{StaticResource Caption}"/>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,0">
+                        <TextBlock Text="{Binding Battery.Figure}"
+                                   Style="{StaticResource ValueLarge}"
+                                   Foreground="{Binding Battery.Health,
+                                                Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Battery.Unit}" Style="{StaticResource Micro}"
+                                   Margin="3,0,0,3" VerticalAlignment="Bottom"/>
+                        <TextBlock Text="{Binding Battery.Detail}" Style="{StaticResource Micro}"
+                                   Margin="9,0,0,3" VerticalAlignment="Bottom"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+
+                    <Border Grid.Row="2" Style="{StaticResource Rule}" Margin="0,9,0,7"/>
+
+                    <ItemsControl Grid.Row="3" ItemsSource="{Binding PowerBlock.Rows}"
+                                  ItemTemplate="{StaticResource BlockRow}"/>
+
+                </Grid>
+            </Border>
+
+        </Grid>
+
+        <!-- The history. The window selector and the export sit on the
+             legend's line: they belong to the plot, and a row of their own
+             would cost the plot the height they saved. -->
+        <Border Grid.Row="1" Margin="0,12,0,0"
+                Style="{StaticResource InsetSurface}" MinHeight="120">
+            <Grid Margin="10,8,10,8">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <DockPanel Grid.Row="0" Margin="2,0,0,6">
+
+                    <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}"
+                            Content="&#xEDE1;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                            Margin="8,0,0,0"
+                            Command="{Binding History.ExportCommand}"
+                            ToolTip="{loc:Str GuiWpfTipExportCsv}"/>
+
+                    <Border DockPanel.Dock="Right" Style="{StaticResource MicroSegmentGroup}"
+                            VerticalAlignment="Center"
+                            ToolTip="{loc:Str GuiWpfTipWindow}">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton Content="{loc:Str GuiWpfWindowShort}"
+                                          Style="{StaticResource MicroSegment}"
+                                          IsChecked="{Binding History.IsWindowShort}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfWindowMedium}"
+                                          Style="{StaticResource MicroSegment}"
+                                          IsChecked="{Binding History.IsWindowMedium}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfWindowLong}"
+                                          Style="{StaticResource MicroSegment}"
+                                          IsChecked="{Binding History.IsWindowLong}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ItemsControl ItemsSource="{Binding History.Legend}"
+                                  ItemTemplate="{StaticResource LegendEntry}"
+                                  VerticalAlignment="Center">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel Orientation="Horizontal"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
+
+                </DockPanel>
+
+                <ContentControl Grid.Row="1" x:Name="ChartHost"
+                                ToolTip="{Binding History.Summary}"/>
+
+            </Grid>
+        </Border>
+
+        <!-- Cooling controls -->
+        <Border Grid.Row="2" Style="{StaticResource CardSurface}" Margin="0,12,0,0">
+            <Grid Margin="14,11,14,12">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="24"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Row="0" Grid.Column="0">
+                    <TextBlock Text="{loc:Str GuiWpfFanControl}" Style="{StaticResource Caption}"
+                               Margin="0,0,0,7"/>
+                    <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton Content="{loc:Str GuiWpfFanAutomatic}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsAutomatic}"
+                                          ToolTip="{loc:Str GuiWpfTipFanAutomatic}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfFanConstant}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsConstant}"
+                                          ToolTip="{loc:Str GuiWpfTipFanConstant}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfFanMaximum}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsMaximum}"
+                                          ToolTip="{loc:Str GuiWpfTipFanMaximum}"/>
+                            <!-- Carries the running program's name rather than
+                                 the bare word: with several saved, which one
+                                 is in force is the only thing the button has
+                                 to say. -->
+                            <ToggleButton Content="{Binding ProgramLabel}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsProgram}"
+                                          IsEnabled="{Binding HasProgram}"
+                                          ToolTip="{loc:Str GuiWpfTipFanProgram}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <StackPanel Grid.Row="0" Grid.Column="2" ToolTip="{loc:Str GuiWpfTipPerfMode}">
+                    <TextBlock Text="{loc:Str GuiWpfPerfMode}" Style="{StaticResource Caption}"
+                               Margin="0,0,0,7"/>
+                    <Border Style="{StaticResource SegmentGroup}" HorizontalAlignment="Left">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton Content="{loc:Str ProgModeDefault}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsPerfDefault}"/>
+                            <ToggleButton Content="{loc:Str ProgModePerformance}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsPerfPerformance}"/>
+                            <ToggleButton Content="{loc:Str ProgModeCool}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsPerfCool}"/>
+                            <ToggleButton Content="{loc:Str ProgModeQuiet}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsPerfQuiet}"/>
+                            <ToggleButton Content="{loc:Str ProgModeExtreme}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsPerfExtreme}"
+                                          Visibility="{Binding HasExtremeMode, Converter={StaticResource ShowWhen}}"/>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- The two levels. Only meaningful in Constant mode, so they
+                     disable rather than hide: a row that appears and vanishes
+                     changes the card's height every time the mode does. -->
+                <Grid Grid.Row="1" Grid.Column="0" Margin="0,11,0,0"
+                      IsEnabled="{Binding IsConstant}" ToolTip="{loc:Str GuiWpfTipLevels}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="34"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="CPU" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center"/>
+                    <Slider Grid.Column="1" Style="{StaticResource Track}"
+                            Minimum="0" Maximum="{Binding LevelMaximum}"
+                            Value="{Binding LevelCpu}"/>
+                    <TextBlock Grid.Column="2" Style="{StaticResource Readout}"
+                               Text="{Binding LevelCpu, StringFormat={}{0:0}}"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
+                <Grid Grid.Row="1" Grid.Column="2" Margin="0,11,0,0"
+                      IsEnabled="{Binding IsConstant}" ToolTip="{loc:Str GuiWpfTipLevels}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="38"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="34"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="GPU" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center"/>
+                    <Slider Grid.Column="1" Style="{StaticResource Track}"
+                            Minimum="0" Maximum="{Binding LevelMaximum}"
+                            Value="{Binding LevelGpu}"/>
+                    <TextBlock Grid.Column="2" Style="{StaticResource Readout}"
+                               Text="{Binding LevelGpu, StringFormat={}{0:0}}"
+                               HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- How much power the graphics chip may draw. Its own control
+                     because it is its own decision — the extra power without
+                     the noise, or the quiet without giving the headroom up. -->
+                <DockPanel Grid.Row="2" Grid.Column="0" Grid.ColumnSpan="3" Margin="0,11,0,0">
+
+                    <Border Style="{StaticResource SegmentGroup}"
+                            DockPanel.Dock="Right"
+                            IsEnabled="{Binding IsGpuPowerSupported}"
+                            ToolTip="{loc:Str GuiWpfTipGpuPower}">
+                        <StackPanel Orientation="Horizontal">
+                            <ToggleButton Content="{loc:Str GuiWpfGpuBase}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsGpuBase}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfGpuCustom}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsGpuCustom}"/>
+                            <ToggleButton Content="{loc:Str GuiWpfGpuBoost}" Style="{StaticResource Segment}"
+                                          IsChecked="{Binding IsGpuBoost}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="{loc:Str GuiWpfGraphicsPower}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding GpuPowerNote}" Style="{StaticResource Micro}"
+                                   Margin="10,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                </DockPanel>
+
+            </Grid>
+        </Border>
+
+        <!-- Status. A dot rather than an icon: it is the only thing on the
+             line that carries colour, so it does not need to compete. -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="2,9,0,0">
+            <Ellipse Width="6" Height="6" VerticalAlignment="Center" Margin="0,0,9,0"
+                     Fill="{StaticResource Accent}"
+                     Visibility="{Binding IsProgramRunning,
+                                  Converter={StaticResource ShowWhen}, ConverterParameter=Hidden}"/>
+            <TextBlock Text="{Binding Status}" Style="{StaticResource Body}"
+                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+        </StackPanel>
+
+    </Grid>
+</UserControl>

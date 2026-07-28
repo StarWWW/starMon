@@ -1,0 +1,491 @@
+<UserControl x:Class="StarMon.Ui.Views.SettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- One card of related decisions. The panel is two columns now:
+                 it used to be a single 720-wide strip down the left, which
+                 left half the window empty and made a long list of preferences
+                 longer than it needed to be. -->
+            <Style x:Key="ControlCard" TargetType="Border" BasedOn="{StaticResource CardSurface}">
+                <Setter Property="Margin" Value="0,0,0,10"/>
+                <Setter Property="Padding" Value="14,12,14,13"/>
+            </Style>
+
+            <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="RowSwitch" TargetType="ToggleButton" BasedOn="{StaticResource Switch}">
+                <Setter Property="DockPanel.Dock" Value="Right"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="16,0,0,0"/>
+            </Style>
+
+            <Style x:Key="SwitchRow" TargetType="DockPanel">
+                <Setter Property="Margin" Value="0,9,0,0"/>
+            </Style>
+
+            <!-- A bounded number: its name and its value on one line, the
+                 slider under them. Reads better than a text box for anything
+                 with a real range, and cannot be given a value the firmware
+                 would reject. -->
+            <Style x:Key="NumberLabel" TargetType="TextBlock" BasedOn="{StaticResource Readout}">
+                <Setter Property="FontSize" Value="{StaticResource SizeLabel}"/>
+                <Setter Property="DockPanel.Dock" Value="Right"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="Margin" Value="12,0,0,0"/>
+            </Style>
+
+            <Style x:Key="NumberSlider" TargetType="Slider" BasedOn="{StaticResource Track}">
+                <Setter Property="Margin" Value="0,8,0,0"/>
+                <Setter Property="TickFrequency" Value="1"/>
+                <Setter Property="IsSnapToTickEnabled" Value="True"/>
+            </Style>
+
+            <Style x:Key="SectionHead" TargetType="TextBlock" BasedOn="{StaticResource Caption}">
+                <Setter Property="Margin" Value="0,0,0,2"/>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14,18,14">
+        <StackPanel>
+
+            <DockPanel Margin="2,0,0,10">
+                <TextBlock DockPanel.Dock="Left" Text="{loc:Str GuiWpfSettingsCaption}"
+                           Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                <TextBlock Style="{StaticResource Micro}" Margin="16,0,0,0"
+                           TextAlignment="Right" TextTrimming="CharacterEllipsis"
+                           VerticalAlignment="Center"
+                           Text="{loc:Str GuiWpfSettingsHint}"/>
+            </DockPanel>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <!--#region Left column: the machine -->
+                <StackPanel Grid.Column="0">
+
+                    <!-- Graphics mode (MUX) -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Border Style="{StaticResource SegmentGroup}" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="14,0,0,0"
+                                        IsEnabled="{Binding IsGpuModeSupported}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="{loc:Str GuiWpfOptimus}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsGpuOptimus}" ToolTip="{loc:Str GuiWpfTipOptimus}"/>
+                                        <ToggleButton Content="{loc:Str GuiWpfDiscrete}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsGpuDiscrete}" ToolTip="{loc:Str GuiWpfTipDiscrete}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{loc:Str GuiWpfGpuMode}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfGpuModeHint}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,5,0,0"
+                                       Foreground="{StaticResource Accent}"
+                                       Text="{Binding GpuModeNote}"
+                                       Visibility="{Binding GpuModeNote, Converter={StaticResource HideWhenEmpty}}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,5,0,0"
+                                       Text="{loc:Str GuiWpfNotAvailable}"
+                                       Visibility="{Binding IsGpuModeSupported, Converter={StaticResource ShowWhen}, ConverterParameter=Inverse}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- CPU turbo boost -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Border Style="{StaticResource SegmentGroup}" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="14,0,0,0"
+                                        IsEnabled="{Binding IsBoostSupported}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="{loc:Str GuiWpfBoostOff}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsBoostOff}" ToolTip="{loc:Str GuiWpfTipBoostOff}"/>
+                                        <ToggleButton Content="{loc:Str GuiWpfBoostOn}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsBoostOn}" ToolTip="{loc:Str GuiWpfTipBoostOn}"/>
+                                        <ToggleButton Content="{loc:Str GuiWpfBoostAggressive}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsBoostAggressive}" ToolTip="{loc:Str GuiWpfTipBoostAggressive}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{loc:Str GuiWpfBoost}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfBoostHint}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,5,0,0"
+                                       Text="{loc:Str GuiWpfNotAvailable}"
+                                       Visibility="{Binding IsBoostSupported, Converter={StaticResource ShowWhen}, ConverterParameter=Inverse}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Display brightness -->
+                    <Border Style="{StaticResource ControlCard}"
+                            IsEnabled="{Binding IsBrightnessSupported}">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding Brightness, StringFormat={}{0:0}%}"/>
+                                <TextBlock Text="{loc:Str GuiWpfBrightness}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="0" Maximum="100" Value="{Binding Brightness}" ToolTip="{loc:Str GuiWpfTipBrightness}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Thermal protection. Its own card because it is the one
+                         setting here that can stop the machine cooking itself,
+                         and the threshold only means anything while it is on. -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+                            <DockPanel>
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding ThermalProtection}" ToolTip="{loc:Str GuiWpfThermalGuardHint}"/>
+                                <TextBlock Text="{loc:Str GuiWpfThermalGuard}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfThermalGuardHint}"/>
+                            <StackPanel Margin="0,10,0,0" IsEnabled="{Binding ThermalProtection}">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NumberLabel}"
+                                               Text="{Binding ThermalThreshold, StringFormat={}{0:0} °C}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfThermalThreshold}"
+                                               Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider Style="{StaticResource NumberSlider}"
+                                        Minimum="80" Maximum="99" Value="{Binding ThermalThreshold}" ToolTip="{loc:Str GuiWpfTipThreshold}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Fans. Every one of these governs a control that is
+                         already in the window: the sliders and the curve are
+                         scaled against the ceiling, and the failsafe decides
+                         whether a level the user set survives four minutes. -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfFanSection}" Style="{StaticResource SectionHead}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfFanSectionHint}"/>
+
+                            <DockPanel Margin="0,12,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding FanLevelCeiling, StringFormat={}{0:0}}"/>
+                                <TextBlock Text="{loc:Str GuiWpfFanCeiling}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="25" Maximum="120" Value="{Binding FanLevelCeiling}"
+                                    ToolTip="{loc:Str GuiWpfTipCeiling}"/>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding FanLevelFloor, StringFormat={}{0:0}}"/>
+                                <TextBlock Text="{loc:Str GuiWpfFanFloor}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="0" Maximum="60" Value="{Binding FanLevelFloor}" ToolTip="{loc:Str GuiWpfTipFanFloor}"/>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding CurveHysteresis, StringFormat={}{0:0} °C}"/>
+                                <TextBlock Text="{loc:Str GuiWpfCurveHysteresis}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="0" Maximum="10" Value="{Binding CurveHysteresis}"
+                                    ToolTip="{loc:Str GuiWpfTipHysteresis}"/>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,12,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding FanLevelAutoDetect}" ToolTip="{loc:Str GuiWpfTipFanAutoDetect}"/>
+                                <TextBlock Text="{loc:Str GuiWpfFanAutoDetect}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding KeepFansSet}" ToolTip="{loc:Str GuiTipCountdown}"/>
+                                <TextBlock Text="{loc:Str GuiWpfKeepFansSet}" Style="{StaticResource RowLabel}"
+                                           ToolTip="{loc:Str GuiTipCountdown}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding SuspendProgramOnSleep}" ToolTip="{loc:Str GuiWpfTipSuspendOnSleep}"/>
+                                <TextBlock Text="{loc:Str GuiWpfSuspendOnSleep}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+                <!--#endregion -->
+
+                <!--#region Right column: the application -->
+                <StackPanel Grid.Column="2">
+
+                    <!-- Behaviour -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfBehaviour}" Style="{StaticResource SectionHead}"/>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,10,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding StartWithWindows}" ToolTip="{loc:Str GuiWpfTipStartWithWindows}"/>
+                                <TextBlock Text="{loc:Str GuiWpfStartWithWindows}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding ApplyOnStart}" ToolTip="{loc:Str GuiWpfTipApplyOnStart}"/>
+                                <TextBlock Text="{loc:Str GuiWpfApplyOnStart}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding CloseExits}" ToolTip="{loc:Str GuiWpfTipCloseExits}"/>
+                                <TextBlock Text="{loc:Str GuiWpfCloseExits}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding StayOnTop}" ToolTip="{loc:Str GuiWpfTipStayOnTop}"/>
+                                <TextBlock Text="{loc:Str GuiWpfStayOnTop}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding ThrottleNotify}" ToolTip="{loc:Str GuiWpfTipThrottleNotify}"/>
+                                <TextBlock Text="{loc:Str GuiWpfThrottleNotify}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding PollGpuOnBattery}" ToolTip="{loc:Str GuiWpfTipPollGpu}"/>
+                                <TextBlock Text="{loc:Str GuiWpfPollGpuOnBattery}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Display: the refresh-rate presets the toggle above
+                         switches between. The toggle has been in this panel
+                         since it was written and the two rates it chooses
+                         between were only in the configuration file. -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfDisplaySection}" Style="{StaticResource SectionHead}"/>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,10,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding RefreshRateFollowsPower}" ToolTip="{loc:Str GuiWpfTipRefreshFollows}"/>
+                                <TextBlock Text="{loc:Str GuiWpfRefreshFollows}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <Grid Margin="0,12,0,0" IsEnabled="{Binding RefreshRateFollowsPower}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="10"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="{loc:Str GuiWpfRefreshOnAc}" Style="{StaticResource Caption}"
+                                               Margin="0,0,0,6"/>
+                                    <TextBox Style="{StaticResource Field}" Padding="9,5"
+                                             Text="{Binding RefreshRateHigh, StringFormat={}{0:0}}" ToolTip="{loc:Str GuiWpfTipRefreshHigh}"/>
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="{loc:Str GuiWpfRefreshOnBattery}" Style="{StaticResource Caption}"
+                                               Margin="0,0,0,6"/>
+                                    <TextBox Style="{StaticResource Field}" Padding="9,5"
+                                             Text="{Binding RefreshRateLow, StringFormat={}{0:0}}" ToolTip="{loc:Str GuiWpfTipRefreshLow}"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,12,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding RefreshRateAutoDetect}" ToolTip="{loc:Str GuiWpfTipRefreshAuto}"/>
+                                <TextBlock Text="{loc:Str GuiWpfRefreshAutoDetect}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <!-- The display-off hotkey. Registered at startup
+                                 since the feature was written, and bindable
+                                 nowhere until now. -->
+                            <TextBlock Text="{loc:Str GuiWpfHotkey}" Style="{StaticResource Caption}"
+                                       Margin="0,14,0,6"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,0,0,8"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfHotkeyHint}"/>
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" x:Name="ClearHotkey"
+                                        Content="{loc:Str GuiWpfHotkeyClear}"
+                                        Style="{StaticResource GhostButton}"
+                                        MinWidth="0" Padding="12,6" Margin="8,0,0,0"
+                                        IsEnabled="{Binding HasHotkey}" ToolTip="{loc:Str GuiWpfTipHotkeyClear}"/>
+                                <Button x:Name="CaptureHotkey" Style="{StaticResource GhostButton}"
+                                        MinWidth="0" Padding="12,6"
+                                        HorizontalContentAlignment="Left"
+                                        Content="{Binding HotkeyText}" ToolTip="{loc:Str GuiWpfTipHotkeyCapture}"/>
+                            </DockPanel>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- The Omen key -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfOmenKey}" Style="{StaticResource SectionHead}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfOmenKeyHint}"/>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,10,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding KeyTogglesProgram}" ToolTip="{loc:Str GuiWpfTipKeyToggles}"/>
+                                <TextBlock Text="{loc:Str GuiWpfKeyToggles}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <StackPanel IsEnabled="{Binding KeyTogglesProgram}">
+
+                                <DockPanel Style="{StaticResource SwitchRow}">
+                                    <ToggleButton Style="{StaticResource RowSwitch}"
+                                                  IsChecked="{Binding KeyCyclesAll}" ToolTip="{loc:Str GuiWpfTipKeyCycles}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfKeyCycles}" Style="{StaticResource RowLabel}"/>
+                                </DockPanel>
+
+                                <DockPanel Style="{StaticResource SwitchRow}">
+                                    <ToggleButton Style="{StaticResource RowSwitch}"
+                                                  IsChecked="{Binding KeyShowsWindowFirst}" ToolTip="{loc:Str GuiWpfTipKeyShowsFirst}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfKeyShowsFirst}" Style="{StaticResource RowLabel}"/>
+                                </DockPanel>
+
+                                <DockPanel Style="{StaticResource SwitchRow}">
+                                    <ToggleButton Style="{StaticResource RowSwitch}"
+                                                  IsChecked="{Binding KeyIsSilent}" ToolTip="{loc:Str GuiWpfTipKeySilent}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfKeySilent}" Style="{StaticResource RowLabel}"/>
+                                </DockPanel>
+
+                            </StackPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,12,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding KeyRunsCommand}" ToolTip="{loc:Str GuiWpfTipKeyRuns}"/>
+                                <TextBlock Text="{loc:Str GuiWpfKeyRuns}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <StackPanel Margin="0,8,0,0" IsEnabled="{Binding KeyRunsCommand}">
+                                <TextBox Style="{StaticResource Field}" Padding="9,5"
+                                         Text="{Binding KeyCommand}"
+                                         ToolTip="{loc:Str GuiWpfKeyCommandTip}"/>
+                                <TextBox Style="{StaticResource Field}" Padding="9,5" Margin="0,7,0,0"
+                                         Text="{Binding KeyArguments}"
+                                         ToolTip="{loc:Str GuiWpfKeyArgumentsTip}"/>
+                                <DockPanel Style="{StaticResource SwitchRow}">
+                                    <ToggleButton Style="{StaticResource RowSwitch}"
+                                                  IsChecked="{Binding KeyCommandMinimised}" ToolTip="{loc:Str GuiWpfTipKeyMinimised}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfKeyMinimised}" Style="{StaticResource RowLabel}"/>
+                                </DockPanel>
+                            </StackPanel>
+
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Logging and cadence -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfLogSection}" Style="{StaticResource SectionHead}"/>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,10,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding LogVerbose}" ToolTip="{loc:Str GuiWpfTipLogVerbose}"/>
+                                <TextBlock Text="{loc:Str GuiWpfLogVerbose}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding LogToFile}" ToolTip="{loc:Str GuiWpfTipLogToFile}"/>
+                                <TextBlock Text="{loc:Str GuiWpfLogToFile}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding ReportBiosErrors}" ToolTip="{loc:Str GuiWpfTipReportBiosErrors}"/>
+                                <TextBlock Text="{loc:Str GuiWpfReportBiosErrors}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <StackPanel IsEnabled="{Binding LogToFile}" Margin="0,10,0,0">
+                                <DockPanel>
+                                    <TextBlock Style="{StaticResource NumberLabel}"
+                                               Text="{Binding LogFileMaxMb, StringFormat={}{0:0} MB}"/>
+                                    <TextBlock Text="{loc:Str GuiWpfLogFileSize}" Style="{StaticResource Caption}"
+                                               VerticalAlignment="Center"/>
+                                </DockPanel>
+                                <Slider Style="{StaticResource NumberSlider}"
+                                        Minimum="1" Maximum="64" Value="{Binding LogFileMaxMb}" ToolTip="{loc:Str GuiWpfTipLogFileSize}"/>
+                            </StackPanel>
+
+                            <Border Style="{StaticResource Rule}" Margin="0,14,0,10"/>
+
+                            <TextBlock Text="{loc:Str GuiWpfCadence}" Style="{StaticResource SectionHead}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfCadenceHint}"/>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding MonitorSeconds, StringFormat={}{0:0} s}"/>
+                                <TextBlock Text="{loc:Str GuiWpfCadenceMonitor}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="1" Maximum="15" Value="{Binding MonitorSeconds}" ToolTip="{loc:Str GuiWpfTipCadenceMonitor}"/>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding RecordSeconds, StringFormat={}{0:0} s}"/>
+                                <TextBlock Text="{loc:Str GuiWpfCadenceRecord}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="5" Maximum="120" Value="{Binding RecordSeconds}" ToolTip="{loc:Str GuiWpfTipCadenceRecord}"/>
+
+                            <DockPanel Margin="0,10,0,0">
+                                <TextBlock Style="{StaticResource NumberLabel}"
+                                           Text="{Binding ProgramSeconds, StringFormat={}{0:0} s}"/>
+                                <TextBlock Text="{loc:Str GuiWpfCadenceProgram}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <Slider Style="{StaticResource NumberSlider}"
+                                    Minimum="3" Maximum="60" Value="{Binding ProgramSeconds}" ToolTip="{loc:Str GuiWpfTipCadenceProgram}"/>
+
+                        </StackPanel>
+                    </Border>
+
+                </StackPanel>
+                <!--#endregion -->
+
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,193 @@
+<!-- StarMon: hardware monitoring and control
+     Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+     The typefaces the interface draws with.
+
+     Windows 11 ships Segoe UI Variable in three optical sizes: Display for
+     large figures, Text for running text, Small for captions. Using the right
+     one at each size is most of what makes the window look composed rather
+     than merely dark. Cascadia Mono carries the tabular readouts, where digits
+     have to line up column by column.
+
+     WinForms had to resolve each family against InstalledFontCollection by
+     hand, because a Font asked for a family that is not installed silently
+     substitutes something that looks nothing like the intent. WPF takes a
+     comma-separated fallback list and walks it itself, so the resolution the
+     old Typo class did in code is expressed here declaratively.
+
+     Sizes are in device-independent pixels (1/96"), not points. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- The text styles set Foreground from the palette, and a StaticResource
+         is resolved when this dictionary is parsed, not when it is merged into
+         a window. So each dictionary pulls in what it references rather than
+         relying on the order Theme.xaml merges them in. -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Palette.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- Bahnschrift: the DIN 1451 face Windows has shipped since 2017 — the
+         lettering of German industry, which is exactly the register a
+         hardware monitor wants. Figures are narrow, upright and unambiguous.
+         Segoe stays in every fallback so a machine without it (or a glyph
+         Bahnschrift lacks) degrades to the system face rather than to a
+         substitute chosen by nobody. -->
+    <FontFamily x:Key="FontDisplay">Bahnschrift, Segoe UI Variable Display, Segoe UI Semibold, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="FontText">Bahnschrift, Segoe UI Variable Text, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="FontSmall">Bahnschrift, Segoe UI Variable Small, Segoe UI, Arial</FontFamily>
+    <FontFamily x:Key="FontMono">Cascadia Mono, Consolas, Courier New</FontFamily>
+
+    <!-- Type scale. Kept short and fixed: a scale with fewer steps reads as
+         deliberate, and every size here earns its place. -->
+    <sys:Double x:Key="SizeLead">96</sys:Double>     <!-- the one figure     -->
+    <sys:Double x:Key="SizeHero">40</sys:Double>     <!-- stat card value    -->
+    <sys:Double x:Key="SizeGauge">33</sys:Double>    <!-- figure in a ring   -->
+    <sys:Double x:Key="SizeDisplay">22</sys:Double>  <!-- window title, sums -->
+    <sys:Double x:Key="SizeTitle">15</sys:Double>    <!-- section heading    -->
+    <sys:Double x:Key="SizeBody">13</sys:Double>     <!-- running text       -->
+    <sys:Double x:Key="SizeLabel">12</sys:Double>    <!-- captions, legends  -->
+    <sys:Double x:Key="SizeMicro">11</sys:Double>    <!-- axis ticks, units  -->
+
+    <!-- The instrument panel's two figure sizes. The panel's whole premise is
+         that the reading is the interface, so the figures are set in the mono
+         face rather than the display one: a value that changes every second
+         must not change width as it does, or a column of them shivers. -->
+    <sys:Double x:Key="SizeValue">28</sys:Double>    <!-- a block's figure   -->
+    <sys:Double x:Key="SizeStrip">17</sys:Double>    <!-- the summary strip  -->
+
+    <!-- Text styles. Every piece of text in the application uses one of these;
+         a TextBlock that sets its own FontSize is a mistake to be fixed here
+         rather than a licence to invent a seventh size. -->
+
+    <!-- The single figure the window is looked at for.
+         Set at more than twice the size of the cards beside it, because a
+         hierarchy that has to be squinted at is not one. The line height is
+         pulled well under the point size so the figure sits tight in its card
+         rather than floating in the leading the font asks for. -->
+    <Style x:Key="Lead" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeLead}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="LineHeight" Value="88"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+
+    <Style x:Key="Hero" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeHero}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <!-- Large figures set tight; the default line height leaves the value
+             floating in its card -->
+        <Setter Property="LineHeight" Value="42"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+
+    <!-- The figure inside a ring gauge: large enough to be the thing read,
+         small enough to sit inside the ring with its unit beside it -->
+    <Style x:Key="Gauge" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeGauge}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="LineHeight" Value="34"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+    </Style>
+
+    <Style x:Key="Display" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontDisplay}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeDisplay}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+    </Style>
+
+    <Style x:Key="Title" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeTitle}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+    </Style>
+
+    <Style x:Key="Body" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+    </Style>
+
+    <!-- Card captions and legends. Letterspaced and upper-cased at the call
+         site: at this size the tracking is what separates a caption from body
+         text, and it is cheaper than a second weight. -->
+    <Style x:Key="Caption" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSmall}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeLabel}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+    </Style>
+
+    <Style x:Key="Micro" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontSmall}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeMicro}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+    </Style>
+
+    <!-- Tabular readouts. Cascadia Mono is already fixed-pitch, but the
+         numeral feature is set explicitly so a proportional fallback still
+         lines its digits up. -->
+    <Style x:Key="Readout" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
+    </Style>
+
+    <!-- The figure a block is read for: the processor's temperature, the
+         card's. Mono like the small readouts rather than the display face,
+         because this is the value that changes most often and a proportional
+         face makes it jump sideways every time a digit does. Line height is
+         pulled under the point size so it sits tight against the label above
+         it instead of floating in the leading the font asks for. -->
+    <Style x:Key="ValueLarge" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeValue}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="LineHeight" Value="29"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
+    </Style>
+
+    <!-- The summary strip, which is on show on every page and therefore has
+         to be legible without being loud -->
+    <Style x:Key="ValueStrip" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontMono}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeStrip}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="LineHeight" Value="18"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="Typography.NumeralAlignment" Value="Tabular"/>
+    </Style>
+
+    <!-- What a row in a readings table is called. Lighter than Caption, which
+         is a heading; a table of forty rows whose labels are all semi-bold is
+         a table with no hierarchy left in it. -->
+    <Style x:Key="RowName" TargetType="TextBlock">
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeLabel}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Display"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+    </Style>
+
+</ResourceDictionary>

@@ -1,0 +1,188 @@
+// StarMon: hardware monitoring and control
+// Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+using System;
+using StarMon.Hardware.Bios;
+using StarMon.Hardware.Ec;
+using StarMon.Library;
+
+namespace StarMon.Hardware.Platform {
+
+#region Interface
+    // Defines an interface for interacting with a fan
+    public interface IFan {
+
+        // Retrieves the fan type
+        public BiosData.FanType GetFanType();
+
+        public int GetLevel();  // Retrieves the fan level [krpm]
+        public int GetRate();   // Retrieves the fan rate [%]
+        public int GetSpeed();  // Retrieves the fan speed [rpm]
+
+        public void SetLevel(int level);  // Sets the fan level [krpm]
+        public void SetRate(int rate);    // Sets the fan rate [%]
+
+        // Re-derives the believable-reading bounds from the current fan
+        // ceiling, which is only known once the firmware has been asked
+        public void RefreshConstraints();
+
+    }
+#endregion
+
+    // Implements a mechanism for interacting with a fan
+    public class Fan : IFan {
+
+#region Implementation
+        // Stores the fan type
+        protected BiosData.FanType FanType;
+
+        // Stores the level data component
+        protected IPlatformReadWriteComponent Level;
+
+        // Stores the rate data components (separate read and write)
+        protected IPlatformReadComponent RateRead;
+        protected IPlatformWriteComponent RateWrite;
+
+        // Stores the speed data component
+        protected IPlatformReadComponent Speed;
+
+        // Constructs a fan instance
+        public Fan(
+            BiosData.FanType type,
+            IPlatformReadWriteComponent level,
+            IPlatformReadComponent rateRead,
+            IPlatformWriteComponent rateWrite,
+            IPlatformReadComponent speed) {
+
+            this.FanType = type;
+            this.Level = level;
+            this.RateRead = rateRead;
+            this.RateWrite = rateWrite;
+            this.Speed = speed;
+            RefreshConstraints();
+
+        }
+
+        // Re-derives the bounds a reading has to fall inside to be believed.
+        //
+        // The speed bound comes from the fan ceiling, and the ceiling is not
+        // known until the firmware has been asked — which happens after the
+        // platform is built, and again later if a fan is seen running higher.
+        // Computing it once in the constructor left every machine whose fans
+        // are faster than the compiled default silently discarding its own
+        // top-end speed readings.
+        public virtual void RefreshConstraints() {
+            this.RateRead.SetConstraint(Config.MaxBelievablePercent);
+            this.Speed.SetConstraint(
+                Config.FanLevelMax * (100 + Config.MaxBelievableFanSpeedPercentOverMax));
+        }
+
+        // Retrieves the fan type
+        public virtual BiosData.FanType GetFanType() {
+            return this.FanType;
+        }
+
+        // Retrieves the fan level [krpm]
+        public virtual int GetLevel() {
+            byte[] levels = CachedLevels();
+            int index = (int) this.FanType - 1;
+            return levels != null && index >= 0 && index < levels.Length
+                ? levels[index] : 0;
+        }
+
+        // The firmware returns every fan's level in one call, so asking it
+        // once per fan asked the same question twice a second for the same
+        // answer. Held for a moment instead, which is shorter than the
+        // interval anything reads it at and long enough to collapse the pair.
+        private static byte[] LevelCache;
+        private static int LevelCacheStamp;
+        private static readonly object LevelLock = new object();
+
+        private static byte[] CachedLevels() {
+
+            lock(LevelLock) {
+
+                int now = Environment.TickCount;
+                if(LevelCache != null
+                    && unchecked(now - LevelCacheStamp) < LevelCacheMs)
+                    return LevelCache;
+
+                try {
+                    LevelCache = Hw.BiosGet(Hw.Bios.GetFanLevel);
+                } catch {
+                    LevelCache = null;  // Unsupported by WMI/BIOS
+                }
+
+                LevelCacheStamp = now;
+                return LevelCache;
+
+            }
+
+        }
+
+        private const int LevelCacheMs = 200;
+
+        // Drops the cached levels, so a write is followed by a fresh read
+        // rather than by the answer from just before it
+        internal static void InvalidateLevels() {
+            lock(LevelLock) { LevelCache = null; }
+        }
+
+        // Retrieves the fan rate [%]
+        public virtual int GetRate() {
+            this.RateRead.Update();
+            return this.RateRead.GetValue();
+        }
+
+        // Retrieves the fan speed [rpm]
+        //
+        // The firmware's own tachometer call is preferred, and the Embedded
+        // Controller register is the fallback. The register differs between
+        // boards and on some of them does not hold a true count; the BIOS
+        // call is the same question asked in the one way every machine with
+        // this interface answers. A board where it is unsupported throws, and
+        // the register answers as it always did.
+        public virtual int GetSpeed() {
+
+            if(BiosSpeedWorks) {
+                try {
+                    int rpm = Hw.BiosGet(() => Hw.Bios.GetFanSpeed((byte) (this.FanType - 1)));
+                    if(rpm > 0 && rpm < MaxBelievableRpm)
+                        return rpm;
+                } catch {
+                    // Asked once, refused once: stop asking. A machine does
+                    // not acquire the call while it is running, and retrying
+                    // it every second costs a failed WMI round trip per fan.
+                    BiosSpeedWorks = false;
+                }
+            }
+
+            this.Speed.Update();
+            return this.Speed.GetValue();
+
+        }
+
+        // Whether the firmware's tachometer call has answered so far. Shared
+        // by both fans: the call either exists on a board or it does not.
+        private static bool BiosSpeedWorks = true;
+
+        // Above this, the answer is not a fan speed. No laptop fan turns this
+        // fast, so a larger figure is a firmware returning something else in
+        // those two bytes rather than a reading worth showing.
+        private const int MaxBelievableRpm = 15000;
+
+        // Sets the fan level [krpm]
+        public virtual void SetLevel(int level) {
+            this.Level.SetValue(level);
+            InvalidateLevels();
+        }
+
+        // Sets the fan rate [%]
+        public virtual void SetRate(int rate) {
+            this.RateWrite.SetValue(rate);
+        }
+#endregion
+
+    }
+
+}

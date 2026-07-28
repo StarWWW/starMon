@@ -1,0 +1,179 @@
+<UserControl x:Class="StarMon.Ui.Views.LogView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <!-- A row is stripped of every ListBoxItem behaviour except
+                 selection, which is what makes a line copyable. The stock
+                 chrome brings a blue system highlight and a focus rectangle
+                 that neither match anything else here. -->
+            <Style x:Key="LogRow" TargetType="ListBoxItem">
+                <Setter Property="Padding" Value="0"/>
+                <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ListBoxItem">
+                            <Border x:Name="Back" Background="Transparent" Padding="10,2">
+                                <ContentPresenter/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Back" Property="Background"
+                                            Value="{StaticResource Hover}"/>
+                                </Trigger>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="Back" Property="Background"
+                                            Value="{StaticResource AccentFaint}"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid Margin="24,20,24,20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <DockPanel Grid.Row="0" Margin="2,0,0,12">
+            <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                <ToggleButton Style="{StaticResource Switch}"
+                              IsChecked="{Binding IsPaused}" Margin="0,0,10,0" ToolTip="{loc:Str GuiWpfTipPauseSwitch}"/>
+                <TextBlock Text="{loc:Str GuiWpfPause}" Style="{StaticResource Caption}"
+                           VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Button Content="{loc:Str GuiLogExport}" Style="{StaticResource GhostButton}"
+                        Command="{Binding ExportCommand}" MinWidth="76" Padding="14,6"
+                        Margin="0,0,10,0" ToolTip="{loc:Str GuiWpfTipLogExport}"/>
+                <Button Content="{loc:Str GuiWpfClear}" Style="{StaticResource GhostButton}"
+                        Command="{Binding ClearCommand}" MinWidth="76" Padding="14,6" ToolTip="{loc:Str GuiWpfTipLogClear}"/>
+            </StackPanel>
+            <TextBlock Text="{loc:Str GuiWpfLogCaption}" Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+        </DockPanel>
+
+        <!-- Filters, grouped by what someone is looking for rather than by
+             the application's own log levels -->
+        <Grid Grid.Row="1" Margin="0,0,0,12">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="240"/>
+            </Grid.ColumnDefinitions>
+
+            <WrapPanel Grid.Column="0" VerticalAlignment="Center">
+                <CheckBox Content="{loc:Str GuiWpfFilterProblems}" Style="{StaticResource Check}"
+                          IsChecked="{Binding ShowProblems}" Margin="0,0,18,0" ToolTip="{loc:Str GuiWpfTipFilterProblems}"/>
+                <CheckBox Content="{loc:Str GuiWpfFilterHardware}" Style="{StaticResource Check}"
+                          IsChecked="{Binding ShowHardware}" Margin="0,0,18,0" ToolTip="{loc:Str GuiWpfTipFilterHardware}"/>
+                <CheckBox Content="{loc:Str GuiWpfFilterInterface}" Style="{StaticResource Check}"
+                          IsChecked="{Binding ShowInterface}" Margin="0,0,18,0" ToolTip="{loc:Str GuiWpfTipFilterInterface}"/>
+                <CheckBox Content="{loc:Str GuiWpfFilterBios}" Style="{StaticResource Check}"
+                          IsChecked="{Binding ShowBios}" Margin="0,0,18,0" ToolTip="{loc:Str GuiWpfTipFilterBios}"/>
+                <CheckBox Content="{loc:Str GuiWpfFilterEc}" Style="{StaticResource Check}"
+                          IsChecked="{Binding ShowEc}" ToolTip="{loc:Str GuiWpfTipFilterEc}"/>
+            </WrapPanel>
+
+            <!-- The hint is an overlay bound to the box's own emptiness
+                 rather than an attached property, because an attached
+                 property would be a type from this assembly named in markup,
+                 and that forces a markup-compilation pass this project cannot
+                 run. See the note at the top of Ui/Views/Cards.xaml. -->
+            <Grid Grid.Column="1">
+
+                <TextBox x:Name="SearchBox" Style="{StaticResource Field}"
+                         Text="{Binding Search, UpdateSourceTrigger=PropertyChanged, Delay=200}"
+                         Padding="10,5" ToolTip="{loc:Str GuiWpfTipLogSearch}"/>
+
+                <TextBlock Text="{loc:Str GuiWpfSearch}"
+                           Foreground="{StaticResource TextMuted}"
+                           Margin="11,0,0,0" VerticalAlignment="Center"
+                           IsHitTestVisible="False">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                            <Setter Property="Visibility" Value="Collapsed"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding Text, ElementName=SearchBox}"
+                                             Value="">
+                                    <Setter Property="Visibility" Value="Visible"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+
+            </Grid>
+
+        </Grid>
+
+        <Border Grid.Row="2" Style="{StaticResource InsetSurface}">
+            <!-- Extended selection plus a copy command: a log nobody can copy
+                 out of is a log that gets photographed instead of pasted -->
+            <ListBox x:Name="Rows" ItemsSource="{Binding Lines}" ToolTip="{loc:Str GuiWpfTipLogList}"
+                     ItemContainerStyle="{StaticResource LogRow}"
+                     SelectionMode="Extended"
+                     Background="Transparent" BorderThickness="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     Margin="2,6,2,6">
+                <ListBox.ContextMenu>
+                    <ContextMenu>
+                        <MenuItem Header="{loc:Str GuiWpfCopy}"
+                                  Command="ApplicationCommands.Copy"/>
+                        <MenuItem Header="{loc:Str GuiWpfCopyAll}"
+                                  Click="OnCopyAll"/>
+                    </ContextMenu>
+                </ListBox.ContextMenu>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="64"/>
+                                <ColumnDefinition Width="96"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+
+                            <TextBlock Grid.Column="0" Text="{Binding Time}"
+                                       Style="{StaticResource Readout}"
+                                       FontSize="{StaticResource SizeMicro}"
+                                       Foreground="{StaticResource TextMuted}"/>
+
+                            <TextBlock Grid.Column="1" Text="{Binding Source}"
+                                       Style="{StaticResource Micro}"
+                                       TextTrimming="CharacterEllipsis"/>
+
+                            <TextBlock Grid.Column="2" Text="{Binding Message}"
+                                       Style="{StaticResource Micro}"
+                                       Foreground="{Binding Level, Converter={StaticResource LogBrush}}"
+                                       TextTrimming="CharacterEllipsis"
+                                       ToolTip="{Binding Detail}"/>
+
+                            <TextBlock Grid.Column="3" Text="{Binding Repeat}"
+                                       Style="{StaticResource Readout}"
+                                       FontSize="{StaticResource SizeMicro}"
+                                       Foreground="{StaticResource TextMuted}"
+                                       Margin="8,0,0,0"/>
+
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </Border>
+
+        <TextBlock Grid.Row="3" Text="{Binding Summary}" Style="{StaticResource Body}"
+                   Margin="2,12,0,0"/>
+
+    </Grid>
+</UserControl>

@@ -1,0 +1,53 @@
+name: Build and test
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # The full MSBuild from Visual Studio, not the bare .NET SDK. The
+      # interface is WPF, whose markup compilation needs the WinFX targets and
+      # PresentationBuildTasks; the desktop workload on the runner ships them,
+      # so CI compiles the XAML directly. The local build script has to point a
+      # plain `dotnet msbuild` at those same targets by hand, which is the one
+      # difference between the two.
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build
+        run: msbuild StarMon.csproj /t:Build /p:Configuration=Release /v:minimal /nologo
+
+      # The shipping executable's manifest requires administrator rights, so
+      # it cannot be started on a runner. The same sources are built again
+      # without the manifest, purely as a host for the tests, which touch no
+      # hardware. The output directory is separate so the real build is left
+      # exactly as it was produced above.
+      - name: Build test host
+        run: >
+          msbuild StarMon.csproj /t:Build /p:Configuration=Release
+          /p:ApplicationManifest=
+          /p:AssemblyName=StarMonTest
+          /p:OutputType=Exe
+          /p:IntermediateOutputPath=Obj\Test\
+          /p:OutputPath=Bin\Test
+          /v:minimal /nologo
+
+      - name: Run self-test
+        run: .\Bin\Test\StarMonTest.exe -SelfTest
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarMon
+          path: |
+            Bin/StarMon.exe
+            Bin/StarMon.xml
+          if-no-files-found: error

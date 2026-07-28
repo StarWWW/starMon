@@ -1,0 +1,353 @@
+<!-- StarMon: hardware monitoring and control
+     Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+     The templates that draw the view models. Kept apart from Ui/Theme, which
+     knows only about controls and colours: this is the first file that knows
+     what a reading is.
+
+     No markup in this project names a type declared in this same assembly —
+     no converter instance, no {x:Type} on a DataTemplate. That is a build
+     constraint rather than a style choice. Markup that names a local type
+     cannot be compiled in one pass: the compiler needs the assembly to
+     resolve the type and the assembly needs the compiled markup, so it builds
+     a throwaway assembly first, from a generated project. That project has
+     its own intermediate directory, which means it re-runs GenerateResource
+     on StarMon.resx — and the SDK's GenerateResource cannot serialize the
+     icons and bitmaps in it, which is the whole reason build.ps1 exists.
+
+     So the converters are registered from code instead, in Ui/Shell/Theme.cs,
+     under the keys used below. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/Ui/Theme/Theme.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- The reading the window is looked at for.
+         One figure, set large and light, with the status carried as light
+         rather than as ink: a wash of its colour rising from the bottom of
+         the card. That is the difference between a card showing a red number
+         and a card that feels hot — and it is what gives the row somewhere to
+         start, which five cards of equal weight never did. -->
+    <DataTemplate x:Key="LeadCard">
+        <Border Style="{StaticResource CardSurface}" Height="150" Margin="0,0,10,0">
+            <Grid ClipToBounds="True">
+
+                <Border CornerRadius="{StaticResource RadiusCard}"
+                        Opacity="0.30">
+                    <Border.Background>
+                        <RadialGradientBrush GradientOrigin="0.30,1.25" Center="0.30,1.25"
+                                             RadiusX="1.0" RadiusY="1.35">
+                            <GradientStop Offset="0.0"
+                                          Color="{Binding Health, Converter={StaticResource HealthColour}}"/>
+                            <GradientStop Offset="0.55"
+                                          Color="{Binding Health, Converter={StaticResource HealthColour}}"/>
+                            <GradientStop Offset="1.0" Color="#0017171C"/>
+                        </RadialGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <Grid Margin="18,13,18,13">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <Border Width="14" Height="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                                Background="{Binding Health, Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal"
+                                VerticalAlignment="Center" Margin="-3,0,0,0">
+                        <TextBlock Text="{Binding Figure}" Style="{StaticResource Lead}"
+                                   Foreground="{Binding Health, Converter={StaticResource HealthBrush}}"/>
+                        <TextBlock Text="{Binding Unit}" Style="{StaticResource Display}"
+                                   Margin="6,0,0,14" VerticalAlignment="Bottom"
+                                   Foreground="{Binding Health, Converter={StaticResource HealthBrush}}"
+                                   Opacity="0.55"/>
+                    </StackPanel>
+
+                    <TextBlock Grid.Row="2" Text="{Binding Detail}" Style="{StaticResource Micro}"
+                               TextTrimming="CharacterEllipsis"
+                               Visibility="{Binding Detail, Converter={StaticResource HideWhenEmpty}}"/>
+
+                </Grid>
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+    <!-- A stat card.
+
+         The short colour rule under the caption is what ties the card to the
+         reading it shows. Colouring the whole surface would say the same thing
+         far too loudly, and five differently-tinted cards side by side stop
+         reading as one row. -->
+    <DataTemplate x:Key="StatCard">
+        <Border Style="{StaticResource CardSurface}" Height="150" Margin="0,0,10,0">
+            <Grid Margin="15,13,15,13">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Border Width="14" Height="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                            Background="{Binding Health, Converter={StaticResource HealthBrush},
+                                         ConverterParameter=Muted}"/>
+                    <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <!-- The unit sits on the figure's own baseline rather than
+                     being part of its string, so the figures line up down a
+                     column whether or not their units are the same width -->
+                <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Figure}" Style="{StaticResource Hero}"
+                               Foreground="{Binding Health, Converter={StaticResource HealthBrush}}"/>
+                    <TextBlock Text="{Binding Unit}" Style="{StaticResource Body}"
+                               Margin="4,0,0,5" VerticalAlignment="Bottom"
+                               Foreground="{Binding Health, Converter={StaticResource HealthBrush}}"
+                               Opacity="0.7"/>
+                </StackPanel>
+
+                <TextBlock Grid.Row="2" Text="{Binding Detail}" Style="{StaticResource Micro}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding Detail, Converter={StaticResource HideWhenEmpty}}"/>
+
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+    <!-- A legend entry, which is also the control that hides its series.
+         A ToggleButton because that is what it is: pressing it turns
+         something off and it stays off, and getting that for free brings
+         keyboard focus and the accessibility tree with it.
+
+         The chip carries the identity; the text never wears the series
+         colour. Coloured text at this size is harder to read, and it invites
+         reading the colour as though it meant something about the value. A
+         hidden series shows a hollow ring rather than a filled dot, so the
+         state survives being seen in greyscale. -->
+    <DataTemplate x:Key="LegendEntry">
+        <ToggleButton IsChecked="{Binding IsVisible}" Cursor="Hand"
+                      Margin="0,0,14,0" FocusVisualStyle="{x:Null}"
+                      ToolTip="{loc:Str GuiWpfTipLegend}">
+            <ToggleButton.Template>
+                <ControlTemplate TargetType="ToggleButton">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="8" Height="8" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Ellipse x:Name="Ring" StrokeThickness="1.2"
+                                     Stroke="{StaticResource TextMuted}"/>
+                            <Ellipse x:Name="Dot"
+                                     Fill="{Binding Slot, Converter={StaticResource SlotBrush}}"/>
+                        </Grid>
+                        <TextBlock x:Name="Label" Text="{Binding Label}"
+                                   Style="{StaticResource Micro}"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   VerticalAlignment="Center"/>
+                        <TextBlock x:Name="Value" Text="{Binding Value}"
+                                   Style="{StaticResource Readout}"
+                                   FontSize="{StaticResource SizeMicro}"
+                                   Margin="5,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="False">
+                            <Setter TargetName="Dot" Property="Opacity" Value="0"/>
+                            <Setter TargetName="Label" Property="Foreground"
+                                    Value="{StaticResource TextMuted}"/>
+                            <Setter TargetName="Value" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Ring" Property="Opacity" Value="0"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Label" Property="Foreground"
+                                    Value="{StaticResource TextPrimary}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </ToggleButton.Template>
+        </ToggleButton>
+    </DataTemplate>
+
+    <!-- Two readings of the same kind on one card. The second figure is set
+         at the body size rather than the hero one: they are a pair, but the
+         first is the one being reported and the second is context. -->
+    <DataTemplate x:Key="PairCard">
+        <Border Style="{StaticResource CardSurface}" Height="150" Margin="0,0,10,0">
+            <Grid Margin="15,13,15,13">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Border Width="14" Height="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                            Background="{Binding Health, Converter={StaticResource HealthBrush},
+                                         ConverterParameter=Muted}"/>
+                    <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <StackPanel Grid.Row="1" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="{Binding Figure}" Style="{StaticResource Hero}"/>
+                        <TextBlock Text="{Binding Unit}" Style="{StaticResource Body}"
+                                   Margin="4,0,0,6" VerticalAlignment="Bottom" Opacity="0.7"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <TextBlock Text="{Binding Second}" Style="{StaticResource Title}"
+                                   Foreground="{StaticResource TextSecondary}"/>
+                        <TextBlock Text="{Binding Unit}" Style="{StaticResource Micro}"
+                                   Margin="4,0,0,2" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                </StackPanel>
+
+                <TextBlock Grid.Row="2" Text="{Binding Detail}" Style="{StaticResource Micro}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding Detail, Converter={StaticResource HideWhenEmpty}}"/>
+
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+    <!-- The fan card. Like the pair card — two figures of the same kind — but
+         with a blade that turns beside them, so the card shows the fans as
+         moving rather than as a pair of numbers. The blade spins at a steady
+         rate: it says the fans are running, which is the thing a glance wants,
+         without implying a precision the reading does not carry. -->
+    <DataTemplate x:Key="FanCard">
+        <Border Style="{StaticResource CardSurface}" Height="150" Margin="0,0,10,0">
+            <Grid Margin="15,13,15,13">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <StackPanel Grid.Row="0" Orientation="Horizontal">
+                    <Border Width="14" Height="2" VerticalAlignment="Center" Margin="0,0,8,0"
+                            Background="{Binding Health, Converter={StaticResource HealthBrush},
+                                         ConverterParameter=Muted}"/>
+                    <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                               VerticalAlignment="Center"/>
+                </StackPanel>
+
+                <Grid Grid.Row="1" VerticalAlignment="Center">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="{Binding Figure}" Style="{StaticResource Hero}"/>
+                            <TextBlock Text="{Binding Unit}" Style="{StaticResource Body}"
+                                       Margin="4,0,0,6" VerticalAlignment="Bottom" Opacity="0.7"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                            <TextBlock Text="{Binding Second}" Style="{StaticResource Title}"
+                                       Foreground="{StaticResource TextSecondary}"/>
+                            <TextBlock Text="{Binding Unit}" Style="{StaticResource Micro}"
+                                       Margin="4,0,0,2" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- The blade. Three spokes on a turning hub; the whole
+                         group rotates, so one storyboard drives all of it. -->
+                    <Grid Grid.Column="1" Width="40" Height="40"
+                          VerticalAlignment="Center" Margin="0,0,2,0"
+                          RenderTransformOrigin="0.5,0.5">
+                        <Grid.RenderTransform>
+                            <RotateTransform x:Name="Blade"/>
+                        </Grid.RenderTransform>
+                        <Grid.Triggers>
+                            <EventTrigger RoutedEvent="FrameworkElement.Loaded">
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Blade"
+                                                         Storyboard.TargetProperty="Angle"
+                                                         From="0" To="360"
+                                                         Duration="0:0:2.6"
+                                                         RepeatBehavior="Forever"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </EventTrigger>
+                        </Grid.Triggers>
+
+                        <!-- Three swept blades rather than straight spokes: a
+                             straight spoke at this size reads as an asterisk,
+                             and the sweep is what says "fan" before the motion
+                             does. One geometry, rotated into place. -->
+                        <Path Width="40" Height="40" Stretch="None"
+                              Fill="{StaticResource TextSecondary}"
+                              Data="M 20,16.5 C 25,16 28.5,11 26.5,4.5 C 25,2 21,2 19.5,3.5 C 17,7 16.5,13 20,16.5 Z"/>
+                        <Path Width="40" Height="40" Stretch="None"
+                              Fill="{StaticResource TextSecondary}"
+                              RenderTransformOrigin="0.5,0.5"
+                              Data="M 20,16.5 C 25,16 28.5,11 26.5,4.5 C 25,2 21,2 19.5,3.5 C 17,7 16.5,13 20,16.5 Z">
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="120"/>
+                            </Path.RenderTransform>
+                        </Path>
+                        <Path Width="40" Height="40" Stretch="None"
+                              Fill="{StaticResource TextSecondary}"
+                              RenderTransformOrigin="0.5,0.5"
+                              Data="M 20,16.5 C 25,16 28.5,11 26.5,4.5 C 25,2 21,2 19.5,3.5 C 17,7 16.5,13 20,16.5 Z">
+                            <Path.RenderTransform>
+                                <RotateTransform Angle="240"/>
+                            </Path.RenderTransform>
+                        </Path>
+                        <Ellipse Width="12" Height="12" Fill="{StaticResource Card}"
+                                 Stroke="{StaticResource Accent}" StrokeThickness="2"
+                                 HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+
+                </Grid>
+
+                <TextBlock Grid.Row="2" Text="{Binding Detail}" Style="{StaticResource Micro}"
+                           TextTrimming="CharacterEllipsis"
+                           Visibility="{Binding Detail, Converter={StaticResource HideWhenEmpty}}"/>
+
+            </Grid>
+        </Border>
+    </DataTemplate>
+
+    <!-- A group of detail rows. This replaces the rich-text panel the old
+         form built by hand: the values line up in a column because they are
+         a column, not because the string was padded to make them look like one. -->
+    <DataTemplate x:Key="DetailGroup">
+        <StackPanel Margin="0,0,0,18">
+            <TextBlock Text="{Binding Caption}" Style="{StaticResource Caption}"
+                       Margin="0,0,0,7"/>
+            <ItemsControl ItemsSource="{Binding Rows}">
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Grid Margin="0,0,0,3">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Grid.Column="0" Text="{Binding Name}"
+                                       Style="{StaticResource Body}"
+                                       Foreground="{StaticResource TextMuted}"/>
+                            <TextBlock Grid.Column="1" Text="{Binding Value}"
+                                       Style="{StaticResource Readout}"
+                                       FontSize="{StaticResource SizeLabel}"
+                                       TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </StackPanel>
+    </DataTemplate>
+
+</ResourceDictionary>

@@ -1,0 +1,39 @@
+<Window x:Class="StarMon.Ui.Windows.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Title="StarMon"
+        Width="1000" Height="760"
+        MinWidth="1000" MinHeight="760"
+        MaxWidth="1000" MaxHeight="760"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource Plane}"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Ideal">
+
+    <!-- The window draws its own title bar, so the system's is removed and a
+         caption area is nominated instead. Doing it through WindowChrome
+         rather than WindowStyle="None" alone is what keeps snapping, the
+         Aero shake, the system menu on right-click and the resize borders
+         working — all of which a hand-rolled frame otherwise loses, and none
+         of which anybody notices until they are gone.
+
+         AllowsTransparency stays off: turning it on puts the window into a
+         layered mode that disables the DWM backdrop, and the Mica the shell
+         asks for at startup would silently never appear. -->
+    <shell:WindowChrome.WindowChrome>
+        <!-- No resize border: the window is a fixed size, and a border that
+             offers a resize the window will not do is worse than none -->
+        <shell:WindowChrome CaptionHeight="40"
+                            ResizeBorderThickness="0"
+                            CornerRadius="0"
+                            GlassFrameThickness="0"
+                            UseAeroCaptionButtons="False"/>
+    </shell:WindowChrome.WindowChrome>
+
+    <!-- The shell is put in from the code-behind: markup here cannot name a
+         type from this assembly. See the note in Ui/Views/Cards.xaml. -->
+    <ContentControl x:Name="ShellHost"/>
+
+</Window>

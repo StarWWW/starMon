@@ -1,0 +1,882 @@
+<!-- StarMon: hardware monitoring and control
+     Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+     Control templates.
+
+     This file is the reason the interface moved to WPF. The WinForms build
+     could paint its own cards and charts, but its radio buttons, trackbars,
+     check boxes and combo boxes were Windows chrome that no amount of
+     BackColor made dark: they stayed light grey with a blue system accent,
+     against a near-black window. Here every control is rebuilt from a
+     ControlTemplate, so a slider thumb and a card edge come from the same
+     twelve colours and two radii.
+
+     Every interactive template also has states: hover, pressed, focused,
+     disabled, and each transition is animated on the shared duration and
+     easing curve from Palette.xaml, so the whole interface moves as one.
+
+     A note on how those animations are written, because getting it wrong is
+     silent. A trigger's EnterActions only describe the *transition*: they run
+     on a clock, so a control that is already in the state when it is first
+     laid out has never had that clock tick and shows the animation's starting
+     value. A toggle that is checked from the moment the window opens would
+     render as unchecked. So every animated state also carries a Setter for its
+     resting value, and the animations are given FillBehavior="Stop" so they
+     hand the property back to that Setter instead of holding the last frame
+     forever — which would otherwise pin the property at the exit value even
+     after the trigger no longer applies. -->
+
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Every StaticResource below is resolved as this dictionary is parsed,
+         so its dependencies are merged here rather than left to Theme.xaml -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Palette.xaml"/>
+        <ResourceDictionary Source="Typography.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+
+<!--#region Surfaces -->
+
+    <!-- A raised surface: fill, hairline edge, and a light line along the top
+         inside edge suggesting the surface catches the light from above. The
+         highlight is the top gradient stop of CardFill rather than a separate
+         element, so a card is a single Border. -->
+    <Style x:Key="CardSurface" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource CardFill}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusCard}"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <!-- A card under the cursor lifts its edge one shade. Quiet on
+             purpose: the cards are readings, not buttons, and the hint of
+             response is what keeps the surface feeling alive without
+             pretending everything is clickable. -->
+        <Style.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="BorderBrush" Value="#FF3A3F4A"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- A surface inset into a card: a plot area, a list, a readout well.
+         Darker than the card and with no highlight, because it reads as cut
+         into the surface rather than sitting on it. -->
+    <Style x:Key="InsetSurface" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Inset}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource Divider}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="{StaticResource RadiusInset}"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Buttons -->
+
+    <!-- The shared button chrome. The two variants below differ only in their
+         resting fill and text colour, so the geometry, the states and the
+         focus ring are defined once. -->
+    <ControlTemplate x:Key="ButtonChrome" TargetType="ButtonBase">
+        <Grid>
+            <Border x:Name="Back"
+                    Background="{TemplateBinding Background}"
+                    BorderBrush="{TemplateBinding BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource RadiusControl}"
+                    SnapsToDevicePixels="True"/>
+            <!-- The interaction wash rides above the fill so a primary and a
+                 ghost button lighten by the same amount on hover -->
+            <Border x:Name="Wash"
+                    Background="{StaticResource Hover}"
+                    CornerRadius="{StaticResource RadiusControl}"
+                    Opacity="0"/>
+            <Border x:Name="Ring"
+                    BorderBrush="{StaticResource Focus}"
+                    BorderThickness="2"
+                    CornerRadius="{StaticResource RadiusControl}"
+                    Margin="-2"
+                    Opacity="0"/>
+            <ContentPresenter x:Name="Content"
+                              Margin="{TemplateBinding Padding}"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center"
+                              RecognizesAccessKey="True"/>
+        </Grid>
+        <ControlTemplate.Triggers>
+            <Trigger Property="IsMouseOver" Value="True">
+                <Setter TargetName="Wash" Property="Opacity" Value="1"/>
+                <Trigger.EnterActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Wash"
+                                             Storyboard.TargetProperty="Opacity"
+                                             From="0" To="1" FillBehavior="Stop"
+                                             Duration="{StaticResource DurationState}"
+                                             EasingFunction="{StaticResource Ease}"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.EnterActions>
+                <Trigger.ExitActions>
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetName="Wash"
+                                             Storyboard.TargetProperty="Opacity"
+                                             From="1" To="0" FillBehavior="Stop"
+                                             Duration="{StaticResource DurationState}"
+                                             EasingFunction="{StaticResource Ease}"/>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </Trigger.ExitActions>
+            </Trigger>
+            <!-- Pressed swaps the wash for a dark one and nudges the label
+                 down a pixel: the button reads as depressed, not just tinted -->
+            <Trigger Property="IsPressed" Value="True">
+                <Setter TargetName="Wash" Property="Background" Value="{StaticResource Pressed}"/>
+                <Setter TargetName="Wash" Property="Opacity" Value="1"/>
+                <Setter TargetName="Content" Property="RenderTransform">
+                    <Setter.Value>
+                        <TranslateTransform Y="1"/>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+            <!-- Keyboard focus only. A ring drawn on every click is noise; a
+                 ring drawn when tabbing to the control is the whole point. -->
+            <Trigger Property="IsKeyboardFocused" Value="True">
+                <Setter TargetName="Ring" Property="Opacity" Value="1"/>
+            </Trigger>
+            <Trigger Property="IsEnabled" Value="False">
+                <Setter Property="Opacity" Value="0.38"/>
+            </Trigger>
+        </ControlTemplate.Triggers>
+    </ControlTemplate>
+
+    <!-- The default button: quiet, on the card plane. Most buttons are this.
+
+         The fill sits a shade LIGHTER than the card it is on, not darker. It
+         used to take the inset colour, which is what a plot area or a well is
+         painted in — so every button read as a hole cut into the card rather
+         than as a control raised off it. A thing to be pressed has to look
+         like it is standing up. -->
+    <Style x:Key="GhostButton" TargetType="Button">
+        <Setter Property="Template" Value="{StaticResource ButtonChrome}"/>
+        <Setter Property="Background" Value="#FF31363F"/>
+        <Setter Property="BorderBrush" Value="#FF434A57"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Padding" Value="16,8"/>
+        <Setter Property="MinWidth" Value="96"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+    </Style>
+
+    <!-- One primary button per view, at most. White text on the accent, and a
+         edge a shade deeper than the fill so it reads as a solid object rather
+         than as a flat patch of colour. -->
+    <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Background" Value="{StaticResource Accent}"/>
+        <Setter Property="BorderBrush" Value="#FF7A4DE8"/>
+        <Setter Property="Foreground" Value="#FFFFFFFF"/>
+    </Style>
+
+    <!-- A destructive or halting action: stop the fan program, delete a
+         saved one. Carries a faint wash of its own colour rather than being
+         an outline on nothing — an outline-only button beside two filled ones
+         reads as disabled. -->
+    <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Background" Value="#1FD03B3B"/>
+        <Setter Property="BorderBrush" Value="#66D03B3B"/>
+        <Setter Property="Foreground" Value="#FFE87878"/>
+    </Style>
+
+    <!-- Unbounded buttons: the title-bar minimise/close glyphs, and the small
+         icon affordances beside a card heading -->
+    <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+        <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="28"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Segmented selection -->
+
+    <!-- Fan mode, GPU power, keyboard preset: a small fixed set of mutually
+         exclusive choices. WinForms drew these as radio buttons, which meant
+         a column of system-drawn circles. A segmented row is both smaller and
+         easier to read as "one of these is active". -->
+    <Style x:Key="Segment" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Padding" Value="14,6"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border x:Name="Fill"
+                                Background="{StaticResource Accent}"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Opacity="0"/>
+                        <Border x:Name="Wash"
+                                Background="{StaticResource Hover}"
+                                CornerRadius="{StaticResource RadiusControl}"
+                                Opacity="0"/>
+                        <ContentPresenter Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Wash" Property="Opacity" Value="1"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="#FFFFFFFF"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter TargetName="Wash" Property="Opacity" Value="0"/>
+                            <Setter TargetName="Fill" Property="Opacity" Value="1"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1" FillBehavior="Stop"
+                                                         Duration="{StaticResource DurationState}"
+                                                         EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Fill"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="1" To="0" FillBehavior="Stop"
+                                                         Duration="{StaticResource DurationState}"
+                                                         EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The well the segments sit in. Setting this on the container is what
+         makes the row read as one control rather than several buttons. -->
+    <Style x:Key="SegmentGroup" TargetType="Border" BasedOn="{StaticResource InsetSurface}">
+        <Setter Property="Padding" Value="3"/>
+    </Style>
+
+    <!-- The same control at the size a chart's window selector wants: it sits
+         beside a legend rather than under a heading, and at full size it
+         out-weighs the plot it belongs to. -->
+    <Style x:Key="MicroSegment" TargetType="ToggleButton" BasedOn="{StaticResource Segment}">
+        <Setter Property="FontSize" Value="{StaticResource SizeMicro}"/>
+        <Setter Property="Padding" Value="9,3"/>
+    </Style>
+
+    <Style x:Key="MicroSegmentGroup" TargetType="Border" BasedOn="{StaticResource InsetSurface}">
+        <Setter Property="Padding" Value="2"/>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Instrument panel -->
+
+    <!-- A hairline between rows of readings.
+         Felt rather than seen: in a table of forty rows a visible rule per row
+         is forty lines competing with the figures, so this is the quiet
+         divider and the grouping is carried by the surface instead. -->
+    <Style x:Key="Rule" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource Divider}"/>
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
+
+    <!-- A status badge: thermal protection engaged, a fan program running,
+         the processor throttling. These say the machine is in a state the
+         user did not necessarily choose, which is exactly what the old
+         interface had no way of saying — the fan selector would move to
+         Maximum on its own with nothing to explain why.
+
+         TextElement.Foreground is inheritable, so setting it on the Border
+         colours the text inside without the call site having to. -->
+    <!-- A pill radius on text this small produces a lozenge that reads as a
+         button; the badge is a label, so it takes the inset radius the rest
+         of the interface's small surfaces do. The edge is a hair above the
+         fill rather than half the ink's strength — at eleven pixels a bright
+         outline is what makes a badge look like something to click. -->
+    <Style x:Key="Chip" TargetType="Border">
+        <Setter Property="Background" Value="#288B5CF6"/>
+        <Setter Property="BorderBrush" Value="#448B5CF6"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Padding" Value="7,2,7,3"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="TextElement.Foreground" Value="{StaticResource Accent}"/>
+        <Setter Property="TextElement.FontFamily" Value="{StaticResource FontSmall}"/>
+        <Setter Property="TextElement.FontSize" Value="{StaticResource SizeMicro}"/>
+        <Setter Property="TextElement.FontWeight" Value="SemiBold"/>
+    </Style>
+
+    <!-- The machine is protecting itself. Reserved for that: a badge the user
+         learns means "not your doing" only if it never appears for anything
+         ordinary. -->
+    <Style x:Key="ChipAlert" TargetType="Border" BasedOn="{StaticResource Chip}">
+        <Setter Property="Background" Value="#28D03B3B"/>
+        <Setter Property="BorderBrush" Value="#44D03B3B"/>
+        <Setter Property="TextElement.Foreground" Value="#FFE87878"/>
+    </Style>
+
+    <Style x:Key="ChipWarning" TargetType="Border" BasedOn="{StaticResource Chip}">
+        <Setter Property="Background" Value="#28FAB219"/>
+        <Setter Property="BorderBrush" Value="#44FAB219"/>
+        <Setter Property="TextElement.Foreground" Value="{StaticResource Warning}"/>
+    </Style>
+
+    <!-- A navigation tab, sitting in the title bar rather than in a strip of
+         its own. The indicator is an underline instead of a filled pill: a
+         filled tab in a title bar reads as a button that does something, and
+         the accent is spent on the controls that do. -->
+    <Style x:Key="TopTab" TargetType="ToggleButton">
+        <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid Background="Transparent">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="2"/>
+                        </Grid.RowDefinitions>
+                        <ContentPresenter Grid.Row="0"
+                                          Margin="{TemplateBinding Padding}"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                        <!-- The underline is inset from the label rather than
+                             running the full tab width, so a long caption and
+                             a short one produce marks of proportional weight
+                             instead of one four times the other -->
+                        <Border x:Name="Mark" Grid.Row="1"
+                                Background="{StaticResource Accent}"
+                                CornerRadius="1"
+                                Margin="10,0"
+                                Opacity="0"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+                            <Setter Property="FontWeight" Value="SemiBold"/>
+                            <Setter TargetName="Mark" Property="Opacity" Value="1"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Mark"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1" FillBehavior="Stop"
+                                                         Duration="{StaticResource DurationState}"
+                                                         EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Mark"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="1" To="0" FillBehavior="Stop"
+                                                         Duration="{StaticResource DurationState}"
+                                                         EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The tabs that carry a glyph instead of a name — settings, about.
+         Segoe Fluent Icons at the call site; the style only fixes the metrics
+         so a glyph tab and a word tab share a baseline. -->
+    <Style x:Key="TopTabIcon" TargetType="ToggleButton" BasedOn="{StaticResource TopTab}">
+        <Setter Property="FontFamily" Value="Segoe Fluent Icons, Segoe MDL2 Assets"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="Padding" Value="9,0"/>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Check box -->
+
+    <Style x:Key="Check" TargetType="CheckBox">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="18" Height="18" VerticalAlignment="Center">
+                            <Border x:Name="Box"
+                                    Background="{StaticResource Inset}"
+                                    BorderBrush="{StaticResource CardBorder}"
+                                    BorderThickness="1"
+                                    CornerRadius="4"
+                                    SnapsToDevicePixels="True"/>
+                            <!-- The tick is a Path rather than a glyph so it
+                                 scales with DPI and never depends on a font -->
+                            <Path x:Name="Tick"
+                                  Data="M 3.5,8.5 L 7,12 L 14.5,4.5"
+                                  Stroke="#FFFFFFFF"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Opacity="0"/>
+                        </Grid>
+                        <ContentPresenter Margin="9,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource TextMuted}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Tick" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource Focus}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- A setting that is on or off, where the state matters more than the
+         label: automatic fan control, run at startup, follow power plan -->
+    <Style x:Key="Switch" TargetType="ToggleButton">
+        <Setter Property="Width" Value="40"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToggleButton">
+                    <Grid>
+                        <Border x:Name="Track"
+                                Background="{StaticResource Inset}"
+                                BorderBrush="{StaticResource CardBorder}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource RadiusPill}"/>
+                        <!-- The knob travels by its own Margin rather than by
+                             a RenderTransform: a Setter can only retarget a
+                             named element of the template, and the transform
+                             inside one is not that, so the resting position of
+                             an already-checked switch could not be set. -->
+                        <Ellipse x:Name="Knob"
+                                 Width="16" Height="16"
+                                 Fill="{StaticResource TextMuted}"
+                                 HorizontalAlignment="Left"
+                                 Margin="3,0,0,0"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                            <Setter TargetName="Knob" Property="Fill" Value="#FFFFFFFF"/>
+                            <Setter TargetName="Knob" Property="Margin" Value="21,0,0,0"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="Knob"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            From="3,0,0,0" To="21,0,0,0"
+                                                            FillBehavior="Stop"
+                                                            Duration="{StaticResource DurationState}"
+                                                            EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <ThicknessAnimation Storyboard.TargetName="Knob"
+                                                            Storyboard.TargetProperty="Margin"
+                                                            From="21,0,0,0" To="3,0,0,0"
+                                                            FillBehavior="Stop"
+                                                            Duration="{StaticResource DurationState}"
+                                                            EasingFunction="{StaticResource Ease}"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Focus}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Slider -->
+
+    <!-- Fan level, keyboard brightness, refresh rate. The stock trackbar was
+         the single worst offender in the WinForms window: a light grey groove
+         with a system-blue thumb, unstylable, on a near-black card. -->
+    <Style x:Key="SliderThumb" TargetType="Thumb">
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Grid Width="18" Height="18">
+                        <!-- A halo that only appears on hover, so the thumb is
+                             small at rest and easy to grab in motion -->
+                        <Ellipse x:Name="Halo" Fill="{StaticResource AccentFaint}" Opacity="0"/>
+                        <Ellipse Width="12" Height="12" Fill="{StaticResource TextPrimary}"/>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Halo" Property="Opacity" Value="1"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Halo" Property="Opacity" Value="1"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Track" TargetType="Slider">
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="MinWidth" Value="120"/>
+        <Setter Property="IsMoveToPointEnabled" Value="True"/>
+        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Slider">
+                    <Grid VerticalAlignment="Center">
+                        <Border Height="4" CornerRadius="2"
+                                Background="{StaticResource Inset}"
+                                BorderBrush="{StaticResource Divider}"
+                                BorderThickness="1"/>
+                        <!-- The filled portion is a decorator inside the track
+                             grid rather than a RepeatButton fill, so the accent
+                             stops exactly at the thumb centre -->
+                        <Track x:Name="PART_Track">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="Slider.DecreaseLarge"
+                                              Focusable="False"
+                                              OverridesDefaultStyle="True">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Grid Background="Transparent">
+                                                <Border Height="4" CornerRadius="2"
+                                                        Background="{StaticResource Accent}"
+                                                        VerticalAlignment="Center"/>
+                                            </Grid>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="Slider.IncreaseLarge"
+                                              Focusable="False"
+                                              OverridesDefaultStyle="True">
+                                    <RepeatButton.Template>
+                                        <ControlTemplate TargetType="RepeatButton">
+                                            <Grid Background="Transparent"/>
+                                        </ControlTemplate>
+                                    </RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource SliderThumb}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Meters -->
+
+    <!-- A fan speed, a battery charge, a load percentage. Foreground carries
+         the fill, so the same template serves a neutral meter and a status
+         one without a second style. -->
+    <Style x:Key="Meter" TargetType="ProgressBar">
+        <Setter Property="Height" Value="6"/>
+        <Setter Property="Foreground" Value="{StaticResource Accent}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ProgressBar">
+                    <Grid>
+                        <Border Background="{StaticResource Inset}"
+                                BorderBrush="{StaticResource Divider}"
+                                BorderThickness="1"
+                                CornerRadius="3"/>
+                        <Border x:Name="PART_Track"/>
+                        <Border x:Name="PART_Indicator"
+                                Background="{TemplateBinding Foreground}"
+                                CornerRadius="3"
+                                HorizontalAlignment="Left"/>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Text entry -->
+
+    <Style x:Key="Field" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource Inset}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource Accent}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource AccentDim}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
+        <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <Border x:Name="Back"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{StaticResource CardBorder}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusControl}">
+                        <!-- The content host is not centred vertically: a
+                             ScrollViewer asked to centre itself reports the
+                             viewport as its desired height, which makes an
+                             empty single-line field noticeably taller than
+                             its text plus padding -->
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Back" Property="BorderBrush" Value="{StaticResource TextMuted}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Back" Property="BorderBrush" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.38"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+<!--#endregion -->
+
+<!--#region Scroll bar -->
+
+    <!-- Overlay scrollbars: 4 px at rest, widening on hover. The log viewer
+         and the capabilities report are the only long surfaces, and neither
+         should give up 17 px of width to permanent chrome. -->
+    <!-- The scrollbar thumb.
+         Drawn as a solid shape in its own colour rather than as a muted grey
+         at a third opacity: a washed-out bar over a dark surface reads as a
+         rendering artefact, which is what this looked like. It has resting,
+         hover and dragging states, so the bar answers the pointer the way
+         every other control here does. -->
+    <Style x:Key="ScrollThumb" TargetType="Thumb">
+        <Setter Property="OverridesDefaultStyle" Value="True"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bar"
+                            Background="#FF3D4350"
+                            CornerRadius="3"
+                            Margin="3,2"
+                            SnapsToDevicePixels="True"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="#FF565D6D"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- The same, lying on its side: the margin has to swap with the
+         orientation or a horizontal bar comes out three pixels tall -->
+    <Style x:Key="ScrollThumbHorizontal" TargetType="Thumb" BasedOn="{StaticResource ScrollThumb}">
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Thumb">
+                    <Border x:Name="Bar"
+                            Background="#FF3D4350"
+                            CornerRadius="3"
+                            Margin="2,3"
+                            SnapsToDevicePixels="True"/>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="#FF565D6D"/>
+                        </Trigger>
+                        <Trigger Property="IsDragging" Value="True">
+                            <Setter TargetName="Bar" Property="Background" Value="{StaticResource Accent}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style x:Key="Scroll" TargetType="ScrollBar">
+        <Setter Property="Width" Value="12"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ScrollBar">
+                    <Grid Background="Transparent">
+                        <!-- A track the thumb runs in, so the bar reads as a
+                             control with a range rather than as a mark
+                             floating against the page -->
+                        <Border Background="#14FFFFFF" CornerRadius="3" Margin="3,2"/>
+                        <Track x:Name="PART_Track" IsDirectionReversed="True">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageUpCommand"
+                                              Opacity="0" Focusable="False"/>
+                            </Track.DecreaseRepeatButton>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton Command="ScrollBar.PageDownCommand"
+                                              Opacity="0" Focusable="False"/>
+                            </Track.IncreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb Style="{StaticResource ScrollThumb}"/>
+                            </Track.Thumb>
+                        </Track>
+                    </Grid>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <!-- The template above is written for the vertical bar. This style
+                 is applied implicitly, so a horizontal one must not come out as
+                 a ten-pixel-wide sliver: the track direction and the fixed
+                 dimension both follow the orientation. -->
+            <Trigger Property="Orientation" Value="Horizontal">
+                <Setter Property="Width" Value="Auto"/>
+                <Setter Property="Height" Value="12"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="ScrollBar">
+                            <Grid Background="Transparent">
+                                <Border Background="#14FFFFFF" CornerRadius="3" Margin="2,3"/>
+                                <Track x:Name="PART_Track">
+                                    <Track.DecreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageLeftCommand"
+                                                      Opacity="0" Focusable="False"/>
+                                    </Track.DecreaseRepeatButton>
+                                    <Track.IncreaseRepeatButton>
+                                        <RepeatButton Command="ScrollBar.PageRightCommand"
+                                                      Opacity="0" Focusable="False"/>
+                                    </Track.IncreaseRepeatButton>
+                                    <Track.Thumb>
+                                        <Thumb Style="{StaticResource ScrollThumbHorizontal}"/>
+                                    </Track.Thumb>
+                                </Track>
+                            </Grid>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
+    <!-- Applied implicitly, unlike everything else here.
+         A button has variants and picking one is a decision, so those styles
+         are keyed and asked for by name. A scrollbar has no variants: every
+         one in the application wants to be this, and any that is missed shows
+         up as a strip of Windows grey down the side of a near-black panel —
+         which is precisely the class of thing this rewrite exists to fix. The
+         same goes for the tooltip below. -->
+    <Style TargetType="ScrollBar" BasedOn="{StaticResource Scroll}"/>
+
+<!--#endregion -->
+
+<!--#region Tooltip -->
+
+    <Style x:Key="Tip" TargetType="ToolTip">
+        <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
+        <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
+        <Setter Property="FontSize" Value="{StaticResource SizeLabel}"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ToolTip">
+                    <Border Background="#FF1F1F26"
+                            BorderBrush="{StaticResource CardBorder}"
+                            BorderThickness="1"
+                            CornerRadius="{StaticResource RadiusInset}"
+                            Padding="10,6">
+                        <ContentPresenter/>
+                    </Border>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ToolTip" BasedOn="{StaticResource Tip}"/>
+
+<!--#endregion -->
+
+</ResourceDictionary>

@@ -1,0 +1,19 @@
+# StarMon
+# Git Ignored Files
+CLAUDE.md
+/.claude
+/.vscode
+
+# Build Output
+# Covers the shipping binary, the unelevated test host, the unmanifested
+# WinExe copy used to exercise the command-line paths without elevation, the
+# rendered design surfaces and the log file the application writes beside
+# itself — none of which are sources.
+Bin/
+Obj/
+
+# Written by the application at runtime, next to the executable
+*.log
+
+# Battery reports and other scratch left by a probe that was interrupted
+StarMon-battery-*.xml

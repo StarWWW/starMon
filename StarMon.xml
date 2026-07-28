@@ -1,0 +1,365 @@
+<?xml version="1.0" encoding="utf-8"?> 
+<StarMon>
+
+    <!-- StarMon configuration settings -->
+
+    <!-- Note: comments under child nodes such as <ColorPresets> and <FanPrograms>
+         will be overwritten when the file is automatically generated upon save -->
+
+    <Config>
+
+        <!-- Automatically apply settings on start -->
+        <AutoConfig>false</AutoConfig>
+
+        <!-- Automatically start up with Windows -->
+        <AutoStartup>true</AutoStartup>
+
+        <!-- Ignore BIOS errors if false (for not fully compatible devices) -->
+        <BiosErrorReporting>true</BiosErrorReporting>
+
+        <!-- Color Backlight -->
+
+        <!-- Note: two default entries are hard-coded in the application
+             and will appear if there is nothing else to show instead -->
+        <ColorPresets>
+            <Preset Name="DefaultRed">FF0000</Preset>
+            <Preset Name="DefaultWhite">FFFFFF</Preset>
+        </ColorPresets>
+
+        <!-- Embedded Controller -->
+
+        <!-- Maximum number of failed attempts waiting to read -->
+        <EcFailLimit>15</EcFailLimit>
+
+        <!-- Embedded Controller monitoring interval [ms]
+             (applies to command-line mode -EcMon context) -->
+        <EcMonInterval>1000</EcMonInterval>
+
+        <!-- How long before bailing out trying to get a mutex [ms].
+
+             Must comfortably exceed the longest a single transaction can hold
+             the lock for, which is EcWaitTimeoutMs per wait, four waits per
+             byte, two bytes for a word, times EcRetryLimit retries:
+
+                 20 ms x 4 x 2 x 3 = 480 ms
+
+             Lowering this does not make anything faster, it only makes
+             concurrent callers give up on a controller that is merely busy,
+             which is what "failed to acquire embedded controller exclusive
+             lock" means when it appears out of nowhere. Recompute it whenever
+             any of the four numbers above changes. -->
+        <EcMutexTimeout>1000</EcMutexTimeout>
+
+        <!-- Maximum number of read or write attempts -->
+        <EcRetryLimit>3</EcRetryLimit>
+
+        <!-- How long a single wait for the controller may take [ms].
+
+             This is the real bound on a transaction. It is a span of time and
+             not a count of iterations on purpose: Thread.Sleep(1) does not
+             sleep a millisecond, it sleeps until the next scheduler tick,
+             about 15 ms by default, so an iteration count reads as fifteen
+             times shorter than it is. A responsive controller answers in
+             microseconds, so this only applies when something is wrong. -->
+        <EcWaitTimeoutMs>20</EcWaitTimeoutMs>
+
+        <!-- Status polls at full speed before yielding the processor between
+             polls, within the time budget above -->
+        <EcWaitLimit>30</EcWaitLimit>
+
+        <!-- Fan Control -->
+
+        <!-- Fan countdown will always be continually extended, even
+             with no fan program running, no constant-speed button
+             selected, and the main window hidden, until exit -->
+        <FanCountdownExtendAlways>false</FanCountdownExtendAlways>
+
+        <!-- Fan countdown timer will be extended by this value [s] -->
+        <FanCountdownExtendInterval>120</FanCountdownExtendInterval>
+
+        <!-- Fan countdown extension threshold [s]
+             If the constant-speed button is selected (even if not
+             necessarily running at a constant-speed setting), the
+             fan countdown value will be extended when it reaches
+             less than the value for:
+             UpdateMonitorInterval + FanCountdownExtendThreshold
+             In fan program mode, or when FanCountdownExtendAlways
+             is enabled, the threshold is:
+             UpdateProgramInterval + FanCountdownExtendThreshold -->
+        <FanCountdownExtendThreshold>5</FanCountdownExtendThreshold>
+
+        <!-- Minimum and maximum fan level thresholds [krpm]
+             (for trackbar constant-speed level adjustment,
+             lowest setting will be interpreted as 0).
+
+             The maximum is a hardware ceiling, and also the level a 100 %
+             point on the fan curve maps to. Setting it above what the fans
+             can actually do means the firmware clamps or ignores the value,
+             and the curve silently never reaches full speed. -->
+        <FanLevelMax>56</FanLevelMax>
+        <FanLevelMin>20</FanLevelMin>
+
+        <!-- Ask the firmware for the ceiling and the fan-level path at
+             startup, rather than using the three values around this one.
+             Every Omen and Victus board answers these differently, and the
+             values written here are only whichever machine last saved the
+             file. Set this to false to pin them by hand — worth doing if a
+             board's own fan table understates what its fans can do. -->
+        <FanLevelAutoDetect>true</FanLevelAutoDetect>
+
+        <!-- Before setting fan levels, set manual
+             fan mode first using the Embedded Controller
+             (auto-detected unless FanLevelAutoDetect is false) -->
+        <FanLevelNeedManual>false</FanLevelNeedManual>
+
+        <!-- Use the Embedded Controller instead
+             of a BIOS call for fan-level setting
+             (auto-detected unless FanLevelAutoDetect is false) -->
+        <FanLevelUseEc>false</FanLevelUseEc>
+
+        <!-- Default fan program, which might be loaded on startup
+             (depending on the Autoconfig setting) -->
+        <!-- <FanProgramDefault></FanProgramDefault> -->
+
+        <!-- Default alternate fan program to switch to
+             if no longer on AC power (i.e. on battery) -->
+        <!-- <FanProgramDefaultAlt></FanProgramDefaultAlt> -->
+
+        <!-- How far below a fan program threshold the temperature has to fall
+             before the level steps back down [°C]. Set to 0 to follow the
+             curve exactly in both directions, at the cost of the fans surging
+             back and forth whenever a temperature sits on a boundary. -->
+        <FanProgramHysteresisC>3</FanProgramHysteresisC>
+
+        <!-- Check first (using the EC) if the fan mode is not set already
+             before setting it (using a BIOS WMI call) during a fan program
+             (if false, makes three EC operations fewer every UpdateProgramInterval,
+             at the cost of one more WMI BIOS call: can be used to reduce EC load) -->
+        <FanProgramModeCheckFirst>false</FanProgramModeCheckFirst>
+
+        <!-- If true, fan program will be suspended whenever the system enters low-power mode
+             such as sleep, standby or hibernation, to be automatically re-enabled upon resume -->
+        <FanProgramSuspend>true</FanProgramSuspend>
+
+        <!-- How often to re-apply the selected fan mode to prevent BIOS reset [ms] -->
+        <FanModeKeepAliveMs>5000</FanModeKeepAliveMs>
+
+        <!-- Thermal Protection -->
+
+        <!-- Force the fans to maximum once the hottest monitored sensor
+             reaches the high threshold, and release them again once it falls
+             back below the low one. The two must differ: equal values make the
+             protection engage and release on alternate readings.
+
+             If the temperature keeps climbing past the high threshold anyway,
+             every manual override is dropped so the controller's own thermal
+             management takes over unopposed. -->
+        <ThermalProtectionEnabled>true</ThermalProtectionEnabled>
+        <ThermalProtectionHighC>95</ThermalProtectionHighC>
+        <ThermalProtectionLowC>88</ThermalProtectionLowC>
+
+        <!-- Show a notification when the processor reports that it is
+             throttling because of temperature (rate-limited to once every
+             five minutes, since the status bit toggles at the limit) -->
+        <ThrottleNotifyEnabled>true</ThrottleNotifyEnabled>
+
+        <!-- Fan program definitions
+             Curve visualization: https://www.desmos.com/calculator/6vfpghtud0
+                                  (editable initial data for the Power program) -->
+        <FanPrograms>
+            <!-- Custom fan programs can be defined here -->
+        </FanPrograms>
+
+        <!-- GPU -->
+
+        <!-- Default GPU power settings, which might be loaded on startup
+             (depending on the Autoconfig setting) -->
+        <GpuPowerDefault>Maximum</GpuPowerDefault>
+
+        <!-- The wait before setting the GPU power for the 2nd time [ms]
+             (sometimes the settings do not take effect the first time,
+             so the command is sent twice but the second time only after
+             the specified period has passed) -->
+        <GpuPowerSetInterval>200</GpuPowerSetInterval>
+
+        <!-- Whether to keep polling the NVIDIA discrete GPU while on battery.
+             Off by default: polling wakes it out of its idle power state, so
+             leaving it alone costs less battery and produces less heat. The
+             Embedded Controller's own GPU sensor is used instead. -->
+        <GpuPollOnBattery>false</GpuPollOnBattery>
+
+        <!-- Global hotkey that switches the display off. Mods is a bit mask
+             of Alt (1), Control (2), Shift (4) and Win (8); Key is a virtual
+             key code. Both zero leaves the hotkey unassigned. Easier to set
+             from the tray menu than by hand. -->
+        <DisplayOffHotkeyMods>0</DisplayOffHotkeyMods>
+        <DisplayOffHotkeyKey>0</DisplayOffHotkeyKey>
+
+        <!-- Graphical User Interface -->
+
+        <!-- Whether closing the window closes the whole application.
+             False hides it to the notification area instead, which is what a
+             tray application usually wants: a fan program that was left
+             running carries on either way, but the window comes back with a
+             click rather than a relaunch. -->
+        <GuiCloseWindowExit>false</GuiCloseWindowExit>
+
+        <!-- Whether to use a dynamic notification icon by default
+             (icon text shows current temperature) -->
+        <GuiDynamicIcon>false</GuiDynamicIcon>
+
+        <!-- Whether the dynamic icon has a dynamic background or not
+             (background is warm in performance mode, cool otherwise) -->
+        <GuiDynamicIconHasBackground>true</GuiDynamicIconHasBackground>
+
+        <!-- Whether the main window stays on top of all other windows -->
+        <GuiStayOnTop>false</GuiStayOnTop>
+
+        <!-- How long to show a tip in the notification area for [ms]
+             (0 to disable entirely; the default setting of 30000, or 30 s,
+              is scaled down to a couple of seconds by the operating system) -->
+        <GuiTipDuration>30000</GuiTipDuration>
+
+        <!-- Interface language -->
+
+        <!-- Auto follows the Windows display language, otherwise one of
+             English or Turkish. English resolves to the same slot the
+             <Messages> section below loads into, so any string overridden
+             there keeps taking effect. -->
+        <Language>Auto</Language>
+
+        <!-- Logging -->
+
+        <!-- Whether every Embedded Controller and BIOS exchange is logged.
+             Voluminous: only worth switching on while actually diagnosing a
+             hardware problem. Failed exchanges are always logged regardless. -->
+        <LogVerbose>false</LogVerbose>
+
+        <!-- Whether the log is also written to StarMon.log next to the
+             executable, and the size at which it rolls over to a single
+             StarMon.log.1 backup [KB] -->
+        <LogToFile>false</LogToFile>
+        <LogFileMaxBytes>4096</LogFileMaxBytes>
+
+        <!-- Keyboard -->
+
+        <!-- Whether the keyboard backlight color follows the hottest
+             temperature reading (green when cool through yellow to red) -->
+        <KbdColorByTemp>false</KbdColorByTemp>
+
+        <!-- Animated keyboard backlight effect:
+             0 = none, 1 = slow color cycle, 2 = breathing.
+             Mutually exclusive with KbdColorByTemp above: switching either on
+             switches the other off. -->
+        <KbdColorEffect>0</KbdColorEffect>
+
+        <!-- How fast the animated effect runs, 1 (slowest) to 5 (fastest).
+             3 is the rate the effects were fixed at before it was adjustable. -->
+        <KbdEffectSpeed>3</KbdEffectSpeed>
+
+        <!-- Switch the keyboard backlight off after this many minutes with no
+             keyboard or mouse input, and back on the moment the user returns.
+             Zero disables it. A backlight the user switched off by hand stays
+             off, and is not switched back on. -->
+        <KbdIdleOffMinutes>0</KbdIdleOffMinutes>
+
+        <!-- Keyboard backlight color-zone count: 1 or 4 forces the value,
+             0 auto-detects from the BIOS color table (which some single-zone
+             units, including the Victus 15, falsely report as four zones) -->
+        <KbdZoneCount>1</KbdZoneCount>
+
+        <!-- Omen Key -->
+
+        <!-- Custom Omen key action -->
+        <KeyCustomAction>
+            <Enabled>false</Enabled>
+            <!-- This example command will turn off the display
+                 and keyboard backlight while the laptop keeps running -->
+            <ExecCmd>cmd.exe</ExecCmd>
+            <ExecArgs>/c start /min "" powershell -WindowStyle Hidden (Add-Type '[DllImport(\"user32.dll\")] public static extern int SendMessage(int hWnd, int hMsg, int wParam, int lParam);' -Name User32 -PassThru)::SendMessage(-1, 0x0112, 0xF170, 2) ^| Out-Null</ExecArgs>
+            <Minimized>true</Minimized>
+        </KeyCustomAction>
+
+        <!-- Use the Omen key to control fan program
+             (as long as KeyCustomAction is set to false) -->
+        <KeyToggleFanProgram>false</KeyToggleFanProgram>
+
+        <!-- If true, Omen key cycles through all fan programs,
+             instead of toggling the default fan program on and off -->
+        <KeyToggleFanProgramCycleAll>true</KeyToggleFanProgramCycleAll>
+
+        <!-- Show window upon first Omen key press (if not shown already),
+             before using subsequent keypresses to control fan program -->
+        <KeyToggleFanProgramShowGuiFirst>true</KeyToggleFanProgramShowGuiFirst>
+
+        <!-- Do not show a balloon tip notification when changing programs -->
+        <KeyToggleFanProgramSilent>false</KeyToggleFanProgramSilent>
+
+        <!-- Preset Settings -->
+
+        <!-- Take the two presets below from the rates the panel actually
+             offers at its current resolution, rather than from the values
+             written here. A 144 Hz preset on a 165 Hz panel leaves the
+             machine a rate short every time it comes off battery. -->
+        <RefreshRateAutoDetect>true</RefreshRateAutoDetect>
+
+        <!-- High display refresh rate preset value [Hz] -->
+        <PresetRefreshRateHigh>144</PresetRefreshRateHigh>
+
+        <!-- Standard display refresh rate preset value [Hz] -->
+        <PresetRefreshRateLow>60</PresetRefreshRateLow>
+
+        <!-- Drop the display to the low preset above on battery and put the
+             high one back on AC. Only ever moves between those two values: a
+             refresh rate set by hand that is neither of them is left alone,
+             rather than being overridden on the next power event. -->
+        <RefreshRateFollowPower>false</RefreshRateFollowPower>
+
+        <!-- Temperature Sensors -->
+
+        <!-- Note: nine default sensors are hard-coded in the application
+             and will be used instead if none are defined here -->
+        <Temperature>
+            <Sensor Name="CPUT" Source="EC" />
+            <Sensor Name="GPTM" Source="EC" />
+            <Sensor Name="BIOS" Source="BIOS" Use="false" />
+            <Sensor Name="RTMP" Source="EC" />
+            <Sensor Name="TMP1" Source="EC" />
+            <Sensor Name="TNT2" Source="EC" />
+            <Sensor Name="TNT3" Source="EC" />
+            <Sensor Name="TNT4" Source="EC" />
+            <Sensor Name="TNT5" Source="EC" />
+        </Temperature>
+
+        <!-- Update Interval -->
+
+        <!-- How often the dynamic notification icon is updated [s] -->
+        <UpdateIconInterval>3</UpdateIconInterval>
+
+        <!-- How often the monitoring data on the main form is updated [s] -->
+        <UpdateMonitorInterval>3</UpdateMonitorInterval>
+
+        <!-- How often the fan program is updated (if running) [s] -->
+        <UpdateProgramInterval>15</UpdateProgramInterval>
+
+     <!-- Cache duration for temperature reads to reduce EC/WMI load [ms] -->
+     <TemperatureCacheMs>250</TemperatureCacheMs>
+
+    </Config>
+
+    <!-- Localizable Messages -->
+
+    <!-- Any of the application's messages can be redefined,
+         for example translated to another language -->
+
+    <Messages>
+
+        <!-- The following two strings will optionally show translator credit
+             (these are empty by default, and nothing is shown) -->
+
+        <!-- <String Key="CliTranslated">Translated to [Language] by [Author]</String> -->
+        <!-- <String Key="GuiTranslated">Translated by [Author]</String> -->
+
+    </Messages>
+
+</StarMon>

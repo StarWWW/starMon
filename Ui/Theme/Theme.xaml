@@ -1,0 +1,15 @@
+<!-- StarMon: hardware monitoring and control
+     Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
+
+     The one dictionary the application merges. The order matters: the control
+     templates reference brushes and text styles by StaticResource, so the
+     palette and the type scale have to be in scope before they are parsed. -->
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="Palette.xaml"/>
+        <ResourceDictionary Source="Typography.xaml"/>
+        <ResourceDictionary Source="Controls.xaml"/>
+        <ResourceDictionary Source="Menu.xaml"/>
+    </ResourceDictionary.MergedDictionaries>
+</ResourceDictionary>
