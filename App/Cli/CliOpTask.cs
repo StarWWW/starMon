@@ -26,10 +26,20 @@ namespace StarMon.AppCli {
         // Launch a specified task in headless mode (no output)
         public static void TaskRun(string[] args) {
 
-            // Determine the task to be executed
+            // Determine the task to be executed.
+            //
+            // Named or not at all: "-Run" on its own indexed past the end of
+            // the arguments, and this path runs before the console is attached
+            // — so the unhandled exception became a message box, in a process
+            // the task scheduler started with no desktop to show it on, which
+            // then sat waiting to be dismissed.
             Config.TaskId taskId = default(Config.TaskId);
+
+            if(args == null || args.Length < 2)
+                App.Exit(Config.ExitStatus.ErrorTask);
+
             try {
-                taskId = (Config.TaskId) Enum.Parse(typeof(Config.TaskId), args[1]);
+                taskId = (Config.TaskId) Enum.Parse(typeof(Config.TaskId), args[1], true);
             } catch {
                 App.Exit(Config.ExitStatus.ErrorTask);
             }

@@ -245,6 +245,13 @@ namespace StarMon.Ui.Design {
             model.Zones[2].Colour = Color.FromRgb(0x2E, 0xE6, 0x86);
             model.Zones[3].Colour = Color.FromRgb(0xF0, 0xC0, 0x20);
 
+            // The saved-colour row is only drawn when the configuration file
+            // has presets, so the surface has to carry some or the row goes
+            // unlooked-at
+            model.Presets.Add("Gündüz");
+            model.Presets.Add("Gece");
+            model.Presets.Add("Oyun");
+
             model.IsBacklightOn = true;
             model.Mode = BacklightMode.Cycle;
             model.EffectSpeed = 4;

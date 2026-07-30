@@ -267,6 +267,30 @@ namespace StarMon.Library {
             }, Hw.Ec);
         }
 
+        // The same two reads, reporting whether the exchange actually
+        // happened.
+        //
+        // EcGetByte hands back zero both for a register that reads zero and
+        // for one that never answered, and a caller cannot tell them apart.
+        // That matters for a register the board does not carry: it reads zero
+        // for the life of the process, and anything that treats zero as an
+        // answer will keep paying for the exchange forever. A failure to take
+        // the lock counts as a failed exchange, which is what the default
+        // false from EcExec already gives.
+        public static bool EcTryGetByte(byte register, out byte value) {
+            byte read = 0;
+            bool ok = Hw.EcExec<bool>(ec => ec.TryReadByte(register, out read), Hw.Ec);
+            value = read;
+            return ok;
+        }
+
+        public static bool EcTryGetWord(byte register, out ushort value) {
+            ushort read = 0;
+            bool ok = Hw.EcExec<bool>(ec => ec.TryReadWord(register, out read), Hw.Ec);
+            value = read;
+            return ok;
+        }
+
         // Performs an Embedded Controller operation
         // and returns a byte-sized numeric (possibly an enumerated) result
         public static TResult EcGet<TResult>(byte register) {

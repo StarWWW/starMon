@@ -13,7 +13,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "All", "All", "{2C01055A-151
     EndProjectSection
 EndProject
 
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "StarMon.csproj", "{0FF1C1A1-DEC1-BE15-10AD-I5C1A551F1ED}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "App", "StarMon.csproj", "{0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED}"
 EndProject
 
 #Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Driver", "Driver\Driver.csproj", "{10ADAB1E-11B1-ABE1-5ACC-E551B1EAB0DE}"
@@ -26,8 +26,8 @@ Global
     EndGlobalSection
 
     GlobalSection(ProjectConfigurationPlatforms) = postSolution
-        {0FF1C1A1-DEC1-BE15-10AD-I5C1A551F1ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
-        {0FF1C1A1-DEC1-BE15-10AD-I5C1A551F1ED}.Release|Any CPU.Build.0 = Release|Any CPU
+        {0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED}.Release|Any CPU.ActiveCfg = Release|Any CPU
+        {0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED}.Release|Any CPU.Build.0 = Release|Any CPU
         #{10ADAB1E-11B1-ABE1-5ACC-E551B1EAB0DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
         #{10ADAB1E-11B1-ABE1-5ACC-E551B1EAB0DE}.Release|Any CPU.Build.0 = Release|Any CPU
     EndGlobalSection
@@ -37,7 +37,7 @@ Global
     EndGlobalSection
 
     GlobalSection(NestedProjects) = preSolution
-        {0FF1C1A1-DEC1-BE15-10AD-I5C1A551F1ED} = {2C01055A-1511-CEDB-EEF5-EAF00D5A1AD5}
+        {0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED} = {2C01055A-1511-CEDB-EEF5-EAF00D5A1AD5}
         #{10ADAB1E-11B1-ABE1-5ACC-E551B1EAB0DE} = {2C01055A-1511-CEDB-EEF5-EAF00D5A1AD5}
     EndGlobalSection
 

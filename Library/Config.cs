@@ -185,9 +185,32 @@ namespace StarMon.Library {
 
                 try {
 
-                    // Load the file
+                    // Load the file, falling back to the copy the last
+                    // successful save left behind. A configuration that will
+                    // not parse is otherwise indistinguishable from no
+                    // configuration at all, and the run that follows silently
+                    // replaces every setting with a compiled-in default.
                     XmlDocument xml = new XmlDocument();
-                    xml.Load(FilePath);
+
+                    try {
+
+                        xml.Load(FilePath);
+
+                    } catch(Exception damaged) {
+
+                        string backup = FilePath + XmlSaveBackupExt;
+
+                        if(!File.Exists(backup))
+                            throw;
+
+                        xml.Load(backup);
+
+                        Logger.Warning("Config",
+                            "The configuration file would not parse; "
+                                + "the previous copy was read instead",
+                            damaged.Message);
+
+                    }
 
                     // Replace the hard-coded XML template with a localized one
                     // Only possible once the localizable message class is instantiated
@@ -274,6 +297,28 @@ namespace StarMon.Library {
 
                     if(GetWord(xml, XmlPrefix + "ThermalProtectionLowC", out value))
                         ThermalProtectionLowC = value;
+
+                    // The two are a hysteresis band, and the file can put them
+                    // in any order: both parse as plain numbers. With the
+                    // release threshold at or above the engage one, the guard
+                    // engages the moment the machine passes the lower figure
+                    // and releases again on the very next reading, so the fans
+                    // slam to maximum and back on every poll instead of
+                    // holding. Both are put back to the compiled-in defaults
+                    // rather than nudged, because a file this wrong is not
+                    // saying anything worth half-honouring.
+                    if(ThermalProtectionLowC >= ThermalProtectionHighC) {
+
+                        Logger.Warning("Config",
+                            "The thermal thresholds do not form a band; "
+                                + "the defaults were used instead",
+                            "high " + ThermalProtectionHighC + " °C, low "
+                                + ThermalProtectionLowC + " °C");
+
+                        ThermalProtectionHighC = ThermalProtectionHighDefaultC;
+                        ThermalProtectionLowC = ThermalProtectionLowDefaultC;
+
+                    }
 
                     if(GetBool(xml, XmlPrefix + "ThrottleNotifyEnabled", out flag))
                         ThrottleNotifyEnabled = flag;
@@ -370,6 +415,13 @@ namespace StarMon.Library {
 
                     if(GetWord(xml, XmlPrefix + "UpdateProgramInterval", out value))
                         UpdateProgramInterval = value;
+
+                    // The cadence with the window hidden. Settable from the
+                    // interface since it was written, and read from nowhere:
+                    // a changed value worked for the rest of the session and
+                    // was back to thirty seconds on the next launch.
+                    if(GetWord(xml, XmlPrefix + "UpdateRecordInterval", out value))
+                        UpdateRecordInterval = value;
 
                     if(GetWord(xml, XmlPrefix + "TemperatureCacheMs", out value))
                         TemperatureCacheMs = value;
@@ -554,7 +606,7 @@ namespace StarMon.Library {
                             + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Middle].ValueReverse)
                             + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Left].ValueReverse)
                             + ":" + Conv.GetColorString((int) ColorPreset[name].Zone[(int) BiosData.KbdZone.Wasd].ValueReverse))
-                                .ToUpper();
+                                .ToUpperInvariant();
 
                     }
 
@@ -695,20 +747,60 @@ namespace StarMon.Library {
                     SetUInt(xml, XmlPrefix + "UpdateIconInterval", (uint) UpdateIconInterval);
                     SetUInt(xml, XmlPrefix + "UpdateMonitorInterval", (uint) UpdateMonitorInterval);
                     SetUInt(xml, XmlPrefix + "UpdateProgramInterval", (uint) UpdateProgramInterval);
+                    SetUInt(xml, XmlPrefix + "UpdateRecordInterval", (uint) UpdateRecordInterval);
                     SetUInt(xml, XmlPrefix + "TemperatureCacheMs", (uint) TemperatureCacheMs);
 
-                    // Save the file
+                    // Save the file.
+                    //
+                    // Written beside the destination and moved into place,
+                    // never over the top of it. Creating the writer on
+                    // FilePath truncates the file first, so a process that
+                    // dies between that and the last byte — a crash, a forced
+                    // reboot, a battery cutout, all of which a laptop utility
+                    // should expect — left an empty or half-written document
+                    // behind. Load() then failed to parse it, fell back to the
+                    // compiled-in defaults with only a log line to say so, and
+                    // the next save made the loss permanent: every fan
+                    // program, threshold and preset gone. A rename is atomic,
+                    // so the file on disk is either the old one or the new one.
                     XmlWriterSettings xmlWriterSettings = new XmlWriterSettings();
                     xmlWriterSettings.Encoding = new UTF8Encoding(XmlSaveBom);
                     xmlWriterSettings.Indent = true;
                     xmlWriterSettings.IndentChars = XmlSaveIndent;
                     xmlWriterSettings.NewLineHandling = NewLineHandling.Replace;
-                    using(XmlWriter xmlWriter = XmlWriter.Create(FilePath, xmlWriterSettings))
+
+                    string temporary = FilePath + XmlSaveTempExt;
+
+                    using(XmlWriter xmlWriter = XmlWriter.Create(temporary, xmlWriterSettings))
                         xml.Save(xmlWriter);
 
-                } catch {
+                    if(File.Exists(FilePath)) {
 
-                    // Show an error message if the settings could not be saved
+                        // Replace keeps a copy of what was there, which is the
+                        // one thing that makes a bad save recoverable; it needs
+                        // the destination to exist, hence the branch
+                        File.Replace(temporary, FilePath, FilePath + XmlSaveBackupExt,
+                            true);
+
+                    } else {
+
+                        File.Move(temporary, FilePath);
+
+                    }
+
+                } catch(Exception e) {
+
+                    // Show an error message if the settings could not be saved.
+                    //
+                    // With the reason recorded, the way Load() already does.
+                    // A save that fails is the one failure the user cannot
+                    // investigate afterwards — the settings are simply back to
+                    // where they were on the next launch — and the exception
+                    // was being dropped on the floor, so "could not be saved"
+                    // was the whole of what anyone ever learned.
+                    Logger.Error("Config", "Saving the configuration file failed",
+                        e.Message);
+
                     App.Error("ErrConfigSave");
 
                 }

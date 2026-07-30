@@ -342,6 +342,11 @@
         <!-- How often the fan program is updated (if running) [s] -->
         <UpdateProgramInterval>15</UpdateProgramInterval>
 
+        <!-- How often a reading is taken while the window is hidden in the
+             notification area, so the history keeps accumulating without
+             paying for a full refresh nobody is looking at [s] -->
+        <UpdateRecordInterval>30</UpdateRecordInterval>
+
      <!-- Cache duration for temperature reads to reduce EC/WMI load [ms] -->
      <TemperatureCacheMs>250</TemperatureCacheMs>
 

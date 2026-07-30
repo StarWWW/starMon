@@ -48,8 +48,31 @@ namespace StarMon.Hardware.Ec
 
         public bool IsInitialized { get; protected set; }
 
-        // Global counter of failed waiting to read attempts
-        protected int WaitReadFailCount = 0;
+        // Failed waits for a read, counted per register.
+        //
+        // Per register, not per controller. This used to be one instance-wide
+        // counter, and that made a register's failures vouch for a different
+        // register's data: a board missing six of the configured temperature
+        // probes fails three reads on each of them in a single polling pass,
+        // eighteen in a row with nothing in between to clear the count, and
+        // from that point the bypass below is open. The next ordinary read
+        // anywhere in the application — a fan tachometer, the countdown —
+        // that meets a momentarily busy controller is then accepted without
+        // the data ever having been confirmed ready, and whatever byte
+        // happens to be sitting in the port is reported as a fan speed.
+        //
+        // The bypass is for a controller that never raises the flag at all,
+        // which shows up as one register failing over and over; keeping the
+        // count where the failures happen preserves that and nothing else.
+        private readonly System.Collections.Generic.Dictionary<byte, int>
+            WaitReadFails = new System.Collections.Generic.Dictionary<byte, int>();
+
+        // How many waits for a read have failed in a row on one register
+        protected int WaitReadFailCount(byte register) {
+            int count;
+            this.WaitReadFails.TryGetValue(register, out count);
+            return count;
+        }
 
         // Upper bound on the stale output bytes drained before a transaction,
         // so a permanently-full output buffer cannot spin here forever
@@ -225,7 +248,7 @@ namespace StarMon.Hardware.Ec
                 if (WaitWrite())
                 {
                     WriteIoPort(Port.Data, register);
-                    if (WaitWrite() && WaitRead())
+                    if (WaitWrite() && WaitRead(register))
                     {
                         value = ReadIoPort(Port.Data);
                         return true;
@@ -365,16 +388,20 @@ namespace StarMon.Hardware.Ec
         // limit allows does the read proceed blind, and even then the next
         // call still tries the real wait: the bypass is a last resort for a
         // controller that never raises the flag, never a permanent mode.
-        protected bool WaitRead()
+        protected bool WaitRead(byte register)
         {
             if (Wait(Status.OutFull, true))
             {
-                WaitReadFailCount = 0;
+                this.WaitReadFails.Remove(register);
                 return true;
             }
 
-            WaitReadFailCount++;
-            return WaitReadFailCount > Config.EcFailLimit;
+            int count;
+            this.WaitReadFails.TryGetValue(register, out count);
+            count++;
+            this.WaitReadFails[register] = count;
+
+            return count > Config.EcFailLimit;
         }
 
         // Waits for a write operation

@@ -76,7 +76,7 @@ namespace StarMon.AppCli {
             if(typeof(T).IsEnum) try {
                 // Try to parse the value as a string identifier first
                 // This may easily fail if there is no such identifier
-                value = (byte) (object) (T) Enum.Parse(typeof(T), param);
+                value = (byte) (object) (T) Enum.Parse(typeof(T), param, true);
                 valueSet = true;
             } catch { }
 
@@ -201,7 +201,7 @@ namespace StarMon.AppCli {
         private static void BiosSetStruct(string message, string param, Action<BiosData.GpuPowerData> biosMethod) {
             bool valueSet = false;
             BiosData.GpuPowerData value = new BiosData.GpuPowerData();
-            switch(param.ToLower()) {
+            switch(param.ToLowerInvariant()) {
                 // Possible true values
                 case "max":
                 case "maximum":

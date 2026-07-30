@@ -146,9 +146,27 @@ namespace StarMon.Hardware.Platform {
 
             if(BiosSpeedWorks) {
                 try {
+
                     int rpm = Hw.BiosGet(() => Hw.Bios.GetFanSpeed((byte) (this.FanType - 1)));
+
                     if(rpm > 0 && rpm < MaxBelievableRpm)
                         return rpm;
+
+                    // A refusal does not always throw. Check() is the only
+                    // thing that turns a bad status code into an exception,
+                    // and it returns without doing so whenever
+                    // BiosErrorReporting is off — which is precisely the
+                    // setting meant for boards that do not implement every
+                    // call. There, an unsupported tachometer came back as -1
+                    // from the short-buffer guard, the catch never ran, and
+                    // the failing round trip was repeated for both fans on
+                    // every tick for the life of the process.
+                    //
+                    // Zero is left alone: a stopped fan is a real answer, not
+                    // a refusal, and must not stand the call down.
+                    if(rpm < 0 || rpm >= MaxBelievableRpm)
+                        BiosSpeedWorks = false;
+
                 } catch {
                     // Asked once, refused once: stop asking. A machine does
                     // not acquire the call while it is running, and retrying

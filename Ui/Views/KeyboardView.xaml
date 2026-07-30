@@ -102,12 +102,46 @@
                  Swatches that change nothing are worse than no swatches. -->
             <Border Grid.Column="0" Style="{StaticResource CardSurface}"
                     Visibility="{Binding HasColour, Converter={StaticResource ShowWhen}}">
+                <!-- Four swatches and a row of presets do not always fit the
+                     height the window happens to have, and a card that simply
+                     overflows loses whatever is at the bottom of it. The bar
+                     appears only when there is something below the fold. -->
+                <ScrollViewer VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
                 <StackPanel Margin="16,14,16,14">
                     <TextBlock Text="{loc:Str GuiWpfColour}" Style="{StaticResource Caption}"
                                Margin="0,0,0,12"/>
                     <ItemsControl ItemsSource="{Binding Zones}"
                                   ItemTemplate="{StaticResource ZoneSwatch}"/>
+
+                    <!-- The presets kept in the configuration file. Loaded into
+                         the view model since it was written and shown by
+                         nothing, so the only way to reach one was the tray
+                         menu. Hidden entirely when the file has none. -->
+                    <StackPanel Margin="0,4,0,0"
+                                Visibility="{Binding HasPresets, Converter={StaticResource ShowWhen}}">
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,10"/>
+                        <TextBlock Text="{loc:Str GuiWpfKbdPresets}" Style="{StaticResource Caption}"
+                                   Margin="0,0,0,9"/>
+                        <ItemsControl ItemsSource="{Binding Presets}">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel/>
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Button Content="{Binding}" Style="{StaticResource GhostButton}"
+                                            Margin="0,0,8,8" Padding="12,5"
+                                            Click="OnPresetClick"
+                                            ToolTip="{loc:Str GuiWpfTipKbdPreset}"/>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
                 </StackPanel>
+                </ScrollViewer>
             </Border>
 
             <!-- Takes the whole row on a deck with no colour swatches beside

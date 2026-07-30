@@ -517,7 +517,7 @@ namespace StarMon.Library.Locale
                 ["DataSyntaxOrTwo"] = "[(2)]",
 
                 ["DataTypeTName"] = "<GörevAdı>",
-                ["DataSyntaxTName"] = "Autorun (Arayüz) | Key (Omen Tuşu Yakalama) | Mux (Advanced Optimus Düzeltmesi)",
+                ["DataSyntaxTName"] = "Gui (Açılışta Otomatik Başlatma) | Key (Omen Tuşu Yakalama) | Mux (Advanced Optimus Düzeltmesi)",
 
                 ["DataTypeWord"] = "<Sözcük>",
                 ["DataSyntaxWord"] = "<0-65535|0x0000-0xFFFF|0b0000000000000000-0b1111111111111111>",
@@ -800,6 +800,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfKbdIdleOff"] = "BOŞTAYKEN KAPAT",
                 ["GuiWpfKbdNever"] = "asla",
                 ["GuiWpfKbdMinutes"] = "dk",
+                ["GuiWpfKbdPresets"] = "KAYITLI RENKLER",
                 ["GuiWpfZoneLeft"] = "SOL",
                 ["GuiWpfZoneCentre"] = "ORTA",
                 ["GuiWpfZoneRight"] = "SAĞ",
@@ -930,6 +931,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfTipKbdCycle"] = "Arka ışık renk çemberinde sürekli dolaşır.",
                 ["GuiWpfTipKbdBreathe"] = "Arka ışık aşağıda ayarlanan renklerde sönüp yeniden parlar.",
                 ["GuiWpfTipKbdSpeed"] = "Hareketli bir efektin ne kadar hızlı çalışacağı. Yalnızca böyle bir efekt çalışırken görünür.",
+                ["GuiWpfTipKbdPreset"] = "Bu kayıtlı renk takımını bölgelere uygular. Hazır ayarlar yapılandırma dosyasında tutulur.",
                 ["GuiWpfTipKbdIdle"] = "Bu süre boyunca tuşa basılmazsa arka ışığı kapatır. Sıfırda kendiliğinden hiç kapanmaz.",
 
                 // Günlük sayfası.

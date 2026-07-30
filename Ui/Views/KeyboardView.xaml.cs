@@ -85,6 +85,65 @@ namespace StarMon.Ui.Views {
 
         }
 
+        // A saved preset: its colours go into the swatches, and each swatch's
+        // own change notification carries them on to the keyboard the same way
+        // the picker and the hex box do.
+        //
+        // The configuration stores a preset in the firmware's zone order —
+        // right, middle, left, WASD — while the panel lists its zones the way
+        // the board looks. Reversed here so a preset lands on the same keys it
+        // was saved from.
+        private void OnPresetClick(object sender, RoutedEventArgs e) {
+
+            Button button = sender as Button;
+            KeyboardViewModel model = this.DataContext as KeyboardViewModel;
+
+            if(button == null || model == null)
+                return;
+
+            string name = button.DataContext as string;
+
+            if(string.IsNullOrEmpty(name)
+                || !Library.Config.ColorPreset.ContainsKey(name))
+                return;
+
+            Hardware.Bios.BiosData.ColorTable table = Library.Config.ColorPreset[name];
+
+            if(table.Zone == null || table.Zone.Length == 0)
+                return;
+
+            this.PickerPopup.IsOpen = false;
+
+            for(int i = 0; i < model.Zones.Count; i++) {
+
+                int slot = model.IsSingleZone ? 0
+                    : model.Zones.Count == 4 ? HardwareZone(i) : i;
+
+                if(slot >= table.Zone.Length)
+                    slot = table.Zone.Length - 1;
+
+                uint packed = table.Zone[slot].ValueReverse & 0xFFFFFF;
+
+                model.Zones[i].Colour = System.Windows.Media.Color.FromRgb(
+                    (byte) ((packed >> 16) & 0xFF),
+                    (byte) ((packed >> 8) & 0xFF),
+                    (byte) (packed & 0xFF));
+
+            }
+
+        }
+
+        // The panel lists its zones left to right; the firmware numbers them
+        // the other way round. Its own inverse, so it reads both ways.
+        private static int HardwareZone(int visual) {
+            switch(visual) {
+                case 0: return (int) Hardware.Bios.BiosData.KbdZone.Left;
+                case 1: return (int) Hardware.Bios.BiosData.KbdZone.Middle;
+                case 2: return (int) Hardware.Bios.BiosData.KbdZone.Right;
+                default: return visual;
+            }
+        }
+
         private void OnZonePicked(int index) {
 
             KeyboardViewModel model = this.DataContext as KeyboardViewModel;

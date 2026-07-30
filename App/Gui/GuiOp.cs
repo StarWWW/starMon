@@ -168,9 +168,33 @@ namespace StarMon.AppGui {
         // Launches when the Omen key has been pressed
         public void KeyHandler(Gui.MessageParam lastParam) {
 
+            // A custom action, if one is configured.
+            //
+            // Tested first because it takes precedence: both the configuration
+            // template and the documentation say the fan-program toggle
+            // applies "as long as KeyCustomAction is set to false", and with
+            // the two tested the other way round a machine with both switched
+            // on ran the fan program and never the command.
+            if(Config.KeyCustomActionEnabled) {
+
+                // Launch the action. A command that cannot be started throws
+                // out of the window hook, and this runs from one.
+                try {
+                    Process customAction = new Process();
+                    customAction.StartInfo.FileName = Config.KeyCustomActionExecCmd;
+                    customAction.StartInfo.Arguments = Config.KeyCustomActionExecArgs;
+                    customAction.StartInfo.UseShellExecute = false; // Required for environment change
+                    customAction.StartInfo.WindowStyle = Config.KeyCustomActionMinimized ?
+                        ProcessWindowStyle.Minimized : ProcessWindowStyle.Normal;
+                    customAction.Start();
+                } catch(Exception e) {
+                    Logger.Error("Key", "The Omen key command could not be started",
+                        Config.KeyCustomActionExecCmd + " — " + e.Message);
+                }
+
             // If Omen key is set
-            // to toggle fan program 
-            if(Config.KeyToggleFanProgram) {
+            // to toggle fan program
+            } else if(Config.KeyToggleFanProgram) {
 
                 // Show the form on first press
                 // if configured to do so and not already shown
@@ -183,7 +207,15 @@ namespace StarMon.AppGui {
                     // through all fan programs
                     if(Config.KeyToggleFanProgramCycleAll) {
 
-                        // Default to the first fan program 
+                        // Nothing to cycle through. The Cooling page will let
+                        // the last program be deleted, and indexing an empty
+                        // list threw out of the window hook — after which the
+                        // key did nothing at all and logged an error on every
+                        // press.
+                        if(Config.FanProgram.Count == 0)
+                            return;
+
+                        // Default to the first fan program
                         string next = Config.FanProgram.Keys[0];
 
                         // If a program is running,
@@ -222,19 +254,6 @@ namespace StarMon.AppGui {
                                 : Config.Locale.Get(Config.L_PROG + "End"));
 
                 }
-
-            // If Omen key action is set
-            // to trigger a custom action
-            } else if(Config.KeyCustomActionEnabled) {
-
-                // Launch the action
-                Process customAction = new Process();
-                customAction.StartInfo.FileName = Config.KeyCustomActionExecCmd;
-                customAction.StartInfo.Arguments = Config.KeyCustomActionExecArgs;
-                customAction.StartInfo.UseShellExecute = false; // Required for environment change
-                customAction.StartInfo.WindowStyle = Config.KeyCustomActionMinimized ?
-                    ProcessWindowStyle.Minimized : ProcessWindowStyle.Normal;
-                customAction.Start();
 
             } else {
 

@@ -94,7 +94,13 @@ namespace StarMon {
 
                 // In this special argument case,
                 // launch a task in headless mode
-                } else if(args[0].ToLower() == "-run") {
+                //
+                // Invariant lowercasing throughout, here and in CliOp: on a
+                // Turkish system ToLower() maps 'I' to the dotless 'ı', so
+                // "-RENDERUI" arrived as "-renderuı" and matched nothing. The
+                // arguments are ASCII keywords, not prose, and have to be
+                // folded by the same rule everywhere the application runs.
+                } else if(args[0].ToLowerInvariant() == "-run") {
 
                     CliOp.TaskRun(args);
 
@@ -102,7 +108,7 @@ namespace StarMon {
                 // command-line path because it needs a console but must not
                 // take the single-instance lock the other CLI operations do:
                 // the tests touch no hardware, so nothing needs serializing.
-                } else if(args[0].ToLower() == "-selftest") {
+                } else if(args[0].ToLowerInvariant() == "-selftest") {
 
                     Cli.Initialize();
                     Environment.ExitCode = StarMon.Test.SelfTest.Run();
@@ -111,7 +117,7 @@ namespace StarMon {
                 // Render a piece of the interface to a PNG and exit. Like the
                 // self-test, this touches no hardware and takes no lock; see
                 // Ui/Design/DesignRender.cs for what it is for.
-                } else if(args[0].ToLower() == "-renderui") {
+                } else if(args[0].ToLowerInvariant() == "-renderui") {
 
                     Cli.Initialize();
                     Environment.ExitCode = StarMon.Ui.Design.DesignRender.Run(args);
@@ -175,12 +181,19 @@ namespace StarMon {
         // Handles an error depending on whether the application is running in CLI or GUI mode
         public static void Error(string messageIds, Exception e = null) {
 
-            if(Cli.IsInitialized)
+            if(Cli.IsInitialized) {
 
                 // Error out to the console
                 Cli.PrintError(Config.GetError(messageIds, e), e);
 
-            else
+                // And make the process say so on the way out. Reporting a
+                // failure on standard output and then exiting zero tells a
+                // script the opposite of what the text says; the first code
+                // set is kept, since it is the more specific one.
+                if(Environment.ExitCode == (int) Config.ExitStatus.NoError)
+                    Environment.ExitCode = (int) Config.ExitStatus.ErrorOperation;
+
+            } else
 
                 // Pop up a window
                 Gui.ShowError(Config.GetError(messageIds, e), e);

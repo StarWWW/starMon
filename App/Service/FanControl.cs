@@ -292,11 +292,21 @@ namespace StarMon.AppService {
 
                     switch(ResolveConstant(levelCpu, levelGpu, Config.FanLevelMax)) {
 
+                        // Both of these assert one override, so the other one
+                        // has to come down first — the two are not independent
+                        // switches, and whichever the firmware happens to
+                        // honour first decides what the fans do. Leaving the
+                        // opposite one standing is how "switch the fans off"
+                        // ended up leaving them at the ceiling, with Identify
+                        // reading the maximum flag back and the interface
+                        // reporting a mode the user had not asked for.
                         case ConstantAction.SwitchOff:
+                            if(isMax) platform.Fans.SetMax(false);
                             if(!isOff) platform.Fans.SetOff(true);
                             break;
 
                         case ConstantAction.SwitchToMaximum:
+                            if(isOff) platform.Fans.SetOff(false);
                             if(!isMax) platform.Fans.SetMax(true);
                             break;
 

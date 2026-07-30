@@ -24,7 +24,7 @@ namespace StarMon.AppCli {
             // selecting the context first
             int i = -1;
             while(++i < args.Length)
-            switch(args[i].ToLower()) {
+            switch(args[i].ToLowerInvariant()) {
 
                 // Perform BIOS actions
                 case "-bios":
@@ -62,7 +62,7 @@ namespace StarMon.AppCli {
 
                                 // Select the BIOS operation to be performed
                                 // from among those that require arguments
-                                switch(opArgs[0].ToLower()) {
+                                switch(opArgs[0].ToLowerInvariant()) {
 
                                     // Rewrite the LED animation table with values parsed from the command line
                                     case "anim":
@@ -164,7 +164,7 @@ namespace StarMon.AppCli {
 
                                 // Select the BIOS operation to be performed
                                 // from among those that do not require arguments
-                                switch(args[i].ToLower()) {
+                                switch(args[i].ToLowerInvariant()) {
 
                                     // Retrieve and interpret the smart power adapter status
                                     case "adapter":
@@ -416,7 +416,7 @@ namespace StarMon.AppCli {
 
                                 // Select the task operation to be performed
                                 // from among those that require arguments
-                                switch(opArgs[0].ToLower()) {
+                                switch(opArgs[0].ToLowerInvariant()) {
 
                                     // Enable or disable the GUI autorun
                                     case "gui":
@@ -448,7 +448,7 @@ namespace StarMon.AppCli {
 #region Task Status
                                 // Select the task-scheduling operation to be performed
                                 // from among those that do not require arguments
-                                switch(args[i].ToLower()) {
+                                switch(args[i].ToLowerInvariant()) {
 
                                     // Query the status of the GUI autorun
                                     case "gui":

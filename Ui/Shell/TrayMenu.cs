@@ -40,6 +40,15 @@ namespace StarMon.Ui.Shell {
         void SetKbdColor(int colour);
         void SetKbdZoneColors(int[] colours);
 
+        // Re-registers the global "display off" hotkey from the configuration.
+        //
+        // The binding lives in the configuration file, but the registration is
+        // with the operating system and has to be redone when it changes.
+        // Without this the settings page could show a new combination — or
+        // "None" after a clear — while the one registered at startup carried
+        // on intercepting keystrokes until the application was restarted.
+        void ApplyDisplayOffHotkey();
+
     }
 
     // The tray menu.

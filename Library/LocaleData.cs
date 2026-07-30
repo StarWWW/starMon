@@ -523,7 +523,11 @@ namespace StarMon.Library.Locale
                 ["DataSyntaxOrTwo"] = "[(2)]",
 
                 ["DataTypeTName"] = "<TName>",
-                ["DataSyntaxTName"] = "Autorun (GUI) | Key (Omen Key Capture) | Mux (Advanced Optimus Fix)",
+                // The words here are the ones -Task and -Run actually accept,
+                // which are the TaskId names. This said "Autorun", which is
+                // what the GUI task does rather than what it is called, and
+                // anyone who typed it back was told the argument was unknown.
+                ["DataSyntaxTName"] = "Gui (Autorun on Logon) | Key (Omen Key Capture) | Mux (Advanced Optimus Fix)",
 
                 ["DataTypeWord"] = "<Word>",
                 ["DataSyntaxWord"] = "<0-65535|0x0000-0xFFFF|0b0000000000000000-0b1111111111111111>",
@@ -810,6 +814,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfKbdIdleOff"] = "SWITCH OFF WHEN IDLE",
                 ["GuiWpfKbdNever"] = "never",
                 ["GuiWpfKbdMinutes"] = "min",
+                ["GuiWpfKbdPresets"] = "SAVED COLOURS",
                 ["GuiWpfZoneLeft"] = "LEFT",
                 ["GuiWpfZoneCentre"] = "CENTRE",
                 ["GuiWpfZoneRight"] = "RIGHT",
@@ -941,6 +946,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfTipKbdCycle"] = "The backlight moves through the colour wheel continuously.",
                 ["GuiWpfTipKbdBreathe"] = "The backlight fades down and back up, in the colours set below.",
                 ["GuiWpfTipKbdSpeed"] = "How fast an animated effect runs. Shown only while one is running.",
+                ["GuiWpfTipKbdPreset"] = "Applies this saved colour set to the zones. Presets live in the configuration file.",
                 ["GuiWpfTipKbdIdle"] = "Switches the backlight off after this long without a keypress. At zero it never switches itself off.",
 
                 // The Log page.

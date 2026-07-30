@@ -156,7 +156,7 @@ namespace StarMon.Library {
         // Converts a Boolean string representation to a Boolean value
         public static bool GetBool(string arg, out bool value) {
             value = false;
-            switch(arg.ToLower()) {
+            switch(arg.ToLowerInvariant()) {
 
                 // Possible true values
                 case "1":
@@ -319,7 +319,7 @@ namespace StarMon.Library {
 
         // Converts a byte array to a hexadecimal string representation
         public static string GetString(byte[] value) {
-            return BitConverter.ToString(value).Replace("-", "").ToLower();
+            return BitConverter.ToString(value).Replace("-", "").ToLowerInvariant();
         }
 
         // Converts a byte or word to a string, using the given numerical base and alignment

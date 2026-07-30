@@ -134,15 +134,12 @@ namespace StarMon.AppGui
 
                 // Someone with the window open is looking at the graphics
                 // readings, which is the one case where waking the card on
-                // battery is what they asked for
-                IsWindowVisible = () => {
-                    try {
-                        StarMon.Ui.Windows.MainWindow window = this.Window.Current;
-                        return window != null && window.IsVisible;
-                    } catch {
-                        return false;
-                    }
-                }
+                // battery is what they asked for.
+                //
+                // The cached flag rather than the window itself: this runs on
+                // the poller's thread-pool thread, and asking a WPF window
+                // anything from there throws.
+                IsWindowVisible = () => this.WindowVisibleCache
             };
 
             this.Poll.Read += this.Window.Apply;
@@ -493,13 +490,28 @@ namespace StarMon.AppGui
         }
         #endregion
 
-        // Whether the window is on screen
+        // The last answer IsWindowVisible gave, kept for the poll thread.
+        //
+        // A window is a DependencyObject, and IsVisible cannot be read from
+        // anywhere but the dispatcher thread: the attempt throws. The poller
+        // runs its gathering on a thread-pool thread, so the delegate it was
+        // given caught that exception and answered "not on screen" every
+        // single time. That answer is what decides whether the discrete card
+        // may be woken while on battery, so the graphics readings froze for
+        // precisely the case the setting exists to allow — someone on battery
+        // with the window open, looking at them.
+        private volatile bool WindowVisibleCache;
+
+        // Whether the window is on screen. Dispatcher thread only; anything
+        // else reads WindowVisibleCache, which this keeps current.
         internal bool IsWindowVisible
         {
             get
             {
                 System.Windows.Window window = this.Window.Current;
-                return window != null && window.IsVisible;
+                bool visible = window != null && window.IsVisible;
+                this.WindowVisibleCache = visible;
+                return visible;
             }
         }
 
@@ -523,7 +535,10 @@ namespace StarMon.AppGui
             window.Topmost = Config.GuiStayOnTop;
 
             // Take a reading straight away rather than leaving the window
-            // showing dashes until the next tick comes round
+            // showing dashes until the next tick comes round — and let the
+            // poll thread know the window is up before it gathers, so that
+            // very first reading already includes the graphics card on battery
+            this.WindowVisibleCache = window.IsVisible;
             this.Poll.Request();
 
             Logger.Gui("Window", "Window shown");
@@ -539,6 +554,7 @@ namespace StarMon.AppGui
             else
             {
                 this.Window.Current.Hide();
+                this.WindowVisibleCache = false;
                 Logger.Gui("Window", "Window hidden to the tray");
             }
 
@@ -693,6 +709,19 @@ namespace StarMon.AppGui
                 this.Op.Platform.LastMaxTemperature, Config.ThermalProtectionHighC);
         }
 
+        // Lifts the switched-off override, if it is in force.
+        //
+        // Read before written: SetOff is an Embedded Controller write, and
+        // issuing one every second on a machine that never had the fans
+        // switched off costs a bus exchange for nothing.
+        private void ReleaseFanOff()
+        {
+            try {
+                if (this.Op.Platform.Fans.GetOff())
+                    this.Op.Platform.Fans.SetOff(false);
+            } catch { }
+        }
+
         // Forces the fans to maximum at the high threshold, releasing below
         // the low threshold, and notifies on CPU thermal throttling; if the
         // temperature keeps climbing regardless, all manual fan overrides
@@ -718,6 +747,13 @@ namespace StarMon.AppGui
                 {
 
                     case ThermalAction.Engage:
+                        // The switched-off override sits above the maximum one:
+                        // asking for maximum while the fans are held off changes
+                        // a number nothing is reading, and the machine carries on
+                        // heating with the fans stopped. Everything else in the
+                        // application clears one before asserting the other; the
+                        // one path that exists to guarantee cooling has to as well.
+                        ReleaseFanOff();
                         try { this.Op.Platform.Fans.SetMax(true); } catch { }
                         Logger.Warning("Thermal", "Protection engaged at " + temp + " °C");
                         ShowBalloonTip(
@@ -735,6 +771,7 @@ namespace StarMon.AppGui
                             "Still climbing at " + temp + " °C — all overrides dropped");
                         try { if (this.Op.Program.IsEnabled) this.Op.Program.Terminate(); } catch { }
                         try { this.Op.Platform.ClearFanModeSticky(); } catch { }
+                        ReleaseFanOff();
                         try { this.Op.Platform.Fans.SetLevels(new byte[] { Byte.MaxValue, Byte.MaxValue }); } catch { }
                         try { this.Op.Platform.Fans.SetManual(false); } catch { }
                         try { this.Op.Platform.Fans.SetCountdown(0); } catch { }
@@ -1069,7 +1106,7 @@ namespace StarMon.AppGui
         }
 
         // (Re-)applies the configured global "display off" hotkey
-        internal void ApplyDisplayOffHotkey()
+        public void ApplyDisplayOffHotkey()
         {
             if (this.Hotkey != null)
                 this.Hotkey.Set((uint) Config.DisplayOffHotkeyMods, (uint) Config.DisplayOffHotkeyKey);

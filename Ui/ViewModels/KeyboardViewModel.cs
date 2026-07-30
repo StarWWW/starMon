@@ -123,10 +123,22 @@ namespace StarMon.Ui.ViewModels {
 
             this.Presets = new ObservableCollection<string>();
 
+            // The row of presets appears only when there are some, and the
+            // collection is filled after the panel is built — so the view has
+            // to be told when that happens
+            this.Presets.CollectionChanged += delegate { Raise("HasPresets"); };
+
         }
 
         public ObservableCollection<ZoneViewModel> Zones { get; private set; }
         public ObservableCollection<string> Presets { get; private set; }
+
+        // Whether the configuration file carries any saved colour presets.
+        //
+        // They were loaded into the collection above and displayed by nothing:
+        // the only way to reach a preset was the notification-area menu, which
+        // is the very limitation filling the collection was meant to lift.
+        public bool HasPresets { get { return this.Presets.Count > 0; } }
 
         public bool IsSingleZone { get { return this.Zones.Count <= 1; } }
 

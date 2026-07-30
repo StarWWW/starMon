@@ -19,6 +19,7 @@ namespace StarMon.Test {
             SelfTest.Group("Configuration");
 
             TestSettingsRoundTrip();
+            TestEverySettingIsPersisted();
             TestTemplateDocumentsEverySetting();
             TestMutexTimeoutCoversWorstCase();
             TestThermalThresholdsMakeSense();
@@ -55,6 +56,117 @@ namespace StarMon.Test {
                         + read.Count + " settings)"
                     : "read but never written back: "
                         + string.Join(", ", orphans.ToArray()));
+
+        }
+
+        // Settings that live in the class but are not read or written by name.
+        // Everything here is either a runtime fact about this process rather
+        // than a preference, or a collection with a block of its own.
+        private static readonly string[] NotSettings = {
+            "AppFile", "AppName", "AppVersion", "AppProcessId",
+            "EnvVarSelfName", "FilePath", "LockNameMux", "PathTemp",
+            "OnlyOnceFileExt", "OnlyOncePath", "TaskRunPath", "Task",
+
+            // The loaded dictionary and the list of languages that can be
+            // chosen; what is saved is the choice, under Language
+            "Locale", "LanguageNames"
+        };
+
+        // The gap the round-trip check above cannot see.
+        //
+        // That one compares the reader's keys against the writer's, both taken
+        // from calls already present in Config.cs — so a setting that appears
+        // in neither produces no key on either side and looks like agreement.
+        // UpdateRecordInterval shipped exactly that way: settable from the
+        // interface, used on every tick, and written to the configuration file
+        // by nothing, so a changed value lasted until the application closed.
+        //
+        // This one starts from the fields instead, which is the list a new
+        // setting is actually added to.
+        private static void TestEverySettingIsPersisted() {
+
+            string source = ReadConfigSource();
+
+            if(source == null) {
+                SelfTest.Check(true,
+                    "configuration source not present, persistence check skipped");
+                return;
+            }
+
+            string loading = Region(source, "#region Configuration Retrieval");
+            string saving = Region(source, "#region Configuration Saving");
+
+            if(loading == null || saving == null) {
+                SelfTest.Check(false,
+                    "the loading and saving regions could not be found in "
+                        + "Config.cs; this check needs them to tell the two apart");
+                return;
+            }
+
+            List<string> unpersisted = new List<string>();
+            int checked_ = 0;
+
+            foreach(FieldInfo field in typeof(Config).GetFields(
+                BindingFlags.Public | BindingFlags.Static)) {
+
+                // Constants and read-only fields are not preferences
+                if(field.IsLiteral || field.IsInitOnly)
+                    continue;
+
+                if(Array.IndexOf(NotSettings, field.Name) >= 0)
+                    continue;
+
+                checked_++;
+
+                if(!Mentions(loading, field.Name) || !Mentions(saving, field.Name))
+                    unpersisted.Add(field.Name);
+
+            }
+
+            SelfTest.Check(unpersisted.Count == 0,
+                unpersisted.Count == 0
+                    ? "every setting is both loaded and saved ("
+                        + checked_ + " settings)"
+                    : "settable but not persisted: "
+                        + string.Join(", ", unpersisted.ToArray()));
+
+        }
+
+        // Whether a region of source refers to an identifier, as a whole word
+        private static bool Mentions(string source, string name) {
+
+            int at = 0;
+
+            while((at = source.IndexOf(name, at, StringComparison.Ordinal)) >= 0) {
+
+                bool leftClear = at == 0
+                    || !(char.IsLetterOrDigit(source[at - 1]) || source[at - 1] == '_');
+
+                int after = at + name.Length;
+                bool rightClear = after >= source.Length
+                    || !(char.IsLetterOrDigit(source[after]) || source[after] == '_');
+
+                if(leftClear && rightClear)
+                    return true;
+
+                at = after;
+
+            }
+
+            return false;
+
+        }
+
+        // The text of one #region, up to its matching #endregion
+        private static string Region(string source, string marker) {
+
+            int start = source.IndexOf(marker, StringComparison.Ordinal);
+            if(start < 0)
+                return null;
+
+            int end = source.IndexOf("#endregion", start, StringComparison.Ordinal);
+            return end < 0 ? source.Substring(start)
+                : source.Substring(start, end - start);
 
         }
 

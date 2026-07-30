@@ -266,15 +266,34 @@ namespace StarMon.Library
                 {
                     try
                     {
-                        string line = entry.ToString();
-                        _fileWriter.WriteLine(line);
-                        _fileBytes += line.Length + Environment.NewLine.Length;
+                        if (isStacked)
+                        {
+                            // Counted, not written again. The list above
+                            // collapses a repeat into the entry already in it;
+                            // the file used to receive a fresh full copy of
+                            // every one. A register that fails on every poll —
+                            // which is what an absent sensor does, and what
+                            // EcFail reports whether or not verbose logging is
+                            // on — then wrote one line per tick, ran the file
+                            // past its size limit and rotated away the history
+                            // from before the fault started, during exactly the
+                            // fault the log exists to capture.
+                            _fileRepeats++;
+                        }
+                        else
+                        {
+                            FlushRepeatsToFile();
 
-                        // Roll the file over once it grows past the limit, so
-                        // an application left running for weeks cannot quietly
-                        // fill the disk
-                        if (_fileBytes >= Config.LogFileMaxBytes)
-                            RotateFile();
+                            string line = entry.ToString();
+                            _fileWriter.WriteLine(line);
+                            _fileBytes += line.Length + Environment.NewLine.Length;
+
+                            // Roll the file over once it grows past the limit, so
+                            // an application left running for weeks cannot quietly
+                            // fill the disk
+                            if (_fileBytes >= Config.LogFileMaxBytes)
+                                RotateFile();
+                        }
                     }
                     catch { }
                 }
@@ -565,18 +584,46 @@ namespace StarMon.Library
                 Log(LogLevel.Error, "Logger", "Failed to enable file logging", failure);
         }
 
+        // How many times the last line written to the file has repeated since
+        // it was written. Held rather than written so a persistent fault costs
+        // one line and a count, not one line per occurrence.
+        private static int _fileRepeats;
+
+        // Records an outstanding run of repeats as a single line. Caller must
+        // hold the lock, and must not be inside a rotation.
+        private static void FlushRepeatsToFile()
+        {
+            if (_fileRepeats <= 0 || _fileWriter == null)
+            {
+                _fileRepeats = 0;
+                return;
+            }
+
+            string line = "    ... the line above repeated " + _fileRepeats
+                + (_fileRepeats == 1 ? " more time" : " more times");
+
+            _fileRepeats = 0;
+
+            _fileWriter.WriteLine(line);
+            _fileBytes += line.Length + Environment.NewLine.Length;
+        }
+
         // Rolls the current log file over to a single ".1" backup, replacing
         // any previous one. Caller must hold the lock.
         private static void RotateFile()
         {
             try
             {
+                // Whatever run of repeats is outstanding belongs to the file
+                // being closed, not to the fresh one
+                FlushRepeatsToFile();
                 _fileWriter.Flush();
                 _fileWriter.Close();
                 _fileWriter.Dispose();
             }
             catch { }
             _fileWriter = null;
+            _fileRepeats = 0;
 
             try
             {
@@ -609,12 +656,14 @@ namespace StarMon.Library
                 {
                     try
                     {
+                        FlushRepeatsToFile();
                         _fileWriter.Close();
                         _fileWriter.Dispose();
                     }
                     catch { }
                     _fileWriter = null;
                 }
+                _fileRepeats = 0;
             }
         }
         #endregion

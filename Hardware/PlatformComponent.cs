@@ -161,8 +161,12 @@ namespace StarMon.Hardware.Platform {
 
             try {
 
-                // Read the value
-                int value = Read();
+                // Read the value, and stop here if the exchange never
+                // happened. A link that cannot say whether it answered
+                // reports success, which is what it did before this existed.
+                int value;
+                if(!TryRead(out value))
+                    return false;
 
                 // Hold off on one additional time
                 // for values that might be intermittently zeroed.
@@ -214,6 +218,25 @@ namespace StarMon.Hardware.Platform {
 
         // Implements component value retrieval
         protected abstract int Read();
+
+        // Reads the component, saying whether the reading is one the hardware
+        // actually gave back.
+        //
+        // Read() alone cannot say. An Embedded Controller read that never got
+        // an answer hands back zero, which is indistinguishable from a
+        // register that genuinely holds zero — and a register the board does
+        // not carry reads zero for the life of the process. Without this,
+        // Update() called every absent sensor a success, so the miss counting
+        // in Platform.UpdateSensor never ran and no sensor was ever stood
+        // down: one wasted exchange per second per absent register, forever,
+        // on the bus the fan readings share.
+        //
+        // Links that have no way to tell the two apart keep the old
+        // behaviour and report success.
+        protected virtual bool TryRead(out int value) {
+            value = Read();
+            return true;
+        }
 
         // Required due to inheritance, and implemented here so that
         // it does not have to be repeated in every derived class,
@@ -278,6 +301,23 @@ namespace StarMon.Hardware.Platform {
                 return Hw.EcGetByte(this.Register);
             else
                 return Hw.EcGetWord(this.Register);
+        }
+
+        // The same read, reporting whether the controller answered at all
+        protected override bool TryRead(out int value) {
+
+            if(this.Size == PlatformData.DataSize.Byte) {
+                byte read;
+                bool answered = Hw.EcTryGetByte(this.Register, out read);
+                value = read;
+                return answered;
+            }
+
+            ushort word;
+            bool ok = Hw.EcTryGetWord(this.Register, out word);
+            value = word;
+            return ok;
+
         }
 
         // Writes a value to the Embedded Controller

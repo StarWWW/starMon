@@ -29,8 +29,19 @@ param(
     [switch] $Test,
     [switch] $Resources,
     [string[]] $Render,
-    [string] $Configuration = "Release"
+    [string] $Configuration = "Release",
+    [string] $Version = "1.0.0.0",
+    [string] $VersionWord = "Release"
 )
+
+# The version the build stamps into the binary.
+#
+# The csproj only rewrites the assembly attributes when both AssemblyVersion
+# and AssemblyVersionWord are passed to it, and this script passed neither -
+# so every build made here carried the placeholder from All\Version.cs, and
+# the About page, the tray menu and the command-line header all announced
+# themselves as "0.0-None". Four dot-separated integers, or the csproj rejects
+# it; the word is what follows the dash in the product version.
 
 # -Render builds the unelevated host and draws a piece of the interface to a
 # PNG. It exists as a switch rather than a note in a comment because the host
@@ -100,11 +111,17 @@ if ($duplicates.Count -gt 0) {
     exit 1
 }
 
-Write-Host "Building ($Configuration)..." -ForegroundColor Cyan
+if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
+    throw "The version must be four dot-separated integers; got '$Version'."
+}
+
+Write-Host "Building ($Configuration, $Version-$VersionWord)..." -ForegroundColor Cyan
 
 dotnet msbuild (Join-Path $root "StarMon.csproj") `
     /t:Build `
     /p:Configuration=$Configuration `
+    /p:AssemblyVersion=$Version `
+    /p:AssemblyVersionWord=$VersionWord `
     /p:FrameworkPathOverride=$refasm `
     /p:ReferencePath=$mmi `
     /p:WinFXTargets=$winfx `
@@ -136,6 +153,8 @@ if ($Test) {
     dotnet msbuild (Join-Path $root "StarMon.csproj") `
         /t:Build `
         /p:Configuration=$Configuration `
+        /p:AssemblyVersion=$Version `
+        /p:AssemblyVersionWord=$VersionWord `
         /p:FrameworkPathOverride=$refasm `
         /p:ReferencePath=$mmi `
         /p:WinFXTargets=$winfx `

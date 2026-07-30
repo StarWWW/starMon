@@ -32,7 +32,13 @@ namespace StarMon.AppCli {
             // Try to parse the value as a string identifier first
             // This may easily fail if there is no such identifier
             try {
-                register = (byte) Enum.Parse(typeof(EmbeddedControllerData.Register), registerStringParsed);
+                // Case-insensitively, as the documentation promises of every
+                // argument: the register names are shouted in the table this
+                // prints, and "-Ec hpcm" is what anyone types back. Enum's own
+                // folding is ordinal, so it is not upset by a Turkish locale
+                // the way ToLower would be.
+                register = (byte) Enum.Parse(typeof(EmbeddedControllerData.Register),
+                    registerStringParsed, true);
                 registerSet = true;
             } catch { }
 
@@ -91,7 +97,13 @@ namespace StarMon.AppCli {
             // Try to parse the value as a string identifier first
             // This may easily fail if there is no such identifier
             try {
-                register = (byte) Enum.Parse(typeof(EmbeddedControllerData.Register), registerStringParsed);
+                // Case-insensitively, as the documentation promises of every
+                // argument: the register names are shouted in the table this
+                // prints, and "-Ec hpcm" is what anyone types back. Enum's own
+                // folding is ordinal, so it is not upset by a Turkish locale
+                // the way ToLower would be.
+                register = (byte) Enum.Parse(typeof(EmbeddedControllerData.Register),
+                    registerStringParsed, true);
                 registerSet = true;
             } catch { }
 

@@ -49,6 +49,10 @@ namespace StarMon.Hardware.Cpu {
         // AMD family 17h (Zen) and later SMU thermal register (Tctl)
         private const uint AMD_F17H_THM_TCTL = 0x00059800;
 
+        // Bit 19 of that register: the reading is on the wide scale and
+        // carries a +49 °C bias
+        private const uint AMD_TEMP_RANGE_SEL = 0x00080000;
+
         // Lowest AMD family number (decimal, as reported by the registry)
         // that exposes the Zen-style SMU thermal register: 23 == 0x17
         private const int AMD_ZEN_FAMILY_MIN = 23;
@@ -304,6 +308,17 @@ namespace StarMon.Hardware.Cpu {
 
             // Bits 31:21 hold Tctl in steps of 0.125 °C
             double tctl = ((value >> 21) & 0x7FF) * 0.125;
+
+            // Bit 19 selects the wider reporting range, in which the value
+            // above carries a +49 °C bias that has to come back off. Zen
+            // mobile parts — which is what an Omen or a Victus has — do set
+            // it, and without this the reading is 49 degrees too high: an
+            // idle 42 °C arrives as 91 °C, which is inside the plausibility
+            // bounds below and so passes through to the interface and to the
+            // fan curve as if it were real. Linux' k10temp applies the same
+            // correction for family 17h and later.
+            if((value & AMD_TEMP_RANGE_SEL) != 0)
+                tctl -= 49.0;
 
             // Tctl is reported directly, which matches what most monitoring tools
             // display; mobile Ryzen parts (as found in Omen/Victus laptops) do not

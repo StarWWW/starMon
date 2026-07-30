@@ -722,14 +722,42 @@ namespace StarMon.Ui.Windows {
                 }
 
                 int[] zones = new int[model.Zones.Count];
-                for(int i = 0; i < zones.Length; i++)
-                    zones[i] = Packed(model.Zones[i]);
+                for(int i = 0; i < zones.Length; i++) {
+                    // The swap only makes sense on the full four; a board that
+                    // reported some other count keeps the order it gave
+                    int slot = zones.Length == 4 ? HardwareZone(i) : i;
+                    zones[slot] = Packed(model.Zones[i]);
+                }
 
                 this.Host.SetKbdZoneColors(zones);
 
             }, "Backlight colour: " + model.Zones[0].Hex
                 + (model.IsSingleZone ? "" : " …"));
 
+        }
+
+        // Which slot in the firmware's colour table a swatch writes to.
+        //
+        // The panel lists its zones the way the keyboard looks — left, centre,
+        // right, WASD — and the drawn deck colours its bands from the same
+        // order, left to right. The firmware numbers them the other way round:
+        // BiosData.KbdZone puts Right at 0 and Left at 2, which is also the
+        // order the command line prints and the configuration file stores.
+        //
+        // Sent straight through, the swatch labelled LEFT lit the right-hand
+        // third of the keyboard and the one labelled RIGHT lit the left. It
+        // looked right on screen either way, because the reading came back
+        // through the same unswapped path and put the colour into the swatch
+        // that had just been changed.
+        //
+        // The map is its own inverse, so the same one serves both directions.
+        private static int HardwareZone(int visual) {
+            switch(visual) {
+                case 0: return (int) Hardware.Bios.BiosData.KbdZone.Left;
+                case 1: return (int) Hardware.Bios.BiosData.KbdZone.Middle;
+                case 2: return (int) Hardware.Bios.BiosData.KbdZone.Right;
+                default: return visual;
+            }
         }
 
         private static int Packed(ZoneViewModel zone) {
@@ -759,7 +787,10 @@ namespace StarMon.Ui.Windows {
 
             int[] cols = reading.KbdColors;
             for(int i = 0; i < kbd.Zones.Count; i++) {
-                int packed = cols[i < cols.Length ? i : cols.Length - 1];
+                // The firmware's order, not the panel's — see HardwareZone
+                int slot = kbd.IsSingleZone ? 0
+                    : kbd.Zones.Count == 4 ? HardwareZone(i) : i;
+                int packed = cols[slot < cols.Length ? slot : cols.Length - 1];
                 System.Windows.Media.Color colour = System.Windows.Media.Color.FromRgb(
                     (byte) ((packed >> 16) & 0xFF),
                     (byte) ((packed >> 8) & 0xFF),
@@ -979,6 +1010,16 @@ namespace StarMon.Ui.Windows {
                     if(this.Window != null)
                         Guard(() => this.Window.Topmost = Config.GuiStayOnTop,
                             "Stay on top: " + (Config.GuiStayOnTop ? "on" : "off"));
+                    break;
+
+                case "HotkeyChanged":
+                    // Registered with the operating system, not merely written
+                    // down. Captured or cleared, the binding took effect only
+                    // on the next launch — and a cleared one carried on
+                    // swallowing the combination system-wide in the meantime,
+                    // while the page said "None".
+                    Guard(() => this.Host.ApplyDisplayOffHotkey(),
+                        "Display-off hotkey: " + this.SettingsModel.HotkeyText);
                     break;
 
                 case "LogToFile":
@@ -2179,14 +2220,17 @@ namespace StarMon.Ui.Windows {
         // processor is really named after.
         private static string PowerLimits(Reading reading) {
 
-            if(reading.CpuPl1W <= 0)
+            // Either budget can be switched off in the register while the
+            // other is enforced, so neither one standing alone means there is
+            // nothing to say
+            if(reading.CpuPl1W <= 0 && reading.CpuPl2W <= 0)
                 return "-";
-
-            System.Globalization.CultureInfo inv =
-                System.Globalization.CultureInfo.InvariantCulture;
 
             int pl1 = (int) System.Math.Round(reading.CpuPl1W);
             int pl2 = (int) System.Math.Round(reading.CpuPl2W);
+
+            if(reading.CpuPl1W <= 0)
+                return pl2 + " W";
 
             return reading.CpuPl2W > 0 && pl2 != pl1
                 ? pl1 + " / " + pl2 + " W"
@@ -2559,8 +2603,7 @@ namespace StarMon.Ui.Windows {
             if(reading.DiskReadMBs < 0 && reading.DiskWriteMBs < 0)
                 return "";
 
-            return Describe(Math.Max(reading.DiskReadMBs, 0), "", 1) + " / "
-                + Describe(Math.Max(reading.DiskWriteMBs, 0), " MB/s", 1);
+            return Pair(reading.DiskReadMBs, reading.DiskWriteMBs, " MB/s");
 
         }
 
@@ -2569,8 +2612,23 @@ namespace StarMon.Ui.Windows {
             if(reading.NetDownMbps < 0 && reading.NetUpMbps < 0)
                 return "";
 
-            return Describe(Math.Max(reading.NetDownMbps, 0), "", 1) + " / "
-                + Describe(Math.Max(reading.NetUpMbps, 0), " Mb/s", 1);
+            return Pair(reading.NetDownMbps, reading.NetUpMbps, " Mb/s");
+
+        }
+
+        // An in-and-out throughput pair.
+        //
+        // Not Describe(), which answers with an empty string below zero and so
+        // treats "nothing is moving" as "there is nothing to report": an idle
+        // machine with no disk reads rendered as " / 0.3 MB/s", and one with
+        // neither as a bare " / ". Zero is a reading here, not a gap.
+        private static string Pair(double first, double second, string unit) {
+
+            System.Globalization.CultureInfo inv =
+                System.Globalization.CultureInfo.InvariantCulture;
+
+            return (first > 0 ? first : 0).ToString("F1", inv) + " / "
+                + (second > 0 ? second : 0).ToString("F1", inv) + unit;
 
         }
 

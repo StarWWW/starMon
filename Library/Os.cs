@@ -33,7 +33,7 @@ namespace StarMon.Library {
 
             // Check image name of each process attached to the console
             for(int i = 0; i < list.Length; i++)
-                if(Process.GetProcessById((int) list[i]).ProcessName.ToLower().Contains("cmd"))
+                if(Process.GetProcessById((int) list[i]).ProcessName.ToLowerInvariant().Contains("cmd"))
                     return false;
 
             // If none of the image names of the processes associated with the console
@@ -231,16 +231,57 @@ namespace StarMon.Library {
 
             // Instruct the service to stop
             AdvApi32.SERVICE_STATUS status = new();
-            AdvApi32.ControlService(service, AdvApi32.SERVICE_CONTROL.SERVICE_CONTROL_STOP, ref status);
 
-            // Wait until the service stops
-            while(status.dwCurrentState != (uint) AdvApi32.SERVICE_STATE.SERVICE_STOPPED) {
+            if(!AdvApi32.ControlService(service,
+                AdvApi32.SERVICE_CONTROL.SERVICE_CONTROL_STOP, ref status)) {
+
+                // The usual reason is that it was not running in the first
+                // place, and then starting it is exactly what was wanted. Any
+                // other refusal leaves the status as something other than
+                // stopped, and the start below is skipped.
                 AdvApi32.QueryServiceStatus(service, ref status);
-                Thread.Sleep(Config.WaitToStopService);
+
+                if(status.dwCurrentState != (uint) AdvApi32.SERVICE_STATE.SERVICE_STOPPED)
+                    Logger.Warning("Os", "The service could not be told to stop", name);
+
+            } else {
+
+                // Wait until the service stops, but not forever.
+                //
+                // This runs in the short-lived headless process the
+                // graphics-mux task spawns. A driver that hangs in
+                // STOP_PENDING, or a query that starts failing, left the old
+                // loop spinning with nothing to end it — a process stuck for
+                // the rest of the session, one more of them every time the
+                // event fired again.
+                System.Diagnostics.Stopwatch waited =
+                    System.Diagnostics.Stopwatch.StartNew();
+
+                while(status.dwCurrentState != (uint) AdvApi32.SERVICE_STATE.SERVICE_STOPPED) {
+
+                    if(waited.ElapsedMilliseconds >= Config.WaitToStopServiceTimeout) {
+                        Logger.Warning("Os", "The service did not stop in time",
+                            name + " after " + waited.ElapsedMilliseconds + " ms");
+                        break;
+                    }
+
+                    if(!AdvApi32.QueryServiceStatus(service, ref status)) {
+                        Logger.Warning("Os", "The service status could not be read",
+                            name);
+                        break;
+                    }
+
+                    Thread.Sleep(Config.WaitToStopService);
+
+                }
+
             }
 
-            // Start the service again
-            AdvApi32.StartService(service, 0, null);
+            // Start the service again, but only if it did stop: asking a
+            // service that is still stopping to start is refused, and doing it
+            // anyway hides the fact that the restart did not happen
+            if(status.dwCurrentState == (uint) AdvApi32.SERVICE_STATE.SERVICE_STOPPED)
+                AdvApi32.StartService(service, 0, null);
 
             // Close the handles
             AdvApi32.CloseServiceHandle(service);

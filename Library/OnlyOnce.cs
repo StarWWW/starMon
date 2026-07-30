@@ -11,8 +11,7 @@ namespace StarMon.Library {
     public class OnlyOnce {
 
         private readonly string FileName;
-        private bool IsChecked;
-        private bool IsFirstTime;
+        private readonly bool IsFirstTime;
 
         // Initializes the class
         public OnlyOnce(string name) {
@@ -20,49 +19,58 @@ namespace StarMon.Library {
             // Determine the lock file name
             FileName = Config.OnlyOncePath + "\\" + name + Config.OnlyOnceFileExt;
 
-            // Check if this is the first run after reboot
-            // and set the lock if that's the case
-            if(IsFirstTime = Check())
-                Set();
+            // Claim the lock; whether the claim succeeded is the answer
+            IsFirstTime = Claim();
 
         }
 
         // Checks the state
         public bool Check() {
 
-            // Only check if we haven't already
-            if(!IsChecked) {
-                try {
-
-                    // Not the first time if the file exists
-                    IsFirstTime = !File.Exists(FileName);
-
-                } catch {
-                } finally {
-
-                    // Remember we checked
-                    IsChecked = true;
-
-                }
-            }
-
-            // Return the answer
+            // The claim happened in the constructor, which is the only place
+            // it can happen without racing itself
             return IsFirstTime;
 
         }
 
-        // Sets the state
-        private void Set() {
+        // Creates the marker file, and says whether this call is the one that
+        // created it.
+        //
+        // The creation is the test. Asking File.Exists first and creating
+        // afterwards leaves a window between the two, and the caller that this
+        // exists for — the graphics-mux fix, spawned from a registry-change
+        // event that can fire twice in quick succession during a mode switch —
+        // is exactly the kind that arrives twice at once. Both processes saw no
+        // file, both believed they were first, and both went on to restart the
+        // shell and the display service. FileMode.CreateNew is atomic: the
+        // second one is refused by the file system.
+        private bool Claim() {
 
             try {
 
-                // Create the file
-                File.Create(FileName).Close();
+                using(new FileStream(FileName, FileMode.CreateNew,
+                    FileAccess.Write, FileShare.None)) { }
 
-                // Reset the state on reboot
-                Os.RemoveOnReboot(FileName);
+            } catch(IOException) {
 
-            } catch { }
+                // CreateNew reports "it is already there" and "the directory
+                // does not exist" through the same exception type, so the two
+                // have to be told apart: only the first means somebody else
+                // was here. Anything else is a marker that cannot be written,
+                // and refusing to run at all is worse than running twice —
+                // which is also how this behaved before.
+                try { return !File.Exists(FileName); } catch { return true; }
+
+            } catch {
+
+                return true;
+
+            }
+
+            // Reset the state on reboot
+            try { Os.RemoveOnReboot(FileName); } catch { }
+
+            return true;
 
         }
 

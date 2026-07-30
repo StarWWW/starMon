@@ -129,12 +129,22 @@ namespace StarMon.Hardware.Cpu {
                     return false;
 
                 // PL1 lives in bits 14:0 of the low word, PL2 in the same
-                // bits of the high word
-                pl1Watts = (eax & 0x7FFF) * unit;
-                pl2Watts = (edx & 0x7FFF) * unit;
+                // bits of the high word — but bit 15 of each is the enable
+                // flag, and the value field keeps whatever was last written
+                // whether or not the limit is being enforced. A profile that
+                // lifts the sustained cap leaves a perfectly plausible number
+                // sitting in a register nothing is honouring, and reporting
+                // that as "the budget" is worse than reporting nothing.
+                pl1Watts = (eax & 0x8000) != 0 ? (eax & 0x7FFF) * unit : -1;
+                pl2Watts = (edx & 0x8000) != 0 ? (edx & 0x7FFF) * unit : -1;
 
-                return pl1Watts > 0 && pl1Watts < 1000
-                    && pl2Watts >= 0 && pl2Watts < 1000;
+                if(pl1Watts >= 1000) pl1Watts = -1;
+                if(pl2Watts >= 1000) pl2Watts = -1;
+
+                // The caller treats a non-positive figure as "unavailable" and
+                // hides the row, so one limit being disabled still lets the
+                // other be shown
+                return pl1Watts > 0 || pl2Watts > 0;
 
             } catch {
                 return false;

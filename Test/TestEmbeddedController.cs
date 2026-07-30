@@ -118,9 +118,9 @@ namespace StarMon.Test {
             }
 
             // Test access to the protected wait and flush routines
-            internal bool CallWaitRead() { return WaitRead(); }
+            internal bool CallWaitRead(byte register = 0) { return WaitRead(register); }
             internal void CallFlushObf() { FlushObf(); }
-            internal int FailCount { get { return WaitReadFailCount; } }
+            internal int FailCount(byte register = 0) { return WaitReadFailCount(register); }
 
         }
 #endregion
@@ -133,6 +133,7 @@ namespace StarMon.Test {
             TestWaitRespectsItsBudget();
             TestTransactionFitsInsideTheMutexTimeout();
             TestWaitReadSelfHeals();
+            TestBypassDoesNotLeakBetweenRegisters();
             TestFlushDropsStaleByte();
             TestFailedReadIsReported();
 
@@ -222,7 +223,7 @@ namespace StarMon.Test {
             for(int i = 0; i <= Config.EcFailLimit; i++)
                 ec.CallWaitRead();
 
-            SelfTest.Check(ec.FailCount > Config.EcFailLimit,
+            SelfTest.Check(ec.FailCount() > Config.EcFailLimit,
                 "repeated failures push the count past the limit");
 
             SelfTest.Check(ec.CallWaitRead(),
@@ -241,8 +242,36 @@ namespace StarMon.Test {
                 "the status port is still polled while over the limit "
                     + "(the bypass must not skip the wait entirely)");
 
-            SelfTest.Equal(0, ec.FailCount,
+            SelfTest.Equal(0, ec.FailCount(),
                 "a successful wait clears the failure count");
+
+        }
+
+        // The bypass is per register, and has to stay that way.
+        //
+        // With one counter for the whole controller, a board missing a handful
+        // of the configured temperature probes drove the count past the limit
+        // inside a single polling pass — and the next read of an entirely
+        // healthy register was then let through blind, reporting whatever byte
+        // was left in the port as that register's value. A register that has
+        // never failed must never inherit another one's failures.
+        private static void TestBypassDoesNotLeakBetweenRegisters() {
+
+            FakeEc ec = new FakeEc { Answers = false };
+
+            // One absent register fails far past the limit
+            for(int i = 0; i <= Config.EcFailLimit + 4; i++)
+                ec.CallWaitRead(0x4B);
+
+            SelfTest.Check(ec.FailCount(0x4B) > Config.EcFailLimit,
+                "the absent register's own count is past the limit");
+
+            SelfTest.Equal(0, ec.FailCount(0xB0),
+                "a register that has not been read carries no failures");
+
+            SelfTest.Check(!ec.CallWaitRead(0xB0),
+                "a different register's first failed wait is still a failure, "
+                    + "not a blind read borrowed from the absent one");
 
         }
 

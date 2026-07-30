@@ -94,7 +94,14 @@ namespace StarMon.Library
             ErrorBios = 1,  // BIOS initialization error
             ErrorEc = 2,  // Embedded Controller initialization error
             ErrorLocale = 3,  // Localizable message system error
-            ErrorTask = 4   // Invalid task identifier
+            ErrorTask = 4,  // Invalid task identifier
+
+            // Anything else the command line reported as an error: an
+            // unrecognized argument, a value that would not parse, a fan
+            // program that is not in the configuration file. Every one of
+            // these used to print its message and then exit zero, so a script
+            // testing ERRORLEVEL after StarMon.exe was told the run succeeded.
+            ErrorOperation = 5
         }
 
         // Whether to always extend the fan countdown timer, so a manually
@@ -143,8 +150,14 @@ namespace StarMon.Library
         // reaches the high threshold the fans are forced to maximum, and released
         // again once it falls back below the low threshold (hysteresis) [°C]
         public static bool ThermalProtectionEnabled = true;
-        public static int ThermalProtectionHighC = 95;
-        public static int ThermalProtectionLowC = 88;
+        public static int ThermalProtectionHighC = ThermalProtectionHighDefaultC;
+        public static int ThermalProtectionLowC = ThermalProtectionLowDefaultC;
+
+        // The same two figures as constants, so a configuration file that puts
+        // them the wrong way round can be put back to something sane on load
+        // rather than driving the guard with a band that cannot hold
+        public const int ThermalProtectionHighDefaultC = 95;
+        public const int ThermalProtectionLowDefaultC = 88;
 
         // Whether to show a tray notification when the CPU is thermally throttling
         public static bool ThrottleNotifyEnabled = true;
@@ -514,6 +527,11 @@ namespace StarMon.Library
         public const int WaitToStopProcess = 1000;
         public const int WaitToStopService = 500;
 
+        // How long to keep waiting for a service to stop before giving up.
+        // A driver stuck in STOP_PENDING would otherwise hold the headless
+        // task process open for the rest of the session. [ms]
+        public const int WaitToStopServiceTimeout = 30000;
+
         // WMI event settings
         public const string WmiEventSuffixConsumer = "Consumer";
         public const string WmiEventSuffixFilter = "Filter";
@@ -560,6 +578,13 @@ namespace StarMon.Library
         private const string XmlSaveBoolFalse = "false";
         private const string XmlSaveBoolTrue = "true";
         private const string XmlSaveIndent = "    ";
+
+        // Suffixes for the half-written file a save streams into before it is
+        // renamed into place, and for the copy of the previous file the
+        // rename leaves behind. Load() reads the second one when the
+        // configuration itself will not parse.
+        internal const string XmlSaveTempExt = ".saving";
+        internal const string XmlSaveBackupExt = ".bak";
 
         // Template XML configuration file (rudimentary, a better version replaces this when locale is loaded)
         private static string XmlTemplate = "<?xml version=\"1.0\" encoding=\"utf-8\"?>" + Environment.NewLine + "<StarMon/>";
