@@ -867,6 +867,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfThrottleNotify"] = "Notify when the processor is throttling",
                 ["GuiWpfRefreshFollows"] = "Drop the refresh rate on battery, restore it on mains",
                 ["GuiWpfPollGpuOnBattery"] = "Keep reading the graphics card on battery (uses more power)",
+                ["GuiWpfFourZone"] = "This keyboard has four colour zones",
                 ["GuiWpfLogVerbose"] = "Record every hardware exchange (verbose)",
                 ["GuiWpfLogToFile"] = "Also write the log to a file beside the application",
                 // Not GuiWpfFans: that is the dashboard's fan card, and
@@ -979,6 +980,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfTipStayOnTop"] = "Keeps the window above other windows.",
                 ["GuiWpfTipThrottleNotify"] = "Shows a notification when the processor is being held back by heat. At most one every five minutes.",
                 ["GuiWpfTipPollGpu"] = "Reading the NVIDIA chip wakes it up. On battery that spends power on figures nothing is watching.",
+                ["GuiWpfTipFourZone"] = "The firmware cannot be asked this: its colour table is four entries wide whatever the keyboard is, so a single-zone deck reports four just as a four-zone one does. Left off, the whole keyboard takes one colour, which is correct on every deck. Turn it on only if yours really lights in four separate regions.",
                 ["GuiWpfTipRefreshFollows"] = "Applies the two rates below by itself whenever the power source changes.",
                 ["GuiWpfTipRefreshHigh"] = "The rate to use on mains.",
                 ["GuiWpfTipRefreshLow"] = "The rate to use on battery.",

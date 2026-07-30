@@ -76,8 +76,13 @@
             <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
                 <TextBlock Text="{loc:Str GuiWpfBacklight}" Style="{StaticResource Caption}"
                            VerticalAlignment="Center" Margin="0,0,10,0"/>
+                <!-- Greyed out where the firmware says there is no backlight
+                     to switch. The answer has been worked out correctly since
+                     SetKeyboard was written and bound to nothing, so a machine
+                     without one got a page that claimed it had one. -->
                 <ToggleButton Style="{StaticResource Switch}"
                               IsChecked="{Binding IsBacklightOn}"
+                              IsEnabled="{Binding IsSupported}"
                               ToolTip="{loc:Str GuiWpfTipBacklightSwitch}"/>
             </StackPanel>
             <TextBlock Text="{loc:Str GuiWpfKeyboard}" Style="{StaticResource Caption}"
@@ -162,7 +167,7 @@
                         </Style.Triggers>
                     </Style>
                 </Border.Style>
-                <StackPanel Margin="16,14,16,14">
+                <StackPanel Margin="16,14,16,14" IsEnabled="{Binding IsSupported}">
 
                     <TextBlock Text="{loc:Str GuiWpfMode}" Style="{StaticResource Caption}"
                                Margin="0,0,0,10"/>

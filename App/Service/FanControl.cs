@@ -214,7 +214,10 @@ namespace StarMon.AppService {
                     : level == GpuPower.Custom ? BiosData.GpuPowerLevel.Medium
                     : BiosData.GpuPowerLevel.Minimum;
 
-                platform.System.SetGpuPower(new BiosData.GpuPowerData(wanted));
+                // Stickily: asked for once, this slid back to the base draw
+                // whenever the chassis reset its profile, which is the same
+                // thing the fan mode has a keep-alive for
+                platform.SetGpuPowerSticky(wanted);
                 return true;
 
             } catch(Exception e) {

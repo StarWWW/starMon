@@ -196,6 +196,28 @@ namespace StarMon.Ui.ViewModels {
             }
         }
 
+        // Whether this keyboard really has four colour zones.
+        //
+        // A switch rather than something worked out, because the firmware
+        // cannot be asked: its colour table is four entries wide whatever the
+        // deck is, so a single-zone Victus reports four exactly as a four-zone
+        // Omen does. Off is the safe reading — the whole keyboard takes one
+        // colour — and someone whose deck really has four turns it on here
+        // instead of editing the configuration file by hand, which is what the
+        // shipped file used to do on everybody's behalf with one machine's
+        // answer in it.
+        public bool FourZoneKeyboard {
+            get { return Library.Config.KbdZoneCount == 4; }
+            set {
+                int zones = value ? 4 : 1;
+                if(Library.Config.KbdZoneCount == zones) return;
+                Library.Config.KbdZoneCount = zones;
+                Raise("FourZoneKeyboard");
+                Raise("KbdZonesChanged");
+                Raise("Dirty");
+            }
+        }
+
         public bool RefreshRateFollowsPower {
             get { return Library.Config.RefreshRateFollowPower; }
             set {

@@ -851,6 +851,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfThrottleNotify"] = "İşlemci kısıtlandığında bildir",
                 ["GuiWpfRefreshFollows"] = "Pilde yenileme hızını düşür, prizde geri yükselt",
                 ["GuiWpfPollGpuOnBattery"] = "Pilde ekran kartını okumayı sürdür (daha çok güç harcar)",
+                ["GuiWpfFourZone"] = "Bu klavyenin dört renk bölgesi var",
                 ["GuiWpfLogVerbose"] = "Her donanım alışverişini kaydet (ayrıntılı)",
                 ["GuiWpfLogToFile"] = "Günlüğü uygulamanın yanındaki bir dosyaya da yaz",
                 // GuiWpfFans değil: o, gösterge panelindeki fan kartının
@@ -964,6 +965,7 @@ namespace StarMon.Library.Locale
                 ["GuiWpfTipStayOnTop"] = "Pencereyi diğer pencerelerin üstünde tutar.",
                 ["GuiWpfTipThrottleNotify"] = "İşlemci ısı yüzünden kısıtlandığında bildirim gösterir. Beş dakikada en çok bir kez.",
                 ["GuiWpfTipPollGpu"] = "NVIDIA çipini okumak onu uyandırır. Pildeyken bu, kimsenin bakmadığı değerler için güç harcamak demektir.",
+                ["GuiWpfTipFourZone"] = "Bu, donanım yazılımına sorulamaz: renk tablosu klavye ne olursa olsun dört girdiliktir, bu yüzden tek bölgeli bir klavye de dört bölgeli bir klavye gibi dört bildirir. Kapalıyken tüm klavye tek renk alır ve bu her klavyede doğru çalışır. Yalnızca klavyeniz gerçekten dört ayrı bölge hâlinde yanıyorsa açın.",
                 ["GuiWpfTipRefreshFollows"] = "Güç kaynağı her değiştiğinde aşağıdaki iki hızı kendiliğinden uygular.",
                 ["GuiWpfTipRefreshHigh"] = "Prizde kullanılacak hız.",
                 ["GuiWpfTipRefreshLow"] = "Pilde kullanılacak hız.",

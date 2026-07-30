@@ -87,8 +87,17 @@ namespace StarMon.Ui.Shell {
             return this;
         }
 
-        public MenuModel Disable(Func<bool> isEnabled) {
-            this.IsEnabled = isEnabled;
+        // Greys the item out while the condition holds.
+        //
+        // What its name says, which is not what it used to do: the predicate
+        // was assigned straight to IsEnabled, so every caller that read the
+        // method name got the opposite of what it asked for. The one caller
+        // there was — the dynamic icon's background option, written as
+        // Disable(() => !IsDynamicIcon) — ended up live exactly when the
+        // background does nothing and greyed out whenever it would work.
+        public MenuModel Disable(Func<bool> isDisabled) {
+            this.IsEnabled = isDisabled == null ? (Func<bool>) null
+                : () => !isDisabled();
             return this;
         }
 

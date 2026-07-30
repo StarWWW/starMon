@@ -263,10 +263,22 @@
              off, and is not switched back on. -->
         <KbdIdleOffMinutes>0</KbdIdleOffMinutes>
 
-        <!-- Keyboard backlight color-zone count: 1 or 4 forces the value,
-             0 auto-detects from the BIOS color table (which some single-zone
-             units, including the Victus 15, falsely report as four zones) -->
-        <KbdZoneCount>1</KbdZoneCount>
+        <!-- Keyboard backlight colour-zone count.
+
+             0 works it out at startup, which is what this should stay at.
+             1 or 4 force the answer.
+
+             This used to ship as 1, which is the right answer for the machine
+             it was written on and a guess everywhere else. The detection is
+             the awkward part: the firmware's colour table is a fixed
+             four-entry structure and its zone byte says four on a single-zone
+             deck as readily as on a four-zone one, so an unproven four is
+             taken as one — a keyboard that lights in a single colour rather
+             than four swatches of which three do nothing.
+
+             Set this to 4 if your machine really has four zones, or use the
+             switch on the Settings page, which writes it here for you. -->
+        <KbdZoneCount>0</KbdZoneCount>
 
         <!-- Omen Key -->
 

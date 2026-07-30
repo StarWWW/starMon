@@ -31,6 +31,7 @@ namespace StarMon.Test {
             TestGuardReleasesQuietlyWhenSwitchedOff();
             TestThrottleNotificationIsRateLimited();
             TestManualFansNeedAPlausibleReading();
+            TestManualFansAreKeptWhenAlreadyAtTheCeiling();
 
             SelfTest.Group("Fan control");
             TestConstantResolvesToTheRightShape();
@@ -233,6 +234,38 @@ namespace StarMon.Test {
 
             SelfTest.Check(!guard.SafeToKeepManualFans(60, 90),
                 "an engaged guard is never safe, whatever the reading");
+
+        }
+
+        // Fans already at the ceiling are not something to take away from a
+        // machine that is running hot. The rule above was applied to every
+        // manual speed including the top one, so a laptop at 95 °C with the
+        // fans pinned flat out had the pinning lapse — the one direction that
+        // cannot be argued for on safety grounds, and one that fires routinely
+        // because 95 °C is an ordinary load temperature on this hardware.
+        private static void TestManualFansAreKeptWhenAlreadyAtTheCeiling() {
+
+            ThermalGuard guard = new ThermalGuard();
+
+            SelfTest.Check(guard.SafeToKeepManualFans(95, 90, 55, 55, 56),
+                "fans at the ceiling are kept even above the threshold");
+
+            SelfTest.Check(!guard.SafeToKeepManualFans(95, 90, 20, 20, 56),
+                "a low manual speed above the threshold still lapses");
+
+            SelfTest.Check(!guard.SafeToKeepManualFans(95, 90, 55, 20, 56),
+                "one fan at the ceiling is not enough");
+
+            SelfTest.Check(guard.SafeToKeepManualFans(60, 90, 20, 20, 56),
+                "below the threshold the level does not matter");
+
+            SelfTest.Check(!guard.SafeToKeepManualFans(95, 90, 55, 55, 0),
+                "with no known ceiling there is nothing to compare against");
+
+            guard.Step(true, 95, 90, 75);
+
+            SelfTest.Check(!guard.SafeToKeepManualFans(95, 90, 55, 55, 56),
+                "an engaged guard still overrides the exemption");
 
         }
 #endregion

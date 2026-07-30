@@ -285,6 +285,14 @@
                                 <TextBlock Text="{loc:Str GuiWpfPollGpuOnBattery}" Style="{StaticResource RowLabel}"/>
                             </DockPanel>
 
+                            <!-- The one thing the firmware will not answer
+                                 honestly, so it is asked here instead. -->
+                            <DockPanel Style="{StaticResource SwitchRow}">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding FourZoneKeyboard}" ToolTip="{loc:Str GuiWpfTipFourZone}"/>
+                                <TextBlock Text="{loc:Str GuiWpfFourZone}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
                         </StackPanel>
                     </Border>
 

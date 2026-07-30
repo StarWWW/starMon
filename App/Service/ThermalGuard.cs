@@ -126,8 +126,44 @@ namespace StarMon.AppService {
         // So this requires a recent, plausible reading below the protection
         // threshold: no reading, failing sensors or running hot all mean no.
         public bool SafeToKeepManualFans(byte lastTemp, int highC) {
-            return !this.IsActive && lastTemp > 0 && lastTemp < highC;
+            return SafeToKeepManualFans(lastTemp, highC, 0, 0, 0);
         }
+
+        // The same question, with what the fans are actually being held at.
+        //
+        // The rule above exists because a manual speed that is too low for the
+        // heat has to be allowed to lapse. It was applied to every manual
+        // speed, including one at the ceiling — so a machine at 95 °C with the
+        // fans pinned flat out had the pinning taken away from it, which is
+        // the one direction that cannot be justified on safety grounds: fans
+        // at maximum are never more dangerous than fans the firmware is
+        // ramping. 95 °C is also an ordinary temperature under load on this
+        // hardware, so this fired routinely, and it fired silently — which is
+        // what "the fans keep resetting themselves" looks like from outside.
+        //
+        // Held near the ceiling, the extension continues. Below that the old
+        // rule stands, and the caller says so out loud.
+        public bool SafeToKeepManualFans(byte lastTemp, int highC,
+            int levelCpu, int levelGpu, int ceiling) {
+
+            if(this.IsActive || lastTemp == 0)
+                return false;
+
+            if(lastTemp < highC)
+                return true;
+
+            // Running hot: only a speed that is already at or near the top is
+            // worth keeping hold of
+            if(ceiling <= 0)
+                return false;
+
+            int floor = (int) (ceiling * HoldWhenHotFraction);
+            return levelCpu >= floor && levelGpu >= floor;
+
+        }
+
+        // How much of the ceiling counts as "already cooling as hard as it can"
+        private const double HoldWhenHotFraction = 0.9;
 
     }
 

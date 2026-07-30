@@ -190,6 +190,7 @@ Zones are however many the firmware addresses — one or four. Per-key RGB decks
 | **Keep the window above other windows** | — |
 | **Notify when the processor is throttling** | At most one notification every five minutes. |
 | **Keep reading the graphics card on battery** | Reading the NVIDIA chip wakes it; on battery that costs power for figures nothing is watching. |
+| **This keyboard has four colour zones** | Off by default, and correct that way on every deck: the whole keyboard takes one colour. The firmware cannot be asked — its colour table is four entries wide whatever the board is, so a single-zone Victus reports four exactly as a four-zone Omen does. Turn it on only if yours really lights in four separate regions. |
 | **Refresh rate follows the power source** | Plus the two rates, typed or taken from what the panel reports. |
 | **Switch the display off** | A global hotkey, captured by pressing the combination. A bare key is refused. |
 | **Log verbose / to file / BIOS errors** | Plus the size at which the log file starts again. |
@@ -520,6 +521,7 @@ Bölge sayısı, ürün yazılımının kaç bölgeyi adresliyorsa o kadardır �
 | **Pencereyi diğer pencerelerin üstünde tut** | — |
 | **İşlemci kısıtlandığında bildir** | Beş dakikada en çok bir bildirim. |
 | **Pilde ekran kartını okumayı sürdür** | NVIDIA çipini okumak onu uyandırır; pildeyken bu, kimsenin bakmadığı değerler için güç harcamaktır. |
+| **Bu klavyenin dört renk bölgesi var** | Varsayılan olarak kapalı ve her klavyede böyle doğru: tüm klavye tek renk alır. Donanım yazılımına sorulamaz — renk tablosu kart ne olursa olsun dört girdiliktir, bu yüzden tek bölgeli bir Victus da dört bölgeli bir Omen gibi dört bildirir. Yalnızca klavyeniz gerçekten dört ayrı bölge hâlinde yanıyorsa açın. |
 | **Yenileme hızı güç kaynağını izlesin** | İki hızla birlikte; elle yazılır ya da ekranın bildirdiğinden alınır. |
 | **Ekranı kapat** | Genel bir kısayol; kombinasyona basılarak yakalanır. Tek başına bir tuş kabul edilmez. |
 | **Ayrıntılı günlük / dosyaya yaz / BIOS hataları** | Günlük dosyasının baştan başlayacağı boyutla birlikte. |

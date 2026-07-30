@@ -276,7 +276,13 @@
             <GeneratedVersionLines Include="@(AssemblyVersionLines)" Condition="'$([System.Text.RegularExpressions.Regex]::IsMatch(&quot;%(Identity)&quot;, &quot;(?i)Assembly((File|Informational)?Version|Metadata)&quot;))' == false" />
             <GeneratedVersionLines Include="[assembly: AssemblyVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+\.\d+`))&quot;)]" />
             <GeneratedVersionLines Include="[assembly: AssemblyFileVersion(&quot;$(AssemblyVersion)&quot;)]" />
-            <GeneratedVersionLines Include="[assembly: AssemblyInformationalVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+`))-$(AssemblyVersionWord)&quot;)]" />
+            <!-- Three components, not two. This matched \d+\.\d+, so every
+                 build in a 1.0 line announced itself as "1.0-Release" however
+                 far the patch number had moved — and the About page, the tray
+                 menu and the command-line header all read this one, so there
+                 was no way to tell 1.0.0 from 1.0.1 from inside the running
+                 application. The file version kept the full number all along. -->
+            <GeneratedVersionLines Include="[assembly: AssemblyInformationalVersion(&quot;$([System.Text.RegularExpressions.Regex]::Match($(AssemblyVersion), `\d+\.\d+\.\d+`))-$(AssemblyVersionWord)&quot;)]" />
             <GeneratedVersionLines Include="[assembly: AssemblyMetadata(&quot;Timestamp&quot;, &quot;$([System.DateTime]::Now.ToString('yyyy-MM-dd HH:mm'))&quot;)]" />
         </ItemGroup>
         <WriteLinesToFile File="$(IntermediateOutputPath)Version.cs" Lines="@(GeneratedVersionLines)" Overwrite="true" />

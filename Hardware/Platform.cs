@@ -96,6 +96,51 @@ namespace StarMon.Hardware.Platform {
             this.DesiredFanMode = null;
         }
 
+        // The graphics power level the user asked for, and when it was last
+        // asserted.
+        //
+        // The same treatment the fan mode gets, for the same reason and with
+        // the same firmware behind it: the profile the chassis holds resets on
+        // its own schedule, and a TGP asked for once slid back to the base
+        // draw a while later with nothing to notice. It had no keep-alive at
+        // all outside a running fan program, which is the one place it was
+        // being re-applied — so the setting worked while a program ran and
+        // quietly expired when one did not.
+        private BiosData.GpuPowerLevel? DesiredGpuPower;
+        private int DesiredGpuPowerTimestamp;
+
+        public bool HasDesiredGpuPower { get { return this.DesiredGpuPower.HasValue; } }
+
+        // Sets the desired graphics power level and applies it immediately
+        public void SetGpuPowerSticky(BiosData.GpuPowerLevel level) {
+            this.DesiredGpuPower = level;
+            this.DesiredGpuPowerTimestamp = Environment.TickCount;
+            this.System.SetGpuPower(new BiosData.GpuPowerData(level));
+        }
+
+        public void ClearGpuPowerSticky() {
+            this.DesiredGpuPower = null;
+        }
+
+        // Re-applies the desired graphics power level if it is time
+        public void MaintainGpuPowerSticky() {
+
+            if(!this.DesiredGpuPower.HasValue)
+                return;
+
+            int now = Environment.TickCount;
+
+            if(unchecked(now - this.DesiredGpuPowerTimestamp) < Config.FanModeKeepAliveMs)
+                return;
+
+            // Written blind rather than compared first: this board refuses the
+            // read (GpuPowerSupported) while accepting the write, so there is
+            // nothing to compare against on the machine that needs it most
+            this.System.SetGpuPower(new BiosData.GpuPowerData(this.DesiredGpuPower.Value));
+            this.DesiredGpuPowerTimestamp = now;
+
+        }
+
         // Re-applies the desired fan mode if needed
         public void MaintainFanModeSticky() {
             if(!this.DesiredFanMode.HasValue)

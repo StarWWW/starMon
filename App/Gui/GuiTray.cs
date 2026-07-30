@@ -191,10 +191,23 @@ namespace StarMon.AppGui
             this.Tray.Message += (message, wParam, lParam) =>
                 this.Filter.Handle(message, wParam, lParam);
 
-            // Receive suspend and resume event notifications
-            // only if configured to suspend and resume fan program
-            if (Config.FanProgramSuspend)
-                Gui.RegisterSuspendResumeNotification(this.Op.SuspendResumeCallback);
+            // Receive suspend and resume event notifications.
+            //
+            // Always, not only when the fan program is set to suspend with the
+            // machine. That setting says what happens to the program; it does
+            // not say whether this application would like to know the machine
+            // went to sleep. Gated on it, a user who had turned it off got no
+            // resume notification at all — so the performance profile, the
+            // graphics power and the backlight were left as whatever the
+            // firmware decided on the way back up, and nothing here knew to
+            // put them right. The program's own suspend still respects the
+            // setting; see GuiOp.SuspendResumeCallback.
+            Gui.RegisterSuspendResumeNotification(this.Op.SuspendResumeCallback);
+
+            // What to put back when the machine wakes. The tray host owns the
+            // backlight state and the last colours, so it hands the operation
+            // class a way to ask rather than a reference to itself.
+            this.Op.RestoreBacklight = includeColour => ReapplyKbdState(includeColour);
 
             // Set up the timer. Background priority, so a tick that arrives
             // while the window is laying itself out waits rather than
@@ -484,6 +497,8 @@ namespace StarMon.AppGui
             for (int i = 0; i < zones.Length; i++)
                 zones[i] = colours[i < colours.Length ? i : colours.Length - 1];
 
+            this.KbdLastColors = zones;
+
             this.Op.Platform.System.SetKbdColor(
                 new BiosData.ColorTable(zones, true));
 
@@ -622,6 +637,14 @@ namespace StarMon.AppGui
                         this.Op.Platform.MaintainFanModeSticky();
                 }
 
+                // The graphics power the user asked for, on the same cadence.
+                // Outside the fan-mode guard above: a fan override says
+                // nothing about how much power the card may draw, and thermal
+                // protection forcing the fans is not a reason to quietly give
+                // the wattage back.
+                if (this.Op.Platform.HasDesiredGpuPower)
+                    try { this.Op.Platform.MaintainGpuPowerSticky(); } catch { }
+
                 // Recolor the keyboard backlight to match the temperature,
                 // right after the guard check refreshed the hottest reading
                 // (held still while the idle timer has the backlight off,
@@ -705,9 +728,48 @@ namespace StarMon.AppGui
         // the EC's automatic failsafe wins and the countdown is left to lapse.
         internal bool SafeToKeepManualFans()
         {
-            return this.Guard.SafeToKeepManualFans(
-                this.Op.Platform.LastMaxTemperature, Config.ThermalProtectionHighC);
+
+            int cpu = 0, gpu = 0;
+            try
+            {
+                byte[] levels = this.Op.Platform.Fans.GetLevels();
+                if (levels != null && levels.Length > 1)
+                {
+                    cpu = levels[0];
+                    gpu = levels[1];
+                }
+            }
+            catch { }
+
+            bool safe = this.Guard.SafeToKeepManualFans(
+                this.Op.Platform.LastMaxTemperature, Config.ThermalProtectionHighC,
+                cpu, gpu, Config.FanLevelMax);
+
+            // Said out loud, once per episode. This is the mechanism behind
+            // "the fans went back to automatic on their own", which the manual
+            // has an entry for and the application never actually reported —
+            // so it read as the setting undoing itself for no reason.
+            if (safe)
+            {
+                this.CountdownWarned = false;
+            }
+            else if (!this.CountdownWarned && Config.FanCountdownExtendAlways)
+            {
+                this.CountdownWarned = true;
+                Logger.Warning("Fan",
+                    "The manual fan speed is being allowed to lapse",
+                    "hottest " + this.Op.Platform.LastMaxTemperature + " °C at or above "
+                        + Config.ThermalProtectionHighC + " °C and the fans are not near "
+                        + "the ceiling, so the Embedded Controller's own failsafe is "
+                        + "left to take over");
+            }
+
+            return safe;
+
         }
+
+        // Whether the lapse above has already been reported this episode
+        private bool CountdownWarned;
 
         // Lifts the switched-off override, if it is in force.
         //
@@ -866,8 +928,10 @@ namespace StarMon.AppGui
         private void ApplyKbdColor(int color, bool refreshForm)
         {
 
-            this.Op.Platform.System.SetKbdColor(new BiosData.ColorTable(
-                new int[] { color, color, color, color }, true));
+            this.KbdLastColors = new int[] { color, color, color, color };
+
+            this.Op.Platform.System.SetKbdColor(
+                new BiosData.ColorTable(this.KbdLastColors, true));
 
         }
 
@@ -1104,6 +1168,39 @@ namespace StarMon.AppGui
                 this.Window.SetBacklightState(flag);
 
         }
+
+        // Writes the backlight state and colours to the hardware again.
+        //
+        // Called after a resume. The state above is held rather than read
+        // because the firmware answers the question wrongly — which also means
+        // nothing here can notice the light having been reset while the
+        // machine was asleep, so it has to be re-asserted rather than checked.
+        // The colours go with it: a backlight switched back on lights in
+        // whatever the controller came up with otherwise.
+        internal void ReapplyKbdState(bool includeColour)
+        {
+
+            if (this.KbdBacklightOn.HasValue)
+                try
+                {
+                    this.Op.Platform.System.SetKbdBacklight(this.KbdBacklightOn.Value);
+                }
+                catch { }
+
+            if (!includeColour || this.KbdLastColors == null)
+                return;
+
+            try
+            {
+                this.Op.Platform.System.SetKbdColor(
+                    new BiosData.ColorTable(this.KbdLastColors, true));
+            }
+            catch { }
+
+        }
+
+        // The colours last written, so a resume can put them back
+        private int[] KbdLastColors;
 
         // (Re-)applies the configured global "display off" hotkey
         public void ApplyDisplayOffHotkey()

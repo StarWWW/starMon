@@ -546,8 +546,38 @@ namespace StarMon.Ui.Windows {
         // Set once the keyboard's shape is known, which needs hardware:
         // how many colour zones it has (zero for a deck that lights but takes
         // no colour from here) and whether it carries a numeric pad
+        // The body the deck was built with, remembered across a rebuild
+        private bool KeyboardHasNumPad = true;
+        private bool? KeyboardIsIsoBody;
+
+        // Builds the keyboard panel again with whatever zone count is in force
+        // now. The four-zone switch on the Settings page is the only thing that
+        // changes it while the application is running, and a panel that only
+        // caught up on the next launch would look like the switch had failed.
+        private void RebuildKeyboard() {
+
+            if(this.Host == null)
+                return;
+
+            int zones;
+            try {
+                zones = this.Host.Platform.System.GetKbdColorSupport()
+                    ? this.Host.Platform.System.GetKbdZoneCount() : 0;
+            } catch {
+                zones = Config.KbdZoneCount == 4 ? 4 : 1;
+            }
+
+            SetKeyboard(zones, this.KeyboardHasNumPad, this.KeyboardIsIsoBody);
+
+        }
+
         public void SetKeyboard(int zoneCount, bool hasNumPad = true,
             bool? isIsoBody = null) {
+
+            // Kept so the panel can be built again with a different zone count
+            // without having to ask the firmware about the body a second time
+            this.KeyboardHasNumPad = hasNumPad;
+            this.KeyboardIsIsoBody = isIsoBody;
 
             this.KeyboardModel = new KeyboardViewModel(zoneCount);
             this.KeyboardModel.HasNumPad = hasNumPad;
@@ -1010,6 +1040,15 @@ namespace StarMon.Ui.Windows {
                     if(this.Window != null)
                         Guard(() => this.Window.Topmost = Config.GuiStayOnTop,
                             "Stay on top: " + (Config.GuiStayOnTop ? "on" : "off"));
+                    break;
+
+                case "KbdZonesChanged":
+                    // One swatch or four, from here on. The panel is rebuilt
+                    // rather than patched: the zone list is what the drawn deck
+                    // colours its bands from, so the two have to change
+                    // together.
+                    Guard(RebuildKeyboard,
+                        "Keyboard zones: " + (Config.KbdZoneCount == 4 ? "four" : "one"));
                     break;
 
                 case "HotkeyChanged":
@@ -1559,6 +1598,31 @@ namespace StarMon.Ui.Windows {
                 Logger.Gui("Window", what);
             } catch(Exception e) {
                 Logger.Error("Window", what + " failed", e.Message);
+            }
+        }
+
+        // The same, for a hardware call that reports failure by returning
+        // false rather than by throwing.
+        //
+        // Several of them do — the processor's boost mode, the panel
+        // brightness, Windows' power mode — and every one was being handed to
+        // the overload above as a plain Action, which discards the answer and
+        // then writes "done" to the log. A control that quietly refuses is
+        // hard enough to diagnose without the log agreeing that it worked.
+        private static bool Guard(Func<bool> action, string what) {
+            try {
+                bool ok = action();
+                if(ok)
+                    Logger.Gui("Window", what);
+                else
+                    Logger.Warning("Window", what + " was refused",
+                        "the call returned without an error and without doing "
+                            + "anything, which on this hardware means the "
+                            + "firmware does not accept it");
+                return ok;
+            } catch(Exception e) {
+                Logger.Error("Window", what + " failed", e.Message);
+                return false;
             }
         }
 #endregion

@@ -95,7 +95,25 @@ namespace StarMon.Hardware {
                 sb.AppendLine("  Keyboard      : "
                     + (DeviceProfile.KbdZones == 0 ? "no colour control"
                         : DeviceProfile.KbdZones + " colour zone"
-                            + (DeviceProfile.KbdZones == 1 ? "" : "s")));
+                            + (DeviceProfile.KbdZones == 1 ? "" : "s")
+                            + (Config.KbdZoneCount == 4 ? " (set by hand)" : "")));
+
+                // The undocumented part of the firmware's keyboard answer.
+                //
+                // Printed rather than interpreted. The colour table cannot say
+                // whether a deck has one lighting zone or four — it is four
+                // entries wide either way — so the application has to be told,
+                // and these bytes are where a real answer would most plausibly
+                // live. Reports from machines whose deck is known are what
+                // would let it be worked out instead of asked.
+                if(platform != null)
+                    TryDo(() => {
+                        string capability = platform.System.KbdCapabilityText();
+                        if(capability.Length > 0)
+                            sb.AppendLine("  Kbd capability: " + capability
+                                + "  (undocumented; bit 0 of the first byte is "
+                                + "backlight support)");
+                    });
                 if(DeviceProfile.RefreshRateHigh > 0)
                     sb.AppendLine("  Panel rates   : " + DeviceProfile.RefreshRateLow
                         + " / " + DeviceProfile.RefreshRateHigh + " Hz");

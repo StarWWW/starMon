@@ -51,6 +51,7 @@ namespace StarMon.Hardware.Platform
         public int GetKbdZoneCount();                           // Color zones: 1 (single) or 4
         public void SetKbdColor(BiosData.ColorTable value);
         public BiosData.KbdType GetKbdType();                   // Keyboard type
+        public string KbdCapabilityText();                      // Raw capability bytes, for the report
 
         // WMI raw data
         public Dictionary<string, string> BaseBoard { get; }
@@ -452,6 +453,10 @@ namespace StarMon.Hardware.Platform
         // Cached keyboard color-zone count (0 = no color support)
         private Nullable<int> KbdZoneCount;
 
+        // The configured override the cache above was built from, so a change
+        // made while the application is running is noticed
+        private int KbdZoneCountFrom = -1;
+
         // Firmware-reported zone count, which may differ from the configured
         // override and governs the zone-count byte in color-table writes
         private Nullable<int> KbdZoneCountHw;
@@ -492,11 +497,20 @@ namespace StarMon.Hardware.Platform
             lock (this.CacheLock)
             {
                 // A configured zone count takes precedence over auto-detection,
-                // since some single-zone units falsely report a four-zone table
-                if (this.KbdZoneCount == null)
+                // since some single-zone units falsely report a four-zone table.
+                //
+                // Recomputed when the configured value changes, so the switch
+                // on the Settings page takes effect there and then rather than
+                // on the next launch — the firmware call behind it is cached
+                // separately and is not repeated.
+                if (this.KbdZoneCount == null
+                    || this.KbdZoneCountFrom != Config.KbdZoneCount)
+                {
+                    this.KbdZoneCountFrom = Config.KbdZoneCount;
                     this.KbdZoneCount =
                         Config.KbdZoneCount == 1 || Config.KbdZoneCount == 4 ?
-                            Config.KbdZoneCount : GetKbdZoneCountHw();
+                            Config.KbdZoneCount : GetKbdZoneCountEffective();
+                }
 
                 return (int)this.KbdZoneCount;
             }
@@ -524,6 +538,74 @@ namespace StarMon.Hardware.Platform
                     }
                 }
                 return (int)this.KbdZoneCountHw;
+            }
+        }
+
+        // How many zones the interface should actually offer.
+        //
+        // Not the same question as GetKbdZoneCountHw, and this is the whole
+        // difficulty: the colour table is a fixed four-entry structure, and
+        // single-zone Victus decks report four in its zone byte just as a
+        // genuine four-zone Omen does. The count is the shape of the table,
+        // not the shape of the keyboard, so a four there proves nothing.
+        //
+        // Believing it put four swatches in front of people whose deck has one
+        // light string: the first swatch coloured the whole keyboard and the
+        // other three did nothing at all, with no way to tell which case you
+        // were in. The two mistakes are not equally bad —
+        //
+        //   claiming one zone on a four-zone deck costs a feature: the colour
+        //   is written to all four entries, so the keyboard lights correctly,
+        //   in one colour;
+        //
+        //   claiming four on a one-zone deck ships three dead controls.
+        //
+        // — so an unproven four resolves to one, and a four-zone owner turns it
+        // on once from Settings. That is a click; the alternative was editing
+        // XML by hand, which is what the shipped configuration file used to do
+        // on everyone's behalf with one particular laptop's answer.
+        //
+        // If a firmware signal that really distinguishes the two is ever found,
+        // this is the one method that has to change. GetKbdCapability() carries
+        // the undocumented bytes it would most likely live in, and the hardware
+        // report prints them.
+        private int GetKbdZoneCountEffective()
+        {
+            int reported = GetKbdZoneCountHw();
+
+            if (reported <= 1)
+                return reported;
+
+            // Once: the answer is cached by both callers above this
+            Logger.Info("Keyboard",
+                "The firmware reports " + reported + " colour zones",
+                "the colour table says four on single-zone decks too, so this "
+                    + "is treated as one zone unless the four-zone setting is "
+                    + "turned on; capability bytes " + KbdCapabilityText());
+
+            return 1;
+        }
+
+        // The raw keyboard capability answer as hexadecimal, for the report
+        public string KbdCapabilityText()
+        {
+            try
+            {
+                byte[] raw = Hw.Bios.GetKbdCapability();
+                if (raw == null || raw.Length == 0)
+                    return "unavailable";
+
+                System.Text.StringBuilder text = new System.Text.StringBuilder();
+                foreach (byte b in raw)
+                {
+                    if (text.Length > 0) text.Append(' ');
+                    text.Append(b.ToString("X2"));
+                }
+                return text.ToString();
+            }
+            catch
+            {
+                return "unavailable";
             }
         }
 

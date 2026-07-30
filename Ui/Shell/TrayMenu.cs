@@ -176,9 +176,21 @@ namespace StarMon.Ui.Shell {
                         ? named : captured.ToString(),
                     () => Current() == captured,
                     () => {
-                        this.Host.Platform.Fans.SetMode(captured);
-                        this.Host.Platform.ClearFanModeSticky();
+
+                        // Stickily, the way the window's own selector does it.
+                        //
+                        // The firmware drops back to its own profile on its own
+                        // schedule, and re-asserting it is the whole of what
+                        // keeps a chosen mode in force. This used to set the
+                        // mode and then clear the desired-mode state — so the
+                        // one action whose entire purpose is choosing a fan
+                        // mode was also the one that switched off the machinery
+                        // that keeps it. A profile picked from the menu held for
+                        // a few seconds and then quietly went back, which is
+                        // exactly what "the fan modes reset themselves" is.
+                        this.Host.Platform.SetFanModeSticky(captured);
                         this.Host.RefreshFanState();
+
                     }));
 
             }
@@ -264,6 +276,19 @@ namespace StarMon.Ui.Shell {
 
         private MenuModel BuildKeyboard() {
 
+            // What this deck actually allows.
+            //
+            // This branch asked nothing before offering everything, while the
+            // recurring effect ticks in GuiTray check the same two questions
+            // before every write — so on a machine with no controllable
+            // backlight the menu ticked and unticked happily and the keyboard
+            // never changed. The fan branch above already builds itself from
+            // what the firmware admits to; this one now does the same.
+            bool hasBacklight = Safe(
+                () => this.Host.Platform.System.GetKbdBacklightSupport());
+            bool hasColour = hasBacklight && Safe(
+                () => this.Host.Platform.System.GetKbdColorSupport());
+
             MenuModel branch = MenuModel.Branch(() => Text("SubKbd"),
 
                 MenuModel.Item(() => Text("ActKbdBacklight"),
@@ -289,18 +314,28 @@ namespace StarMon.Ui.Shell {
 
                 MenuModel.Toggle(() => Text("ActKbdTempColor"),
                     () => Config.KbdColorByTemp,
-                    () => this.Host.SetKbdColorByTemp(!Config.KbdColorByTemp)),
+                    () => this.Host.SetKbdColorByTemp(!Config.KbdColorByTemp))
+                    .Disable(() => !hasColour),
 
                 MenuModel.Toggle(() => Text("ActKbdFxCycle"),
                     () => Config.KbdColorEffect == 1,
-                    () => this.Host.SetKbdEffect(Config.KbdColorEffect == 1 ? 0 : 1)),
+                    () => this.Host.SetKbdEffect(Config.KbdColorEffect == 1 ? 0 : 1))
+                    .Disable(() => !hasColour),
 
                 MenuModel.Toggle(() => Text("ActKbdFxBreathe"),
                     () => Config.KbdColorEffect == 2,
-                    () => this.Host.SetKbdEffect(Config.KbdColorEffect == 2 ? 0 : 2)),
+                    () => this.Host.SetKbdEffect(Config.KbdColorEffect == 2 ? 0 : 2))
+                    .Disable(() => !hasColour),
 
                 MenuModel.Separator());
 
+            // The backlight switch and the idle timer need a backlight; the
+            // colour entries above need a colour table as well
+            branch.Children[0].Disable(() => !hasBacklight);
+            branch.Children[1].Disable(() => !hasBacklight);
+
+            // A preset is a colour, so there is nothing to offer without one
+            if(hasColour)
             foreach(string name in Config.ColorPreset.Keys) {
 
                 string captured = name;

@@ -86,9 +86,24 @@ namespace StarMon.AppGui {
                     Logger.Warning("AutoConfig", "Unrecognized GpuPowerDefault, using Minimum", Config.GpuPowerDefault);
                     gpuPowerLevel = BiosData.GpuPowerLevel.Minimum;
                 }
-                this.Platform.System.SetGpuPower(new BiosData.GpuPowerData(gpuPowerLevel));
+                // Stickily, so the chassis resetting its profile later does not
+                // quietly hand the wattage back
+                this.Platform.SetGpuPowerSticky(gpuPowerLevel);
             } catch(Exception e) {
                 Logger.Error("AutoConfig", "Applying default GPU power failed", e.Message);
+            }
+
+            // Put the refresh rate where the power source says it belongs.
+            //
+            // This only ever ran from the power-change event, so a machine
+            // started on battery kept whatever rate it was left on until the
+            // charger was next moved — the setting appearing not to work at
+            // exactly the moment it was first looked for.
+            try {
+                if(Config.RefreshRateFollowPower)
+                    UpdateRefreshRateForPower();
+            } catch(Exception e) {
+                Logger.Error("AutoConfig", "Applying the refresh rate failed", e.Message);
             }
 
             // Apply the default fan program,
@@ -331,21 +346,80 @@ namespace StarMon.AppGui {
         public uint SuspendResumeCallback(IntPtr context, uint type, IntPtr setting) {
 
             // System is resuming from suspend
-            if(type == PowrProf.PBT_APMRESUMEAUTOMATIC)
+            if(type == PowrProf.PBT_APMRESUMEAUTOMATIC) {
 
-                // Resume the fan program
-                this.Program.Resume();
+                // Resume the fan program, if it was this application that
+                // suspended it
+                if(Config.FanProgramSuspend)
+                    this.Program.Resume();
+
+                // And everything else the firmware may have reset while the
+                // machine was away.
+                //
+                // A suspend takes the Embedded Controller and the chassis
+                // profile through their own power transition, and only the fan
+                // program was ever put back afterwards. Everything else — the
+                // graphics power, the performance profile, the backlight — was
+                // left as whatever the firmware came up with on the way back,
+                // which is how a machine that was set up correctly in the
+                // evening is wrong in the morning.
+                ReapplyAfterResume();
 
             // System is about to be suspended
             // and a fan program is running
-            else if(type == PowrProf.PBT_APMSUSPEND)
+            } else if(type == PowrProf.PBT_APMSUSPEND) {
 
-                // Suspend the fan program
-                this.Program.Suspend();
+                // Suspend the fan program, if that is what was asked for. The
+                // notification itself is now always registered — this
+                // application wants to know about a resume whatever the
+                // program is set to do — so the setting is honoured here
+                // rather than by declining to listen.
+                if(Config.FanProgramSuspend)
+                    this.Program.Suspend();
+
+            }
 
             return 0;
 
         }
+
+        // Puts back the settings a suspend can undo. Each one is guarded on
+        // its own: a failure to restore one is not a reason to abandon the
+        // rest, and this runs on the callback the power manager owns.
+        internal void ReapplyAfterResume() {
+
+            // The performance profile and the graphics power, both of which
+            // the chassis resets on its own schedule and doubly so across a
+            // power transition. The keep-alive would get to these on its next
+            // tick anyway; doing it here means the machine is right within a
+            // second of waking rather than within a cadence.
+            try { this.Platform.MaintainFanModeSticky(); } catch { }
+            try { this.Platform.MaintainGpuPowerSticky(); } catch { }
+
+            // The refresh rate, whose power source may well have changed while
+            // the lid was shut — the charger comes out at the desk and goes in
+            // on the train, and no power event is delivered to a sleeping
+            // machine to say so
+            if(Config.RefreshRateFollowPower)
+                UpdateRefreshRateForPower();
+
+            // The keyboard backlight. This application holds that state itself
+            // rather than reading it back, because the firmware reports it
+            // inverted on this hardware — which also means nothing here would
+            // ever notice the light having been reset, and the switch in the
+            // window would go on claiming the backlight was on.
+            try {
+                Action<bool> restore = this.RestoreBacklight;
+                if(restore != null)
+                    restore(true);
+            } catch { }
+
+        }
+
+        // Set by the tray host, which is what owns the backlight state and the
+        // colours. Here rather than a direct reference back: this class is
+        // deliberately given no way to reach the interface.
+        public Action<bool> RestoreBacklight;
 
     }
 

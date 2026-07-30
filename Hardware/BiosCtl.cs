@@ -34,6 +34,7 @@ namespace StarMon.Hardware.Bios
         public BiosData.SystemData GetSystem();
 
         public bool HasBacklight();
+        public byte[] GetKbdCapability();
         public byte HasMemoryOverclock();
         public byte HasOverclock();
         public byte HasUndervoltBios();
@@ -196,13 +197,30 @@ namespace StarMon.Hardware.Bios
         // Checks if keyboard backlight is supported
         public bool HasBacklight()
         {
+            byte[] outData = GetKbdCapability();
+            // Byte #0 Bit #0: 0 - No Backlight Support, 1 - Backlight Support (Observed: 1)
+            return outData.Length > 0 && Conv.GetBit(outData[0], 0);
+        }
+
+        // The keyboard capability answer in full.
+        //
+        // Only bit 0 of the first byte has a known meaning, and the rest of the
+        // buffer has been discarded since this call was written. It is kept
+        // here because it is the one place the firmware describes the deck
+        // itself, and the question this application cannot currently answer —
+        // how many colour zones the board physically has — is the kind of
+        // thing that would live in it. The colour table's own zone byte is not
+        // that answer: single-zone Victus decks report four there.
+        //
+        // Reported and logged rather than interpreted: guessing at undocumented
+        // bits is how a machine ends up with three controls that do nothing.
+        // Observed on a single-zone Victus 15: 07 21 00 00.
+        public byte[] GetKbdCapability()
+        {
             byte[] outData;
             // Do not check BIOS error status for this call, just assume no support
             Send(Cmd.Keyboard, 0x01, new byte[4] { 0x00, 0x00, 0x00, 0x00 }, 4, out outData);
-            // Byte #0 Bit #0: 0 - No Backlight Support, 1 - Backlight Support (Observed: 1)
-            // Byte #0: Unknown (Observed: 0x07)
-            // Byte #1: Unknown (Observed: 0x21)
-            return Conv.GetBit(outData[0], 0);
+            return outData ?? new byte[0];
         }
 
         // Checks if memory overclocking is supported
