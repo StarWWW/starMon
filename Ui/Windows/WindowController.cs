@@ -212,6 +212,10 @@ namespace StarMon.Ui.Windows {
 
             this.Host = host;
 
+            // Now that there is something to ask, put the keyboard panel's
+            // answer right: it was built before this, with nobody to ask
+            RefreshKeyboardSupport();
+
             this.DashboardModel.PropertyChanged += OnDashboardChanged;
 
             this.CurveModel.Applied += ApplyCurve;
@@ -571,6 +575,46 @@ namespace StarMon.Ui.Windows {
 
         }
 
+        // Whether the machine has a controllable backlight at all.
+        //
+        // The property defaulted to true and was never assigned from anything,
+        // so a machine with no backlight got a panel that claimed it had one
+        // and a switch that did nothing.
+        //
+        // The catch is that the firmware cannot be asked yet when the panel is
+        // first built: the tray host calls SetKeyboard before it calls
+        // Connect, so there is nobody to ask. Written as
+        // "Host != null && GetKbdBacklightSupport()", that answered a
+        // confident no — no exception, so the fallback below never ran — and
+        // once the switch was actually bound to it, every machine got a greyed
+        // out backlight control. Not being able to ask is not the same as
+        // being told no, and it is not a state to disable a control on.
+        private void RefreshKeyboardSupport() {
+
+            if(this.KeyboardModel == null)
+                return;
+
+            // Nobody to ask yet. Assume there is one and ask again from
+            // Connect: a zone count of zero does not mean no backlight — a
+            // per-key RGB deck reports no colour table and still lights, and
+            // the manual says so — so there is nothing here to infer from.
+            if(this.Host == null) {
+                this.KeyboardModel.IsSupported = true;
+                return;
+            }
+
+            try {
+                this.KeyboardModel.IsSupported =
+                    this.Host.Platform.System.GetKbdBacklightSupport();
+            } catch {
+                // A firmware that will not say is treated as having one:
+                // hiding the panel on a failed probe would be worse than
+                // showing a control that turns out to do nothing
+                this.KeyboardModel.IsSupported = true;
+            }
+
+        }
+
         public void SetKeyboard(int zoneCount, bool hasNumPad = true,
             bool? isIsoBody = null) {
 
@@ -584,22 +628,7 @@ namespace StarMon.Ui.Windows {
             this.KeyboardModel.IsIsoBody = isIsoBody;
             this.KeyboardModel.PropertyChanged += OnKeyboardChanged;
 
-            // Whether the machine has a controllable backlight at all.
-            //
-            // The property defaulted to true and was never assigned from
-            // anything, so a machine with no backlight got a panel that
-            // claimed it had one and a switch that did nothing. The firmware
-            // has been able to answer this since Settings was written.
-            try {
-                this.KeyboardModel.IsSupported = this.Host != null
-                    && this.Host.Platform.System.GetKbdBacklightSupport();
-            } catch {
-                // A firmware that will not say is treated as having one: the
-                // colour zones were discovered somehow, and hiding the panel
-                // on a failed probe would be worse than showing a control that
-                // turns out to do nothing
-                this.KeyboardModel.IsSupported = zoneCount > 0;
-            }
+            RefreshKeyboardSupport();
 
             // The saved colour presets, which the list has been constructed
             // empty and never filled since it was written — so the presets in

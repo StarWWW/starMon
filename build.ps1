@@ -30,7 +30,7 @@ param(
     [switch] $Resources,
     [string[]] $Render,
     [string] $Configuration = "Release",
-    [string] $Version = "1.0.1.0",
+    [string] $Version = "1.0.2.0",
     [string] $VersionWord = "Release"
 )
 
