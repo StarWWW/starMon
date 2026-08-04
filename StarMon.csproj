@@ -6,6 +6,12 @@
         <!-- <AllowUnsafeBlocks>true</AllowUnsafeBlocks> -->
         <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
         <ApplicationManifest>StarMon.manifest</ApplicationManifest>
+        <!-- This has to be the AppConfig property, not a None item and not an
+             AppConfig item: the common targets build AppConfigWithTargetPath
+             from the property, and that is what puts the file in Bin as
+             StarMon.exe.config. It was a None item, so it was never deployed
+             and nothing it declared had any effect on the running program. -->
+        <AppConfig>StarMon.exe.config</AppConfig>
         <AssemblyName>StarMon</AssemblyName>
         <AssemblyVersionFile>All\Version.cs</AssemblyVersionFile>
         <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
@@ -27,9 +33,12 @@
         <LangVersion>11.0</LangVersion>
         <OutputPath>Bin</OutputPath>
         <OutputType>WinExe</OutputType>
-        <Platform>x64</Platform>
+        <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
         <PlatformTarget>x64</PlatformTarget>
-        <ProjectGuid>{F6104868-81A7-4D09-8AD2-8CF261D58319}</ProjectGuid>
+        <!-- Has to match the identifier StarMon.sln uses for this project. The
+             two disagreed, so the solution and the project were, as far as any
+             tool reading both was concerned, describing different things. -->
+        <ProjectGuid>{0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED}</ProjectGuid>
         <RootNamespace>StarMon</RootNamespace>
         <StartupObject>StarMon.App</StartupObject>
         <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
@@ -51,9 +60,9 @@
          by hand; build.ps1 supplies the two paths. See the note there. -->
     <Import Project="$(WinFXTargets)" Condition="'$(WinFXTargets)' != ''"/>
     <ItemGroup>
-        <None Include="StarMon.exe.config"/>
+        <!-- Packages.config used to be listed here and has never existed on
+             disk - this project has no package references at all. -->
         <None Include="StarMon.manifest"/>
-        <None Include="Packages.config"/>
     </ItemGroup>
     <ItemGroup>
         <Compile Include="$(AssemblyVersionFile)"/>

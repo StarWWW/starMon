@@ -1,0 +1,43 @@
+name: Build and test
+
+# This existed once and was deleted in d24332e. It is back because it is the
+# only thing that answers the question the local build cannot: does this
+# project build on a machine that is not the author's? Until the paths in
+# build.ps1 were made discoverable, the honest answer was no.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Deliberately the same entry point developers use, rather than a
+      # hand-written msbuild line. A CI that builds a different way than
+      # everyone else proves only that the CI works: the duplicate-locale-key
+      # gate, the toolchain discovery and the version stamping all live in
+      # build.ps1, and a separate invocation would skip every one of them.
+      #
+      # It runs under Windows PowerShell (shell: powershell) rather than
+      # PowerShell 7, because that is what the script's own encoding note in
+      # its header is written against.
+      - name: Build and self-test
+        shell: powershell
+        run: .\build.ps1 -Test -Version 1.0.2.${{ github.run_number }} -VersionWord CI
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: StarMon
+          path: |
+            Bin/StarMon.exe
+            Bin/StarMon.exe.config
+            Bin/StarMon.xml
+          if-no-files-found: error

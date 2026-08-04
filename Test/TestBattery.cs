@@ -19,6 +19,12 @@ namespace StarMon.Test {
     // The fallback test does touch the machine, but only by reading: it runs
     // Windows' own battery report, which needs no elevation and changes
     // nothing. It is skipped rather than failed where there is no battery.
+    // Reads the real battery through Windows' own report. No elevation, no
+    // writes, and it skips itself where there is no battery - but it is the
+    // only way to prove the design-capacity fallback works, and on this
+    // hardware the health figure has nothing else to stand on. Declared as
+    // touching hardware so it runs after everything pure has reported.
+    [TestSuite(Order = 90, TouchesHardware = true)]
     public static class TestBattery {
 
         public static void Run() {
@@ -103,7 +109,7 @@ namespace StarMon.Test {
             Battery.Info info = Battery.Get();
 
             if(!info.Present) {
-                SelfTest.Check(true, "no battery fitted, so capacity is not expected");
+                SelfTest.Skip("no battery fitted, so capacity cannot be checked here");
                 return;
             }
 

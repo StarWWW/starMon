@@ -17,6 +17,7 @@ namespace StarMon.Test {
     // a wait loop with no delay in it exhausted every iteration in microseconds
     // and reported failure, after which a fail-open bypass latched permanently
     // and every subsequent read went out blind.
+    [TestSuite(Order = 40)]
     public static class TestEmbeddedController {
 
 #region Fake Controller

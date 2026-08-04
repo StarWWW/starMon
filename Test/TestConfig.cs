@@ -12,6 +12,7 @@ namespace StarMon.Test {
     // themselves: a setting the reader knows about but the writer does not
     // (so it silently reverts on the next save), and values that contradict
     // one another badly enough to break the hardware protocol.
+    [TestSuite(Order = 60)]
     public static class TestConfig {
 
         public static void Run() {
@@ -36,14 +37,27 @@ namespace StarMon.Test {
 
             if(source == null) {
                 // The source file is only there in a development tree; there
-                // is nothing to check in a deployed copy, and nothing wrong
-                SelfTest.Check(true,
-                    "configuration source not present, round-trip check skipped");
+                // is nothing to check in a deployed copy, and nothing wrong.
+                // Recorded as a skip rather than a pass: it used to be a pass,
+                // which meant a run that checked nothing here was
+                // indistinguishable from one that checked everything.
+                SelfTest.Skip("configuration source not present, round-trip check not run");
                 return;
             }
 
             List<string> read = ExtractKeys(source, "XmlPrefix + \"", "Get");
             List<string> written = ExtractKeys(source, "XmlPrefix + \"", "Set");
+
+            // The scan silently matching nothing is the failure this check is
+            // least able to notice - an extraction that stops working looks
+            // exactly like a file with no problems in it.
+            SelfTest.Check(read.Count > 20,
+                "the configuration reader was scanned for settings ("
+                    + read.Count + " found)");
+
+            SelfTest.Check(written.Count > 20,
+                "the configuration writer was scanned for settings ("
+                    + written.Count + " found)");
 
             List<string> orphans = new List<string>();
             foreach(string key in read)
@@ -88,8 +102,7 @@ namespace StarMon.Test {
             string source = ReadConfigSource();
 
             if(source == null) {
-                SelfTest.Check(true,
-                    "configuration source not present, persistence check skipped");
+                SelfTest.Skip("configuration source not present, persistence check not run");
                 return;
             }
 
@@ -122,6 +135,10 @@ namespace StarMon.Test {
                     unpersisted.Add(field.Name);
 
             }
+
+            SelfTest.Check(checked_ > 20,
+                "the settings were enumerated by reflection ("
+                    + checked_ + " found)");
 
             SelfTest.Check(unpersisted.Count == 0,
                 unpersisted.Count == 0
@@ -180,13 +197,16 @@ namespace StarMon.Test {
             string template = ReadTemplate();
 
             if(source == null || template == null) {
-                SelfTest.Check(true,
-                    "configuration sources not present, template check skipped");
+                SelfTest.Skip("configuration sources not present, template check not run");
                 return;
             }
 
             List<string> read = ExtractKeys(source, "XmlPrefix + \"", "Get");
             List<string> undocumented = new List<string>();
+
+            SelfTest.Check(read.Count > 20,
+                "the configuration reader was scanned for settings to document ("
+                    + read.Count + " found)");
 
             foreach(string key in read)
                 if(template.IndexOf("<" + key + ">", StringComparison.Ordinal) < 0)

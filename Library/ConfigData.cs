@@ -101,7 +101,13 @@ namespace StarMon.Library
             // program that is not in the configuration file. Every one of
             // these used to print its message and then exit zero, so a script
             // testing ERRORLEVEL after StarMon.exe was told the run succeeded.
-            ErrorOperation = 5
+            ErrorOperation = 5,
+
+            // A -SelfTest run with at least one failing check. It used to
+            // return 1, which is ErrorBios: a build script could not tell a
+            // failing test from a machine whose BIOS interface would not
+            // initialize, and those call for opposite responses.
+            ErrorSelfTest = 6
         }
 
         // Whether to always extend the fan countdown timer, so a manually

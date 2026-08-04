@@ -13,6 +13,7 @@ namespace StarMon.Test {
     //
     // These used to construct the WinForms graph control, because the buffer
     // was part of it. It is its own class now, so none of this needs a window.
+    [TestSuite(Order = 50)]
     public static class TestGraph {
 
         public static void Run() {

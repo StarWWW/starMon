@@ -14,6 +14,7 @@ namespace StarMon.Test {
     // English), which is exactly why it needs catching here: the symptom is a
     // window with half its captions in the wrong language, and nothing in the
     // log to say so.
+    [TestSuite(Order = 20)]
     public static class TestLocale {
 
         // The one key a translation is not expected to define: it generates a
@@ -114,8 +115,7 @@ namespace StarMon.Test {
             string source = ReadGuiSource();
 
             if(source == null) {
-                SelfTest.Check(true,
-                    "interface source not present, key-usage check skipped");
+                SelfTest.Skip("interface source not present, key-usage check not run");
                 return;
             }
 

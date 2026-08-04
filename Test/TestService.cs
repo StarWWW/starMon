@@ -15,6 +15,7 @@ namespace StarMon.Test {
     // decides when to force the fans to maximum, and the failure modes are a
     // machine that oscillates at the threshold or one that quietly stops
     // protecting itself.
+    [TestSuite(Order = 80)]
     public static class TestService {
 
         public static void Run() {

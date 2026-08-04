@@ -17,6 +17,7 @@ namespace StarMon.Test {
     // lands in the right family, that the mode list follows the support flag
     // rather than a guess, that a fan ceiling is only revised on evidence, and
     // that the defaults the profile falls back to are still coherent.
+    [TestSuite(Order = 70)]
     public static class TestDeviceProfile {
 
         public static void Run() {
@@ -73,20 +74,45 @@ namespace StarMon.Test {
         }
 
         // ACPI reports in tenths of a kelvin, and a zone outside human
-        // temperatures is a zone reporting something that is not one
+        // temperatures is a zone reporting something that is not one.
+        //
+        // Calls AcpiThermal's own converter. This used to run a copy of the
+        // arithmetic kept in this file, so it proved the copy was consistent
+        // and said nothing at all about the reading the thermal guard acts on.
         private static void TestThermalZonesConvertFromTenthsOfAKelvin() {
 
-            SelfTest.Check(ZoneCelsius(3281) == 55,
+            SelfTest.Check(AcpiThermal.ToCelsius(3281) == 55,
                 "3281 tenths of a kelvin is 55 °C");
 
-            SelfTest.Check(ZoneCelsius(2982) == 25,
+            SelfTest.Check(AcpiThermal.ToCelsius(2982) == 25,
                 "room temperature converts correctly");
 
-            SelfTest.Check(ZoneCelsius(0) == int.MinValue,
+            SelfTest.Check(AcpiThermal.ToCelsius(0) == int.MinValue,
                 "absolute zero is refused rather than shown as -273 °C");
 
-            SelfTest.Check(ZoneCelsius(9000) == int.MinValue,
+            SelfTest.Check(AcpiThermal.ToCelsius(9000) == int.MinValue,
                 "a figure hotter than any laptop part is refused");
+
+            // The bounds themselves, from both sides. A zone sitting exactly
+            // on a limit is a real reading and has to survive.
+            SelfTest.Check(AcpiThermal.ToCelsius(2782) == 5,
+                "a zone exactly on the lower bound is kept");
+
+            SelfTest.Check(AcpiThermal.ToCelsius(2772) == int.MinValue,
+                "a zone one degree below the lower bound is refused");
+
+            SelfTest.Check(AcpiThermal.ToCelsius(3982) == 125,
+                "a zone exactly on the upper bound is kept");
+
+            SelfTest.Check(AcpiThermal.ToCelsius(3992) == int.MinValue,
+                "a zone one degree above the upper bound is refused");
+
+            // Rounding, not truncation: 3286 tenths is 55.45 °C
+            SelfTest.Check(AcpiThermal.ToCelsius(3286) == 55,
+                "a fractional degree rounds to nearest");
+
+            SelfTest.Check(AcpiThermal.ToCelsius(3291) == 56,
+                "a fractional degree past the half rounds up");
 
         }
 
@@ -282,15 +308,6 @@ namespace StarMon.Test {
             return (bool) typeof(HpSensors)
                 .GetMethod("IsHealthy", BindingFlags.NonPublic | BindingFlags.Static)
                 .Invoke(null, new object[] { row });
-
-        }
-
-        // Converts one ACPI reading, returning int.MinValue where the zone was
-        // refused as implausible
-        private static int ZoneCelsius(int tenthsKelvin) {
-
-            int celsius = (int) Math.Round(tenthsKelvin / 10.0 - 273.15);
-            return celsius < 5 || celsius > 125 ? int.MinValue : celsius;
 
         }
 

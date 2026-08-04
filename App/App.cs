@@ -111,7 +111,15 @@ namespace StarMon {
                 } else if(args[0].ToLowerInvariant() == "-selftest") {
 
                     Cli.Initialize();
-                    Environment.ExitCode = StarMon.Test.SelfTest.Run();
+
+                    // An optional second argument narrows the run to the
+                    // suites whose name contains it, so that a change to one
+                    // area can be checked without waiting for the rest:
+                    //
+                    //     StarMon.exe -SelfTest service
+                    Environment.ExitCode = StarMon.Test.SelfTest.Run(
+                        args.Length > 1 ? args[1] : null);
+
                     Cli.RestorePrompt();
 
                 // Render a piece of the interface to a PNG and exit. Like the

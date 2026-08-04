@@ -9,6 +9,7 @@ namespace StarMon.Test {
     // Exercises the conversion helpers. These sit under the command-line
     // parser and the configuration reader, so a wrong answer here shows up as
     // a setting quietly not taking effect rather than as an error.
+    [TestSuite(Order = 10)]
     public static class TestConv {
 
         public static void Run() {

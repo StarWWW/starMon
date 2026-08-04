@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using StarMon.AppService;
 using StarMon.Hardware.Platform;
 using StarMon.Library;
 
@@ -10,6 +11,7 @@ namespace StarMon.Test {
 
     // Exercises the fan curve: how a percentage on the curve becomes a fan
     // level, and how the running program steps between levels.
+    [TestSuite(Order = 30)]
     public static class TestFanCurve {
 
         public static void Run() {
@@ -17,6 +19,7 @@ namespace StarMon.Test {
             SelfTest.Group("Fan curve: level mapping");
             TestCeiling();
             TestDefaultRamp();
+            TestOutOfRangePercentages();
 
             SelfTest.Group("Fan curve: level stepping");
             TestLookUp();
@@ -27,55 +30,103 @@ namespace StarMon.Test {
 
         }
 
-        // The percentage-to-level conversion the curve editor performs. Kept
-        // in step with GuiFormFanCurve deliberately: the property under test
-        // is that 100 % lands exactly on the configured ceiling, whatever it
-        // is set to, rather than on some separately hard-coded maximum.
-        private static byte PctToLevel(int pct, int max) {
-            int lv = (int) Math.Round(pct / 100.0 * max);
-            return (byte) (lv < 0 ? 0 : lv > max ? max : lv);
-        }
+        // Fan ceilings to check the mapping against.
+        //
+        // The ceiling is the one number that genuinely differs from board to
+        // board — it is read from the machine's own fan table — so the
+        // property worth testing is that the mapping holds at any of them,
+        // not that it holds at this laptop's. 56 is the value this codebase
+        // grew up on and is kept for that reason; the rest bracket what other
+        // boards report, up to the 120 the profile probe will accept.
+        private static readonly int[] Ceilings = { 25, 39, 44, 56, 68, 90, 120 };
 
         // A full-speed point must map onto the ceiling exactly. Writing a
         // level above what the hardware accepts is silently clamped or
         // ignored by the firmware, so a curve built against an invented
         // maximum never actually reaches full speed.
+        //
+        // This used to read Config.FanLevelMax and test whatever that
+        // happened to be. Two problems with that: the value is global mutable
+        // state that earlier suites write, so the test silently checked
+        // whatever the previous file left behind — and it proved the mapping
+        // only for one ceiling, which is the opposite of what needs proving.
         private static void TestCeiling() {
 
-            int max = Config.FanLevelMax;
-
-            SelfTest.Check(max > 0 && max <= 255,
+            // Still worth asserting, but as a statement about the configured
+            // value rather than as the input to the mapping.
+            SelfTest.Check(Config.FanLevelMax > 0 && Config.FanLevelMax <= 255,
                 "the configured fan ceiling is a usable byte value");
 
-            SelfTest.Equal((byte) max, PctToLevel(100, max),
-                "100 % maps exactly onto the configured ceiling");
-            SelfTest.Equal((byte) 0, PctToLevel(0, max),
-                "0 % maps onto level zero");
+            foreach(int max in Ceilings) {
 
-            // Nothing on the curve may ever exceed the ceiling
-            for(int pct = 0; pct <= 100; pct++)
-                if(PctToLevel(pct, max) > max) {
-                    SelfTest.Check(false,
-                        "level for " + pct + " % exceeds the ceiling");
-                    return;
-                }
+                SelfTest.Equal((byte) max, FanCurve.ToLevel(100, max),
+                    "100 % maps exactly onto a ceiling of " + max);
+                SelfTest.Equal((byte) 0, FanCurve.ToLevel(0, max),
+                    "0 % maps onto level zero at a ceiling of " + max);
 
-            SelfTest.Check(true, "no percentage maps above the ceiling");
+                // Nothing on the curve may ever exceed the ceiling
+                bool over = false;
+                for(int pct = 0; pct <= 100 && !over; pct++)
+                    if(FanCurve.ToLevel(pct, max) > max)
+                        over = true;
+
+                SelfTest.Check(!over,
+                    "no percentage maps above a ceiling of " + max);
+
+                // The mapping has to be monotonic, or a curve drawn as rising
+                // would cool less at a higher temperature somewhere along it
+                bool descends = false;
+                for(int pct = 1; pct <= 100 && !descends; pct++)
+                    if(FanCurve.ToLevel(pct, max) < FanCurve.ToLevel(pct - 1, max))
+                        descends = true;
+
+                SelfTest.Check(!descends,
+                    "the mapping never descends at a ceiling of " + max);
+
+            }
 
         }
 
         // The stock ramp, checked at the stock ceiling. These are the levels
         // the machine was actually tuned against, so a change to either the
         // ramp or the ceiling should be a deliberate one.
+        //
+        // Calls the production converter. It used to call a copy of it kept
+        // in this file, so these points asserted that the copy still agreed
+        // with itself — the shipping conversion could have changed underneath
+        // without a single check going red.
         private static void TestDefaultRamp() {
 
             int[] pct = { 36, 46, 57, 70, 86, 100 };
             byte[] expected = { 20, 26, 32, 39, 48, 56 };
 
             for(int i = 0; i < pct.Length; i++)
-                SelfTest.Equal(expected[i], PctToLevel(pct[i], 56),
+                SelfTest.Equal(expected[i], FanCurve.ToLevel(pct[i], 56),
                     "default ramp point " + pct[i] + " % maps to level "
                         + expected[i] + " at a ceiling of 56");
+
+        }
+
+        // A percentage out of range must not produce a level out of range.
+        // The editor cannot draw one, but a hand-edited configuration file
+        // can hold one, and that path reaches the same converter.
+        private static void TestOutOfRangePercentages() {
+
+            foreach(int max in Ceilings) {
+
+                SelfTest.Equal((byte) max, FanCurve.ToLevel(150, max),
+                    "a percentage above 100 clamps to the ceiling of " + max);
+                SelfTest.Equal((byte) 0, FanCurve.ToLevel(-40, max),
+                    "a negative percentage clamps to zero at a ceiling of " + max);
+
+            }
+
+            // A board that reports no usable ceiling must not produce a level
+            // at all, rather than dividing by it
+            SelfTest.Equal((byte) 0, FanCurve.ToLevel(100, 0),
+                "a ceiling of zero yields level zero");
+            SelfTest.Equal(0, FanCurve.ToPercent(40, 0),
+                "a ceiling of zero yields nought per cent");
 
         }
 

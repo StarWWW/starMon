@@ -99,6 +99,22 @@ namespace StarMon.Hardware {
 
         }
 
+        // One raw firmware reading as whole degrees Celsius, or int.MinValue
+        // where it is not a temperature at all.
+        //
+        // Pulled out of the enumeration loop below so that it can be reached
+        // without WMI. It was inline there, which meant the only way to check
+        // it was to write the same arithmetic a second time in the test file -
+        // and a test that reimplements what it is testing agrees with itself
+        // no matter what the shipping code goes on to do.
+        internal static int ToCelsius(int tenthsKelvin) {
+
+            int celsius = (int) Math.Round(tenthsKelvin / 10.0 - 273.15);
+
+            return celsius < Min || celsius > Max ? int.MinValue : celsius;
+
+        }
+
         // The hottest zone, or 0 when there are none
         public static int GetMaxTemperature() {
 
@@ -136,10 +152,11 @@ namespace StarMon.Hardware {
                             continue;
                         }
 
-                        // Tenths of a kelvin to whole degrees Celsius, rounded
-                        int celsius = (int) Math.Round(tenthsKelvin / 10.0 - 273.15);
+                        // Tenths of a kelvin to whole degrees Celsius, rounded,
+                        // refusing anything outside the plausible bounds
+                        int celsius = ToCelsius(tenthsKelvin);
 
-                        if(celsius < Min || celsius > Max)
+                        if(celsius == int.MinValue)
                             continue;
 
                         object instance;

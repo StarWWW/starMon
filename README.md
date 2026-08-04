@@ -283,9 +283,30 @@ The script works with the plain .NET SDK — no Visual Studio. It handles the tw
 * the **.NET Framework 4.8 reference assemblies** the SDK does not ship, along with `System.Management.Instrumentation`, which is not in the reference pack at all. Staying on `net48` is not nostalgia: that assembly and `System.Management` would need NuGet packages on modern .NET.
 * the **WPF markup compiler**, which turns the `.xaml` files into BAML before the C# compiler runs. It ships inside the WindowsDesktop SDK rather than with the C# targets, and a non-SDK-style project does not import it on its own.
 
+#### What has to be installed
+
+* a **.NET SDK** including the Windows Desktop workload — it carries the markup compiler
+* the **[.NET Framework 4.8 Developer Pack](https://dotnet.microsoft.com/download/dotnet-framework/net48)** — it carries the reference assemblies
+
+Both are searched for, so nothing has to be configured. If either is somewhere unusual, `STARMON_REFASM` and `STARMON_MMI` name the directories directly and skip the search. These two paths used to be written into the script as absolute locations on one developer's machine, which meant the project built nowhere else — including on a CI runner, which is why `.github/workflows/build.yml` now builds through this same script rather than its own `msbuild` line.
+
 ### The self-test
 
-The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **271 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces. The build also fails on a duplicate locale key, and on a fan mode or a message key missing from either language.
+The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **332 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+
+Suites are found by reflection — a class marked `[TestSuite]` runs because it exists, rather than because someone remembered to add it to a list. An optional argument narrows the run:
+
+```powershell
+.\Bin\Test\StarMonTest.exe -SelfTest service    # only TestService
+```
+
+A filter that matches nothing is an error, not an empty pass. A suite that throws no longer takes the rest of the run down with it: it is reported, and the other suites still run. The exit code for a failing run is `6`, which used to be `1` — the same code a BIOS initialisation failure returns, so a script could not tell the two apart.
+
+Three things are checked against the source before anything compiles, because none of them can be seen from a built assembly:
+
+* a **duplicate locale key** — the collection-initialiser syntax silently keeps the last one
+* a **test method with no caller** — it compiles, never runs, and the count at the end still looks healthy
+* a **fan mode or message key missing from either language**
 
 ### The design loop
 
@@ -616,7 +637,7 @@ Betik düz .NET SDK ile çalışır — Visual Studio gerekmez. Bu projeyi başk
 
 ### Öz test
 
-Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **271 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
+Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **332 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
 
 ### Tasarım döngüsü
 

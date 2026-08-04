@@ -27,7 +27,6 @@
 
 param(
     [switch] $Test,
-    [switch] $Resources,
     [string[]] $Render,
     [string] $Configuration = "Release",
     [string] $Version = "1.0.2.0",
@@ -53,26 +52,110 @@ if ($Render) { $Test = $true }
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
 
-$refasm = "C:\Users\star\Tools\net48-refasm\build\.NETFramework\v4.8"
-$mmi    = "C:\Windows\Microsoft.NET\assembly\GAC_MSIL\Microsoft.Management.Infrastructure\v4.0_1.0.0.0__31bf3856ad364e35"
+# The two paths below used to be hardcoded to one developer's machine, which
+# meant this script built nowhere else - including on a CI runner. Both are now
+# searched for, in order of preference, and each check insists on a file that
+# proves the directory is the real thing rather than an empty husk.
+#
+# Set STARMON_REFASM or STARMON_MMI to skip the search and point at a directory
+# directly.
 
-# The XAML markup compiler. The task assembly has to match the runtime MSBuild
-# itself is on: `dotnet msbuild` runs on .NET 10, so it is the net10.0 copy
-# that is loadable, not the net472 one sitting beside it.
+function Find-Directory {
+    param(
+        [string]   $What,       # what is being looked for, for the error message
+        [string[]] $Candidates, # directories to try, best first
+        [string]   $MustContain,# a file that has to be in it
+        [string]   $Remedy      # what the user should do if nothing matched
+    )
+
+    foreach ($candidate in $Candidates) {
+
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+
+        # Candidates may be wildcards (a NuGet package with a version in the
+        # path, say), so resolve and prefer the highest-sorting match.
+        $matched = Get-Item $candidate -ErrorAction SilentlyContinue |
+                   Where-Object { $_.PSIsContainer } |
+                   Sort-Object FullName
+
+        foreach ($dir in $matched) {
+            if (Test-Path (Join-Path $dir.FullName $MustContain)) { return $dir.FullName }
+        }
+
+    }
+
+    throw "$What was not found. $Remedy"
+}
+
+# .NET Framework 4.8 reference assemblies. The SDK does not ship these; they
+# come from the Developer Pack, or from the reference-assemblies NuGet package
+# if one has already been restored.
+$refasm = Find-Directory `
+    -What "The .NET Framework 4.8 reference assemblies" `
+    -MustContain "mscorlib.dll" `
+    -Candidates @(
+        $env:STARMON_REFASM,
+        "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8",
+        "$env:ProgramFiles\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8",
+        "$(if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { "$env:USERPROFILE\.nuget\packages" })\microsoft.netframework.referenceassemblies.net48\*\build\.NETFramework\v4.8"
+    ) `
+    -Remedy ("Install the .NET Framework 4.8 Developer Pack from " +
+             "https://dotnet.microsoft.com/download/dotnet-framework/net48, " +
+             "or set STARMON_REFASM to a directory holding the v4.8 reference assemblies.")
+
+# Microsoft.Management.Infrastructure - the CIM client the BIOS interface runs
+# on. It is not in the reference pack at all, so it is taken from the GAC, or
+# failing that from the copy kept beside the built binary.
+$mmi = Find-Directory `
+    -What "Microsoft.Management.Infrastructure" `
+    -MustContain "Microsoft.Management.Infrastructure.dll" `
+    -Candidates @(
+        $env:STARMON_MMI,
+        "$env:WINDIR\Microsoft.NET\assembly\GAC_MSIL\Microsoft.Management.Infrastructure\v4.0_*",
+        "$env:WINDIR\assembly\GAC_MSIL\Microsoft.Management.Infrastructure\*",
+        (Join-Path $root "Bin")
+    ) `
+    -Remedy ("It ships with Windows Management Framework and is normally in the GAC. " +
+             "Set STARMON_MMI to a directory containing the assembly.")
+
+# The XAML markup compiler. The task assembly has to be loadable by the
+# runtime MSBuild itself is on, and `dotnet msbuild` runs on the SDK's own
+# .NET - so it is the modern build beside the tools directory that is wanted,
+# not the net472 one sitting next to it.
+#
+# Which "modern" that is depends on the SDK: an SDK 10 ships net10.0, an SDK 8
+# ships net8.0. This used to name net10.0 outright, so the script built only
+# where the newest installed SDK happened to be that exact major version.
 $wdSdk = Get-ChildItem "$env:ProgramFiles\dotnet\sdk\*\Sdks\Microsoft.NET.Sdk.WindowsDesktop" `
-    -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
+    -ErrorAction SilentlyContinue |
+    Sort-Object { [version] ($_.FullName -replace '.*\\sdk\\([^\\]+)\\.*', '$1' -replace '-.*', '') } |
+    Select-Object -Last 1
 
 if (-not $wdSdk) {
     throw "The WindowsDesktop SDK was not found under $env:ProgramFiles\dotnet\sdk. " +
-          "It carries the XAML markup compiler, without which the interface cannot build."
+          "It carries the XAML markup compiler, without which the interface cannot " +
+          "build. Install a .NET SDK that includes the Windows Desktop workload."
 }
 
 $winfx = Join-Path $wdSdk.FullName "targets\Microsoft.WinFX.targets"
-$pbt   = Join-Path $wdSdk.FullName "tools\net10.0\PresentationBuildTasks.dll"
 
-foreach ($path in @($winfx, $pbt)) {
-    if (-not (Test-Path $path)) { throw "Missing part of the XAML toolchain: $path" }
+# Highest netN.0 wins; net472 is the deliberate last resort, for the case
+# where a future SDK stops shipping a cross-platform build of the task.
+$pbt = Get-ChildItem (Join-Path $wdSdk.FullName "tools") -Directory -ErrorAction SilentlyContinue |
+    Where-Object { Test-Path (Join-Path $_.FullName "PresentationBuildTasks.dll") } |
+    Sort-Object {
+        if ($_.Name -match '^net(\d+)\.(\d+)$') { [version] "$($Matches[1]).$($Matches[2])" }
+        else { [version] "0.0" }
+    } |
+    Select-Object -Last 1 |
+    ForEach-Object { Join-Path $_.FullName "PresentationBuildTasks.dll" }
+
+if (-not $pbt) {
+    throw "PresentationBuildTasks.dll was not found under $(Join-Path $wdSdk.FullName 'tools'). " +
+          "The XAML markup compiler is part of the Windows Desktop workload."
 }
+
+if (-not (Test-Path $winfx)) { throw "Missing part of the XAML toolchain: $winfx" }
 
 # Duplicate locale keys.
 #
@@ -108,6 +191,45 @@ foreach ($file in @("Library\LocaleData.cs", "Library\LocaleDataTr.cs")) {
 if ($duplicates.Count -gt 0) {
     Write-Host "Duplicate locale keys - the later definition silently wins:" -ForegroundColor Red
     $duplicates | ForEach-Object { Write-Host $_ -ForegroundColor Red }
+    exit 1
+}
+
+# Test methods that are never called.
+#
+# The runner finds suites by reflection, so a whole file cannot be forgotten
+# any more. Inside a file it still can: a suite's Run() calls its checks by
+# hand, and a method written but left out of that list compiles, is never
+# executed, and is invisible in the count at the end - the suite reports a
+# clean pass for work it did not do.
+#
+# Reflection cannot catch this, because a method that is never called looks
+# exactly like one that is. It is caught here instead, against the source,
+# the same way duplicate locale keys are: a method named Test* whose name
+# appears only once in its file is a declaration with no caller.
+$orphans = @()
+
+foreach ($file in (Get-ChildItem (Join-Path $root "Test") -Filter "Test*.cs")) {
+
+    $text = Get-Content $file.FullName -Raw
+
+    $declared = [regex]::Matches($text, '(?m)^\s*(?:private|internal)\s+static\s+\w[\w<>,\[\]\s]*\s+(Test\w+)\s*\(') |
+                ForEach-Object { $_.Groups[1].Value }
+
+    foreach ($name in ($declared | Select-Object -Unique)) {
+
+        $uses = [regex]::Matches($text, "\b$([regex]::Escape($name))\b").Count
+
+        if ($uses -le 1) {
+            $orphans += "  Test\$($file.Name) : $name is declared but never called"
+        }
+
+    }
+
+}
+
+if ($orphans.Count -gt 0) {
+    Write-Host "Test methods with no caller - these never run:" -ForegroundColor Red
+    $orphans | ForEach-Object { Write-Host $_ -ForegroundColor Red }
     exit 1
 }
 
