@@ -37,18 +37,29 @@ namespace StarMon.AppGui {
             Hw.BiosInit();
             Hw.EcInit();
 
-            // Initialize the hardware platform
-            this.Platform = new Platform();
-
             // Work out what this particular board can do and adapt the
             // configuration to it, before anything reads a fan ceiling or
             // offers a performance mode. Every Omen and Victus answers these
             // differently, and the compiled defaults are only one machine's.
+            //
+            // This runs before the platform is built, not after. It used to be
+            // the other way round, which meant the fan array was decided while
+            // nothing yet knew how many fans the board had — the probe asked,
+            // and its answer arrived too late to be used by the one thing that
+            // needed it. The probe only needs the firmware, so it is given a
+            // settings interface and nothing else.
             try {
-                StarMon.Hardware.DeviceProfile.Probe(this.Platform);
+                StarMon.Hardware.DeviceProfile.Probe(new Settings());
             } catch(Exception e) {
                 Logger.Error("Device", "Hardware profiling failed", e.Message);
             }
+
+            // Initialize the hardware platform, now that the board is known
+            this.Platform = new Platform();
+
+            // A ceiling revised later has to be able to re-derive the fan
+            // bounds, which needs the platform the probe no longer takes
+            StarMon.Hardware.DeviceProfile.Attach(this.Platform);
 
             // Give the feature-support registry its platform reference,
             // so per-feature probes can run (lazily) when first needed

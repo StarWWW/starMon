@@ -35,10 +35,17 @@ namespace StarMon.AppService {
         public int FanLevelGpu;
         public int FanLevelMaximum;
 
-        // Fans this board actually has. Two on every Omen and Victus seen so
-        // far, but it is the firmware's answer rather than an assumption, and
-        // the interface only shows a second figure when there is one.
-        public int FanCount = 2;
+        // Fans this board actually has, from the firmware, by way of the fan
+        // array the platform built from it.
+        //
+        // The default is one rather than two. It is only ever seen by a
+        // reading that has not been through the poller, and one is the count
+        // that cannot be wrong in a way that invents hardware: showing a
+        // second fan that is not there is the failure this field exists to
+        // prevent, and its own default used to be an instance of it. The
+        // comment here used to claim this was the firmware's answer while
+        // nothing consumed the firmware's answer at all.
+        public int FanCount = 1;
 
         // Every board temperature probe that is answering, by its own name.
         //

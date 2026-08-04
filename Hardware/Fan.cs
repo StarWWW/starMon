@@ -46,19 +46,37 @@ namespace StarMon.Hardware.Platform {
         // Stores the speed data component
         protected IPlatformReadComponent Speed;
 
-        // Constructs a fan instance
+        // Where this fan sits in the firmware's own arrays.
+        //
+        // It used to be derived from the type, as type - 1, which works only
+        // because the first two types happen to be numbered 1 and 2. A third
+        // fan typed as Exhaust would have indexed 2 by luck and a fourth typed
+        // as Intake would have indexed 4, past the end of a four-fan array. The
+        // index is a fact about the board's ordering, not about what the fan
+        // cools, so it is now given rather than inferred.
+        protected int Index;
+
+        // Constructs a fan instance.
+        //
+        // Any of the components may be null: a board with more fans than this
+        // build has registers for still has those fans in the firmware's own
+        // arrays, and the level and speed calls reach them by index. A fan with
+        // no registers is driven entirely through the firmware, which is a
+        // reduced fan rather than an absent one.
         public Fan(
             BiosData.FanType type,
             IPlatformReadWriteComponent level,
             IPlatformReadComponent rateRead,
             IPlatformWriteComponent rateWrite,
-            IPlatformReadComponent speed) {
+            IPlatformReadComponent speed,
+            int index = -1) {
 
             this.FanType = type;
             this.Level = level;
             this.RateRead = rateRead;
             this.RateWrite = rateWrite;
             this.Speed = speed;
+            this.Index = index >= 0 ? index : (int) type - 1;
             RefreshConstraints();
 
         }
@@ -72,9 +90,14 @@ namespace StarMon.Hardware.Platform {
         // are faster than the compiled default silently discarding its own
         // top-end speed readings.
         public virtual void RefreshConstraints() {
-            this.RateRead.SetConstraint(Config.MaxBelievablePercent);
-            this.Speed.SetConstraint(
-                Config.FanLevelMax * (100 + Config.MaxBelievableFanSpeedPercentOverMax));
+
+            if(this.RateRead != null)
+                this.RateRead.SetConstraint(Config.MaxBelievablePercent);
+
+            if(this.Speed != null)
+                this.Speed.SetConstraint(
+                    Config.FanLevelMax * (100 + Config.MaxBelievableFanSpeedPercentOverMax));
+
         }
 
         // Retrieves the fan type
@@ -85,9 +108,8 @@ namespace StarMon.Hardware.Platform {
         // Retrieves the fan level [krpm]
         public virtual int GetLevel() {
             byte[] levels = CachedLevels();
-            int index = (int) this.FanType - 1;
-            return levels != null && index >= 0 && index < levels.Length
-                ? levels[index] : 0;
+            return levels != null && this.Index >= 0 && this.Index < levels.Length
+                ? levels[this.Index] : 0;
         }
 
         // The firmware returns every fan's level in one call, so asking it
@@ -130,8 +152,13 @@ namespace StarMon.Hardware.Platform {
 
         // Retrieves the fan rate [%]
         public virtual int GetRate() {
+
+            if(this.RateRead == null)
+                return 0;
+
             this.RateRead.Update();
             return this.RateRead.GetValue();
+
         }
 
         // Retrieves the fan speed [rpm]
@@ -147,7 +174,7 @@ namespace StarMon.Hardware.Platform {
             if(BiosSpeedWorks) {
                 try {
 
-                    int rpm = Hw.BiosGet(() => Hw.Bios.GetFanSpeed((byte) (this.FanType - 1)));
+                    int rpm = Hw.BiosGet(() => Hw.Bios.GetFanSpeed((byte) this.Index));
 
                     if(rpm > 0 && rpm < MaxBelievableRpm)
                         return rpm;
@@ -175,6 +202,9 @@ namespace StarMon.Hardware.Platform {
                 }
             }
 
+            if(this.Speed == null)
+                return 0;
+
             this.Speed.Update();
             return this.Speed.GetValue();
 
@@ -191,13 +221,27 @@ namespace StarMon.Hardware.Platform {
 
         // Sets the fan level [krpm]
         public virtual void SetLevel(int level) {
+
+            // A fan this build has no setpoint register for is still driven,
+            // through the firmware's own fan-level call, which takes every
+            // fan at once. Writing nothing here is correct; inventing an
+            // address to write to would not be.
+            if(this.Level == null)
+                return;
+
             this.Level.SetValue(level);
             InvalidateLevels();
+
         }
 
         // Sets the fan rate [%]
         public virtual void SetRate(int rate) {
+
+            if(this.RateWrite == null)
+                return;
+
             this.RateWrite.SetValue(rate);
+
         }
 #endregion
 

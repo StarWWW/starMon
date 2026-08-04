@@ -466,25 +466,48 @@ namespace StarMon.Library
                     PlatformData.LinkType.EmbeddedController,
                     (byte)EmbeddedControllerData.Register.TMP1),
 
-                // Auxilliary EC temperature probe #2
+                // The four auxiliary probes, shown but not acted on.
+                //
+                // These are the spare thermistor channels of the board this
+                // register map came from. What sits on them — if anything —
+                // differs from board to board, and on a board where a channel
+                // is unconnected or wired to something else the register still
+                // reads: a plausible number, in the plausible range, that
+                // never moves.
+                //
+                // The hottest reading of every used sensor is what drives the
+                // fan curve and the thermal guard, so one channel stuck at a
+                // high figure pins the fans there and nothing in the reading
+                // says why. That is the single most reported failure against
+                // this application's upstream, and the reports are consistent:
+                // a probe reading 84 C for ever, or 67, on a machine that is
+                // idle and cool.
+                //
+                // Neither the dormancy mechanism nor the plausibility ceiling
+                // catches it, and neither should: the register answers, and
+                // the answer is a believable temperature. It is simply not a
+                // temperature *of anything this application can name*.
+                //
+                // So they are read and shown — a probe reading is worth seeing,
+                // and on the boards where these are real they are the earliest
+                // warning there is — and they are kept out of the decision.
+                // Use="true" in the configuration file puts one back, for a
+                // board where it has been checked against a known load.
                 ["TNT2"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte)EmbeddedControllerData.Register.TNT2),
+                    (byte)EmbeddedControllerData.Register.TNT2, false),
 
-                // Auxilliary EC temperature probe #3
                 ["TNT3"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte)EmbeddedControllerData.Register.TNT3),
+                    (byte)EmbeddedControllerData.Register.TNT3, false),
 
-                // Auxilliary EC temperature probe #4
                 ["TNT4"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte)EmbeddedControllerData.Register.TNT4),
+                    (byte)EmbeddedControllerData.Register.TNT4, false),
 
-                // Auxilliary EC temperature probe #5
                 ["TNT5"] = new TemperatureSensorData(
                     PlatformData.LinkType.EmbeddedController,
-                    (byte)EmbeddedControllerData.Register.TNT5)
+                    (byte)EmbeddedControllerData.Register.TNT5, false)
             };
 
         // Maximum number of temperature sensors

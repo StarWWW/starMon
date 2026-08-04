@@ -89,31 +89,38 @@ namespace StarMon.Hardware {
         // fan curve, it is failing to.
         private const int CredibleTableRows = 6;
 
-        // Probes the machine and applies the findings to the configuration
-        public static void Probe(StarMon.Hardware.Platform.Platform platform) {
+        // Probes the machine and applies the findings to the configuration.
+        //
+        // Takes the settings interface rather than the whole platform, and
+        // that is the point of it: everything asked here goes through the
+        // firmware, and none of it needs the fan array or the sensor array to
+        // exist. Taking the platform meant the platform had to be built first,
+        // which meant it was built before anything knew what this board was —
+        // so the fan count was asked for after the fans had already been
+        // decided, and the answer had nowhere to go.
+        public static void Probe(StarMon.Hardware.Platform.ISettings settings) {
 
             lock(Lock) {
 
                 if(Probed)
                     return;
                 Probed = true;
-                Machine = platform;
 
                 // Start from the compiled defaults, so every finding below is
                 // an improvement on them rather than a replacement for them
                 Board = "?";
-                FanCount = StarMon.Hardware.Platform.PlatformData.FanCount;
+                FanCount = 2;
                 FanLevelCeiling = Config.FanLevelMax;
                 FanLevelCeilingSource = "configured";
                 BiosFanLevel = true;
                 SoftwareFanControl = true;
 
-                IdentifyMachine(platform);
-                ProbeSystemFlags(platform);
+                IdentifyMachine(settings);
+                ProbeSystemFlags(settings);
                 ProbeFanPath();
                 ProbeFanCount();
                 ProbeFanCeiling();
-                ProbeKeyboard(platform);
+                ProbeKeyboard(settings);
                 ProbeRefreshRates();
 
                 Apply();
@@ -124,13 +131,22 @@ namespace StarMon.Hardware {
 
         }
 
-        // Works out the family and board from what the machine calls itself
-        private static void IdentifyMachine(StarMon.Hardware.Platform.Platform platform) {
+        // Links the built platform back to the profile, so that a ceiling
+        // learned later can re-derive the fan bounds. Separate from Probe
+        // because the probe now runs first, before there is one.
+        public static void Attach(StarMon.Hardware.Platform.Platform platform) {
+            lock(Lock) {
+                Machine = platform;
+            }
+        }
 
-            if(platform == null)
+        // Works out the family and board from what the machine calls itself
+        private static void IdentifyMachine(StarMon.Hardware.Platform.ISettings settings) {
+
+            if(settings == null)
                 return;
 
-            try { Board = platform.System.GetProduct(); } catch { }
+            try { Board = settings.GetProduct(); } catch { }
 
             string name = "";
             try {
@@ -157,14 +173,14 @@ namespace StarMon.Hardware {
         }
 
         // Reads the firmware's own support flags
-        private static void ProbeSystemFlags(StarMon.Hardware.Platform.Platform platform) {
+        private static void ProbeSystemFlags(StarMon.Hardware.Platform.ISettings settings) {
 
-            if(platform == null)
+            if(settings == null)
                 return;
 
             try {
 
-                BiosData.SysSupportFlags flags = platform.System.GetSystemData().SupportFlags;
+                BiosData.SysSupportFlags flags = settings.GetSystemData().SupportFlags;
 
                 SoftwareFanControl = (flags & BiosData.SysSupportFlags.SwFanCtl) != 0;
 
@@ -197,7 +213,7 @@ namespace StarMon.Hardware {
 
             try {
                 int count = Hw.BiosGet<byte>(Hw.Bios.GetFanCount);
-                if(count >= 1 && count <= StarMon.Hardware.Platform.PlatformData.FanCount)
+                if(count >= 1 && count <= StarMon.Hardware.Platform.PlatformData.MaxFanCount)
                     FanCount = count;
             } catch { }
 
@@ -243,12 +259,12 @@ namespace StarMon.Hardware {
         }
 
         // Reads the keyboard's colour-zone count
-        private static void ProbeKeyboard(StarMon.Hardware.Platform.Platform platform) {
+        private static void ProbeKeyboard(StarMon.Hardware.Platform.ISettings settings) {
 
-            if(platform == null)
+            if(settings == null)
                 return;
 
-            try { KbdZones = platform.System.GetKbdZoneCount(); } catch { }
+            try { KbdZones = settings.GetKbdZoneCount(); } catch { }
 
         }
 

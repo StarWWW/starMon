@@ -158,51 +158,20 @@ namespace StarMon.Hardware.Platform {
         // Initializes the fan controls
         private void InitFans() {
 
-            // The register set below is the one HP's Omen and Victus firmware
-            // has shared across every generation this application has seen:
+            // The register set is the one HP's Omen and Victus firmware has
+            // shared across every generation this application has seen:
             // SRP/XGS/XSS/RPM per fan, plus the countdown, manual, mode and
-            // switch registers. The board identifier used to select between
-            // branches here, but every branch held the same table, which read
-            // as though support were model-gated when it is not. What does
-            // vary between boards — how many fans there are, how high their
-            // levels go, whether levels go through the BIOS or the EC — is
-            // asked of the firmware in Hardware/DeviceProfile.cs instead.
+            // switch registers. It lives in PlatformData.Fan as a table.
+            //
+            // How many of those entries are used is the firmware's answer, not
+            // this file's. It used to build exactly two fans here, always —
+            // while DeviceProfile asked the firmware how many there were and
+            // nothing consumed the answer, and while the probe itself ran
+            // *after* this did. A board with one fan got a second one that
+            // read nought per cent forever and cost a round trip per tick; a
+            // board with three had the third clipped off.
             this.Fans = new FanArray(
-                new IFan[] {
-
-                    // Define the CPU fan
-                    new Fan(
-                        BiosData.FanType.Cpu,
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.SRP1,
-                            PlatformData.AccessType.Read | PlatformData.AccessType.Write),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.XGS1,
-                            PlatformData.AccessType.Read),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.XSS1,
-                            PlatformData.AccessType.Write),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.RPM1,
-                            PlatformData.AccessType.Read,
-                            PlatformData.DataSize.Word)),
-
-                    // Define the GPU fan
-                    new Fan(
-                        BiosData.FanType.Gpu,
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.SRP2,
-                            PlatformData.AccessType.Read | PlatformData.AccessType.Write),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.XGS2,
-                            PlatformData.AccessType.Read),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.XSS2,
-                            PlatformData.AccessType.Write),
-                        new EcComponent(
-                            (byte) EmbeddedControllerData.Register.RPM3, // Not a mistake, RPM2 is fan #0
-                            PlatformData.AccessType.Read,
-                            PlatformData.DataSize.Word)) },
+                BuildFans(),
 
                 // Define the countdown component
                 new EcComponent(
@@ -224,6 +193,66 @@ namespace StarMon.Hardware.Platform {
                     (byte) EmbeddedControllerData.Register.SFAN,
                     PlatformData.AccessType.Read | PlatformData.AccessType.Write));
 
+        }
+
+        // One fan per fan the firmware says this board has.
+        //
+        // The count is clamped to what the register table describes, and to at
+        // least one: a board that answers nothing still has a fan, and showing
+        // none of them would be a worse answer than showing one.
+        private static IFan[] BuildFans() {
+
+            int count = DeviceProfile.FanCount;
+
+            if(count < 1)
+                count = 1;
+            if(count > PlatformData.MaxFanCount)
+                count = PlatformData.MaxFanCount;
+
+            IFan[] fans = new IFan[count];
+
+            for(int i = 0; i < count; i++) {
+
+                PlatformData.FanRegisters registers = PlatformData.Fan[i];
+
+                fans[i] = new Fan(
+                    registers.Type,
+                    Rw(registers.Setpoint),
+                    Ro(registers.Rate),
+                    Wo(registers.Set),
+                    Ro(registers.Speed, PlatformData.DataSize.Word),
+                    i);
+
+            }
+
+            return fans;
+
+        }
+
+        // A component for a register, or null where this build has no register
+        // for that part of a fan. Fan tolerates the null and reaches the fan
+        // through the firmware instead.
+        private static EcComponent Ro(EmbeddedControllerData.Register? register,
+            PlatformData.DataSize size = PlatformData.DataSize.Byte) {
+
+            return register.HasValue
+                ? new EcComponent((byte) register.Value,
+                    PlatformData.AccessType.Read, size)
+                : null;
+
+        }
+
+        private static EcComponent Wo(EmbeddedControllerData.Register? register) {
+            return register.HasValue
+                ? new EcComponent((byte) register.Value, PlatformData.AccessType.Write)
+                : null;
+        }
+
+        private static EcComponent Rw(EmbeddedControllerData.Register? register) {
+            return register.HasValue
+                ? new EcComponent((byte) register.Value,
+                    PlatformData.AccessType.Read | PlatformData.AccessType.Write)
+                : null;
         }
 
         // Initializes the system settings
@@ -449,8 +478,29 @@ namespace StarMon.Hardware.Platform {
 
             bool updated = this.Temperature[index].Update();
 
-            // A reading that arrived, of any value, means the sensor is there
-            if(updated) {
+            // A reading that arrived and is not zero means the sensor is there.
+            //
+            // The zero qualification carries more weight than it looks. The
+            // controller lets a read go out blind once the honest wait has
+            // failed EcFailLimit times for a register — right for a controller
+            // that holds an answer and never raises the flag, but on a
+            // register the board does not implement there is no answer, and
+            // the blind read reports success with a value of nought.
+            //
+            // Taken as evidence the sensor is present, that reset this counter
+            // at 15 while it needs to reach 30, every time, forever. So the
+            // mechanism written for boards with absent registers never
+            // engaged on a board with absent registers, and the exchange per
+            // sensor per second it exists to avoid was paid for the life of
+            // the process. Found by running the code against a board that does
+            // not carry the auxiliary probes; it cannot be seen on a machine
+            // that carries them all.
+            //
+            // Zero is not a temperature this application acts on anywhere
+            // else either: the poller drops it from the board list, the
+            // history records it as a gap rather than a reading, and the
+            // thermal guard refuses to act on it.
+            if(updated && this.Temperature[index].GetValue() != 0) {
                 this.TemperatureMisses[index] = 0;
                 if(this.TemperatureDormant[index]) {
                     this.TemperatureDormant[index] = false;

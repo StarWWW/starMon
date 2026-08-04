@@ -330,17 +330,31 @@
         <!-- Temperature Sensors -->
 
         <!-- Note: nine default sensors are hard-coded in the application
-             and will be used instead if none are defined here -->
+             and will be used instead if none are defined here.
+
+             Use="false" means the probe is read and shown but kept out of the
+             hottest-reading check that drives the fan curve and the thermal
+             guard.
+
+             The four auxiliary probes are set that way. They are the spare
+             thermistor channels of the board this register map came from, and
+             what sits on them differs from board to board: on one where a
+             channel is unconnected the register still answers, with a
+             believable temperature that never moves. A probe stuck at 84 C
+             pins the fans there for ever, and nothing in the reading says why
+             — which is the most reported failure against this application's
+             upstream. Set one back to Use="true" on a board where you have
+             watched it track a known load. -->
         <Temperature>
             <Sensor Name="CPUT" Source="EC" />
             <Sensor Name="GPTM" Source="EC" />
             <Sensor Name="BIOS" Source="BIOS" Use="false" />
             <Sensor Name="RTMP" Source="EC" />
             <Sensor Name="TMP1" Source="EC" />
-            <Sensor Name="TNT2" Source="EC" />
-            <Sensor Name="TNT3" Source="EC" />
-            <Sensor Name="TNT4" Source="EC" />
-            <Sensor Name="TNT5" Source="EC" />
+            <Sensor Name="TNT2" Source="EC" Use="false" />
+            <Sensor Name="TNT3" Source="EC" Use="false" />
+            <Sensor Name="TNT4" Source="EC" Use="false" />
+            <Sensor Name="TNT5" Source="EC" Use="false" />
         </Temperature>
 
         <!-- Update Interval -->

@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using StarMon.Hardware;
 using StarMon.Hardware.Bios;
 using StarMon.Hardware.Ec;
 using StarMon.Hardware.Platform;
@@ -44,6 +45,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: readings that are not temperatures");
             TestSilentControllerYieldsNoReading();
+            TestStuckAuxiliaryProbeDoesNotDriveTheFans();
 
             SelfTest.Group("Device matrix: writes that do not take");
             TestRefusedFanWriteIsNotRetriedForever();
@@ -71,6 +73,7 @@ namespace StarMon.Test {
             private readonly int PreviousCeiling;
             private readonly bool PreviousAutoDetect;
             private readonly int PreviousWaitTimeout;
+            private readonly bool PreviousProbed;
 
             internal readonly DeviceScenario Scenario;
 
@@ -83,6 +86,7 @@ namespace StarMon.Test {
                 PreviousCeiling = Config.FanLevelMax;
                 PreviousAutoDetect = Config.FanLevelAutoDetect;
                 PreviousWaitTimeout = Config.EcWaitTimeoutMs;
+                PreviousProbed = DeviceProfile.Probed;
 
                 // A register the board does not carry costs a full wait before
                 // the read gives up, and these scenarios are largely made of
@@ -102,6 +106,21 @@ namespace StarMon.Test {
                 Hw.Bios = scenario.Bios;
                 Hw.Ec = scenario.Ec;
 
+                // The firmware returns every fan's level in one call, so Fan
+                // holds the answer briefly and shares it between fans. That
+                // window is shorter than anything reads it at on a real
+                // machine and longer than the gap between two scenarios here,
+                // so without this one board would be handed the previous
+                // board's levels.
+                Fan.InvalidateLevels();
+
+                // The probe is what the platform is built from now, so a
+                // scenario has to be probed the way a real machine is. Its
+                // once-only guard is cleared first, since it has already run
+                // for whichever scenario came before.
+                SetProfile("Probed", false);
+                DeviceProfile.Probe(new Settings());
+
             }
 
             public void Dispose() {
@@ -110,6 +129,19 @@ namespace StarMon.Test {
                 Config.FanLevelMax = PreviousCeiling;
                 Config.FanLevelAutoDetect = PreviousAutoDetect;
                 Config.EcWaitTimeoutMs = PreviousWaitTimeout;
+                SetProfile("Probed", PreviousProbed);
+                DeviceProfile.Attach(null);
+            }
+
+            // The findings are deliberately read-only to everything but the
+            // probe, so the guard is reset through the private setter rather
+            // than by opening one up
+            private static void SetProfile(string name, object value) {
+                typeof(DeviceProfile)
+                    .GetProperty(name, System.Reflection.BindingFlags.Public
+                        | System.Reflection.BindingFlags.Static)
+                    .GetSetMethod(true)
+                    .Invoke(null, new object[] { value });
             }
 
         }
@@ -148,7 +180,7 @@ namespace StarMon.Test {
                 SelfTest.Equal((byte) 1, Hw.Bios.GetFanCount(),
                     "the firmware reports one fan on a single-fan board");
 
-                SelfTest.Gap(platform.Fans.Fan.Length == 1,
+                SelfTest.Equal(1, platform.Fans.Fan.Length,
                     "a single-fan board builds one fan, not two");
 
             }
@@ -162,8 +194,19 @@ namespace StarMon.Test {
                 SelfTest.Equal((byte) 3, Hw.Bios.GetFanCount(),
                     "the firmware reports three fans on a three-fan board");
 
-                SelfTest.Gap(platform.Fans.Fan.Length == 3,
+                SelfTest.Equal(3, platform.Fans.Fan.Length,
                     "a three-fan board builds three fans");
+
+                // The third fan has a tachometer register in the table and no
+                // setpoint one. It is driven through the firmware's own
+                // fan-level call, which takes an index, so it is a fan with
+                // fewer registers rather than a fan that is not there.
+                SelfTest.Equal(30, platform.Fans.Fan[0].GetLevel(),
+                    "each fan reads its own index out of the firmware's array");
+                SelfTest.Equal(35, platform.Fans.Fan[1].GetLevel(),
+                    "the second one its own");
+                SelfTest.Equal(40, platform.Fans.Fan[2].GetLevel(),
+                    "and the third, which has no setpoint register, its own too");
 
             }
 
@@ -194,7 +237,7 @@ namespace StarMon.Test {
                 SelfTest.Check(one.Bios.CallCount("GetFanSpeed") > 0,
                     "the fan that exists is asked about");
 
-                SelfTest.Gap(one.Bios.CallCount("GetFanSpeed") == 1
+                SelfTest.Check(one.Bios.CallCount("GetFanSpeed") == 1
                         && one.Ec.ReadCount(Register.XGS2) == 0,
                     "the fan that does not exist is not asked about ("
                         + one.Bios.CallCount("GetFanSpeed") + " tachometer calls, "
@@ -268,27 +311,37 @@ namespace StarMon.Test {
                     "the scenario has sensors backed by the fake controller ("
                         + backed.Count + ")");
 
+                // Every sensor, which is what the poller asks for: a probe
+                // kept for display and left out of the fan decision still has
+                // to be read, and still has to be stood down when the board
+                // does not carry it
                 for(int i = 0; i < 40; i++)
-                    platform.UpdateTemperature(true);
+                    platform.UpdateTemperature(false);
 
                 int dormant = 0;
                 foreach(int index in backed)
                     if(platform.TemperatureDormant[index])
                         dormant++;
 
-                SelfTest.Gap(dormant > 0,
-                    "a probe the board does not carry is stood down (" + dormant
-                        + " of " + backed.Count + " after 40 updates)");
+                // Five of the six registers the fake backs are the ones this
+                // scenario removes; the sixth is present and has to stay awake
+                SelfTest.Equal(5, dormant,
+                    "every probe the board does not carry is stood down, and only those ("
+                        + dormant + " of " + backed.Count + " after 40 updates)");
 
                 // The cost the mechanism exists to avoid, measured
                 board.Ec.ResetCounts();
 
                 for(int i = 0; i < 10; i++)
-                    platform.UpdateTemperature(true);
+                    platform.UpdateTemperature(false);
 
-                SelfTest.Gap(board.Ec.ReadCount(Register.TNT2) < 10,
+                SelfTest.Check(board.Ec.ReadCount(Register.TNT2) < 10,
                     "and stops being polled every update ("
                         + board.Ec.ReadCount(Register.TNT2) + " reads in 10 updates)");
+
+                SelfTest.Check(board.Ec.ReadCount(Register.TMP1) == 10,
+                    "while the probe that answers is still read every update ("
+                        + board.Ec.ReadCount(Register.TMP1) + ")");
 
             }
 
@@ -311,7 +364,7 @@ namespace StarMon.Test {
                 List<int> backed = ControllerBacked(platform);
 
                 for(int i = 0; i < 40; i++)
-                    platform.UpdateTemperature(true);
+                    platform.UpdateTemperature(false);
 
                 int invented = 0;
                 foreach(int index in backed)
@@ -320,6 +373,61 @@ namespace StarMon.Test {
 
                 SelfTest.Equal(0, invented,
                     "a controller that never answers yields no temperature");
+
+            }
+
+        }
+
+        // The most reported failure there is, from inside.
+        //
+        // An auxiliary probe reading 84 C on an idle machine is not a
+        // temperature of anything, but it is a believable one — so the
+        // plausibility ceiling passes it, and the dormancy mechanism has
+        // nothing to stand down because the register answers perfectly well.
+        // The only thing that keeps it away from the fans is not being asked.
+        private static void TestStuckAuxiliaryProbeDoesNotDriveTheFans() {
+
+            DeviceScenario board = DeviceCatalogue.StuckAuxiliarySensor();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                for(int i = 0; i < 5; i++)
+                    platform.UpdateTemperature(false);
+
+                // It is read, and it is there to be shown
+                int shown = -1;
+                for(int i = 0; i < platform.Temperature.Length; i++)
+                    if(platform.Temperature[i].GetName() == "TNT2")
+                        shown = platform.Temperature[i].GetValue();
+
+                SelfTest.Equal(84, shown,
+                    "the auxiliary probe is still read and still shown");
+
+                // And it is not among the readings the hottest-of check walks
+                bool used = false;
+                for(int i = 0; i < platform.Temperature.Length; i++)
+                    if(platform.TemperatureUse[i]
+                        && platform.Temperature[i].GetName() == "TNT2")
+                        used = true;
+
+                SelfTest.Check(!used,
+                    "and is kept out of the reading the fan curve acts on");
+
+                // The named probes on this board are all cooler than the stuck
+                // one, so a maximum that has picked it up is visible as such.
+                // Asserted against the controller-backed sensors only: the
+                // platform maximum also folds in the real machine's published
+                // sensors and ACPI zones.
+                int highest = 0;
+                foreach(int index in ControllerBacked(platform))
+                    if(platform.TemperatureUse[index]
+                        && platform.Temperature[index].GetValue() > highest)
+                        highest = platform.Temperature[index].GetValue();
+
+                SelfTest.Check(highest > 0 && highest < 84,
+                    "so the hottest used reading is a real one (" + highest + " C)");
 
             }
 

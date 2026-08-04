@@ -173,7 +173,10 @@ namespace StarMon.Test.Devices {
 
             FakeBiosDevice bios = HealthyBios();
             bios.FanCount = 3;
-            bios.FanLevel = new byte[] { 0, 0, 0 };
+
+            // Distinct per fan, so that a fan reading the wrong index shows up
+            // as the wrong number rather than as another zero
+            bios.FanLevel = new byte[] { 30, 35, 40 };
             bios.FanSpeed = new int[] { 2400, 2600, 2100 };
 
             return new DeviceScenario {

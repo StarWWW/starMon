@@ -61,8 +61,24 @@ namespace StarMon.AppCli {
             Hw.BiosInit();
             Hw.EcInit();
 
+            // Ask the board what it is before driving its fans.
+            //
+            // This path never probed at all: running a fan program from the
+            // command line used one machine's compiled fan ceiling and one
+            // machine's fan count, whatever board it was running on, while the
+            // interface asked. A curve run here therefore reached a different
+            // top speed than the same curve run from the window.
+            try {
+                StarMon.Hardware.DeviceProfile.Probe(new Settings());
+            } catch(Exception e) {
+                Logger.Error("Device", "Hardware profiling failed", e.Message);
+            }
+
             // Initialize the fan program with the hardware platform
-            FanProgram Program = new FanProgram(new Platform(), Cli.PrintProgMessage);
+            Platform platform = new Platform();
+            StarMon.Hardware.DeviceProfile.Attach(platform);
+
+            FanProgram Program = new FanProgram(platform, Cli.PrintProgMessage);
 
             // Create an event handler to break out of the perpetual loop
             Console.CancelKeyPress += (sender, eventArgs) => {

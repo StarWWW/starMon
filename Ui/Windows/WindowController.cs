@@ -1712,7 +1712,16 @@ namespace StarMon.Ui.Windows {
                 // hardware is not a real tachometer figure, and a level out of
                 // the maximum is both honest and reads at a glance
                 model.FanCpu.Figure = FanPercent(reading.FanLevelCpu, reading.FanLevelMaximum);
-                model.FanCpu.Second = FanPercent(reading.FanLevelGpu, reading.FanLevelMaximum);
+
+                // Only where there is a second fan. This was set
+                // unconditionally, so a single-fan board showed a second
+                // figure reading nought per cent for the life of the process —
+                // the detail rows below already asked reading.FanCount, and
+                // the headline did not.
+                model.FanCpu.Second = reading.FanCount > 1
+                    ? FanPercent(reading.FanLevelGpu, reading.FanLevelMaximum)
+                    : "";
+
                 model.FanCpu.Unit = "%";
                 model.FanCpu.Detail = Levels(reading);
                 model.FanCpu.Portion =

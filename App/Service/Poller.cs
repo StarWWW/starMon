@@ -143,7 +143,16 @@ namespace StarMon.AppService {
             bool slowTick = this.TickCount % SlowEvery == 0;
             this.TickCount++;
 
-            try { this.Platform.UpdateTemperature(true); } catch { }
+            // Every sensor, not only the ones the hottest-of check walks.
+            //
+            // This asked for the used ones only, which was the same set until
+            // the auxiliary probes were taken out of that check: a probe kept
+            // for display and left out of the decision would then never have
+            // been read at all, and the sensors page would have shown four
+            // permanent blanks. Reading them costs nothing lasting — a probe
+            // this board does not carry goes dormant and is retried rarely,
+            // and the ones it does carry are the readings the page is for.
+            try { this.Platform.UpdateTemperature(false); } catch { }
             try { this.Platform.UpdateFans(); } catch { }
 
             try {
