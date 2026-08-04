@@ -92,6 +92,7 @@ namespace StarMon.Library.Locale
 
                 // CLI: Embedded Controller
                 ["CliEc"] = "Embedded Controller",
+                ["CliProbe"] = "Hardware Report",
                 ["CliEcMon"] = "Embedded Controller Monitor",
                 ["CliEcByte"] = "Byte",
                 ["CliEcRegister"] = "Register",
@@ -545,6 +546,7 @@ namespace StarMon.Library.Locale
                 ["ErrConfigSave"] = "Failed to save configuration data",
                 ["ErrEcInit"] = "Failed to initialize the embedded controller",
                 ["ErrEcLock"] = "Failed to acquire embedded controller exclusive lock",
+                ["ErrProbeWrite"] = "Could not write the hardware report",
                 ["ErrEcNull"] = "Failed to instantiate the embedded controller",
                 ["ErrFileSave"] = "Failed to save the file",
                 ["ErrLocaleNull"] = "Failed to instantiate the localizable message system",

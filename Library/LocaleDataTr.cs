@@ -88,6 +88,7 @@ namespace StarMon.Library.Locale
 
                 // CLI: Embedded Controller
                 ["CliEc"] = "Gömülü Denetleyici",
+                ["CliProbe"] = "Donanım Raporu",
                 ["CliEcMon"] = "Gömülü Denetleyici İzleyicisi",
                 ["CliEcByte"] = "Bayt",
                 ["CliEcRegister"] = "Yazmaç",
@@ -535,6 +536,7 @@ namespace StarMon.Library.Locale
                 ["ErrConfigSave"] = "Yapılandırma verisi kaydedilemedi",
                 ["ErrEcInit"] = "Gömülü denetleyici başlatılamadı",
                 ["ErrEcLock"] = "Gömülü denetleyici için dışlayıcı kilit alınamadı",
+                ["ErrProbeWrite"] = "Donanım raporu yazılamadı",
                 ["ErrEcNull"] = "Gömülü denetleyici örneklenemedi",
                 ["ErrFileSave"] = "Dosya kaydedilemedi",
                 ["ErrLocaleNull"] = "Yerelleştirilebilir mesaj sistemi örneklenemedi",

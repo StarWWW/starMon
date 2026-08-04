@@ -56,6 +56,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: every scenario stays standing");
             TestEveryScenarioSurvivesConstruction();
+            TestEveryScenarioCanBeReported();
 
         }
 
@@ -113,6 +114,11 @@ namespace StarMon.Test {
                 // so without this one board would be handed the previous
                 // board's levels.
                 Fan.InvalidateLevels();
+
+                // The once-per-episode latch on the lock-failure report is
+                // process-wide, so a scenario that expects to see one has to
+                // start from none
+                Hw.ResetEcLockReports();
 
                 // The probe is what the platform is built from now, so a
                 // scenario has to be probed the way a real machine is. Its
@@ -515,15 +521,22 @@ namespace StarMon.Test {
                     "and the lock was genuinely refused ("
                         + board.Ec.LockRefusals + " times)");
 
-                // Hw.EcExec answers a refused lock with App.Error, which in
-                // the interface is a modal dialog rather than a line in the
-                // log - one per register, per tick, for as long as the other
-                // application holds it. The console host used by these tests
-                // prints instead, which is why this run is not a wall of
-                // dialogs; a user's would be.
-                SelfTest.Gap(board.Ec.LockRefusals <= 1,
-                    "a held lock is reported once, not once per register per tick ("
-                        + board.Ec.LockRefusals + " reports for one update)");
+                // A refused lock used to be answered with App.Error on every
+                // access, which in the interface is a modal dialog: one per
+                // sensor, per tick, for as long as the other application held
+                // it. The hardware report reads 256 registers, so it produced
+                // 256 of them. It is told once per episode now, and logged
+                // every time.
+                //
+                // Asserted by counting what reaches the user rather than what
+                // the controller saw: the lock is genuinely asked for once per
+                // access, and that part is correct.
+                SelfTest.Check(board.Ec.LockRefusals > 1,
+                    "the lock is still asked for on every access ("
+                        + board.Ec.LockRefusals + " for one update)");
+
+                SelfTest.Equal(1, Hw.EcLockReports,
+                    "and the user is told once rather than once per register");
 
             }
 
@@ -560,6 +573,68 @@ namespace StarMon.Test {
                             + (failure == null ? "" : " - " + failure));
 
                 }
+
+            }
+
+        }
+
+        // -Probe has to produce a report on a machine that is misbehaving,
+        // because that is the only kind of machine anybody runs it on. A
+        // composer that stops at the first refused call describes least
+        // exactly where description matters most.
+        private static void TestEveryScenarioCanBeReported() {
+
+            foreach(DeviceScenario scenario in DeviceCatalogue.All()) {
+
+                using(new Installed(scenario)) {
+
+                    string report = null;
+                    string failure = null;
+
+                    try {
+
+                        Platform platform = new Platform();
+                        report = StarMon.AppCli.CliOp.Compose(platform);
+
+                    } catch(Exception e) {
+                        failure = e.GetType().Name + ": " + e.Message;
+                    }
+
+                    SelfTest.Check(failure == null && report != null,
+                        scenario + " can be reported"
+                            + (failure == null ? "" : " - " + failure));
+
+                    if(report == null)
+                        continue;
+
+                    // The parts that make the report worth having. A register
+                    // dump is the one thing in it that is not this build's
+                    // interpretation of the machine.
+                    SelfTest.Check(report.IndexOf("Embedded Controller registers",
+                            StringComparison.Ordinal) >= 0
+                        && report.IndexOf("Named registers", StringComparison.Ordinal) >= 0
+                        && report.IndexOf("## Fans", StringComparison.Ordinal) >= 0,
+                        scenario + " carries the register dump and the fan table");
+
+                }
+
+            }
+
+            // A board that answers nothing still has to produce a report, and
+            // the registers it does not carry have to read as absent rather
+            // than as nought - a dump full of zeroes and a dump of a board
+            // whose registers are elsewhere look identical otherwise.
+            DeviceScenario silent = DeviceCatalogue.SilentController();
+
+            using(new Installed(silent)) {
+
+                string report = StarMon.AppCli.CliOp.Compose(new Platform());
+
+                SelfTest.Check(report.IndexOf("--", StringComparison.Ordinal) >= 0,
+                    "a register the board does not answer for is written as absent");
+
+                SelfTest.Check(report.IndexOf("no answer", StringComparison.Ordinal) >= 0,
+                    "and named registers say so rather than reporting nought");
 
             }
 

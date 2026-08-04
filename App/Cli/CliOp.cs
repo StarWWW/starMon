@@ -484,6 +484,20 @@ namespace StarMon.AppCli {
                     i--;
                     break;
 
+                // Write down everything this machine says about itself, so a
+                // board nobody here owns can still be diagnosed. Read-only.
+                case "-probe":
+                    Cli.PrintContext(Config.Locale.Get(Config.L_CLI + "Probe"), "-Probe");
+
+                    Probe(i + 1 < args.Length ? new string[] { args[i], args[i + 1] }
+                        : new string[] { args[i] });
+
+                    // Consume the file name, where one was given
+                    if(i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+                        i++;
+
+                    break;
+
                 // Show help (usage information)
                 case "-h":
                 case "-?":

@@ -226,6 +226,7 @@ StarMon -<Arg1> [...] [-<ArgN> [...]]
 | `-Run <Task> [<Args>]` | Run a scheduled task headlessly |
 | `-Task` | Show the status of all scheduled tasks |
 | `-Task <Task>[=<Flag>]…` | Enable or disable one |
+| `-Probe [FileName]` | Write down everything this machine says about itself, as Markdown. Read-only: it asks the firmware and the Embedded Controller for values and changes neither. This is the file to attach when a board does not behave — the register dump in it is the one part that is not this build's interpretation of your machine |
 | `-SelfTest` | Run the built-in tests — touches no hardware |
 | `-?` `-H` `-Help` `-Usage` | Usage information |
 
@@ -292,7 +293,7 @@ Both are searched for, so nothing has to be configured. If either is somewhere u
 
 ### The self-test
 
-The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **425 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **469 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
 
 #### The device matrix
 
@@ -584,6 +585,7 @@ StarMon -<Arg1> [...] [-<ArgN> [...]]
 | `-Run <Görev> [<Arg>]` | Zamanlanmış bir görevi konsolsuz çalıştırır |
 | `-Task` | Bütün zamanlanmış görevlerin durumunu gösterir |
 | `-Task <Görev>[=<Bayrak>]…` | Birini etkinleştirir ya da devre dışı bırakır |
+| `-Probe [DosyaAdı]` | Bu makinenin kendisi hakkında söylediği her şeyi Markdown olarak yazar. Salt okunur: firmware'e ve Gömülü Denetleyici'ye değer sorar, ikisini de değiştirmez. Bir kart düzgün çalışmadığında eklenecek dosya budur — içindeki yazmaç dökümü, bu derlemenin makinenizi yorumlaması olmayan tek kısımdır |
 | `-SelfTest` | Yerleşik testleri çalıştırır — donanıma dokunmaz |
 | `-?` `-H` `-Help` `-Usage` | Kullanım bilgisi |
 
@@ -643,7 +645,7 @@ Betik düz .NET SDK ile çalışır — Visual Studio gerekmez. Bu projeyi başk
 
 ### Öz test
 
-Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **425 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
+Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **469 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
 
 ### Tasarım döngüsü
 

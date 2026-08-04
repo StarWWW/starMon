@@ -76,6 +76,7 @@
         <Compile Include="App\Cli\CliOp.cs"/>
         <Compile Include="App\Cli\CliOpBios.cs"/>
         <Compile Include="App\Cli\CliOpEc.cs"/>
+        <Compile Include="App\Cli\CliOpProbe.cs"/>
         <Compile Include="App\Cli\CliOpProg.cs"/>
         <Compile Include="App\Cli\CliOpTask.cs"/>
         <Compile Include="App\Service\Backlight.cs"/>

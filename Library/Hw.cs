@@ -205,9 +205,54 @@ namespace StarMon.Library {
             return null;
         }
 
+        // Whether the last attempt to take the controller lock failed.
+        //
+        // The lock is taken per register access, and a failure used to be
+        // answered with App.Error every single time. In the interface that is
+        // a modal dialog: another application holding the lock — the
+        // manufacturer's own tray program, or any hardware monitor, all of
+        // which take the same named mutex — put up one dialog per sensor per
+        // tick, for as long as it held it. The hardware report reads 256
+        // registers, so it would have produced 256.
+        //
+        // The condition is worth telling the user about once. Telling them
+        // about it several hundred times is not more information, it is a
+        // machine they cannot use.
+        private static bool EcLockReported;
+
+        // How many refusals have actually reached the user. Counted so the
+        // once-per-episode rule can be asserted rather than assumed.
+        internal static int EcLockReports { get; private set; }
+
+        internal static void ResetEcLockReports() {
+            EcLockReports = 0;
+            EcLockReported = false;
+        }
+
+        // Reports a refused lock at most once per episode, and logs every one
+        private static void ReportEcLockFailure() {
+
+            Logger.Warning("Ec", "Controller lock refused",
+                "another application is holding it");
+
+            if(EcLockReported)
+                return;
+
+            EcLockReported = true;
+            EcLockReports++;
+            App.Error("ErrEcLock");
+
+        }
+
+        // Clears the latch, so the next episode is reported again
+        private static void EcLockSucceeded() {
+            EcLockReported = false;
+        }
+
         // Runs operations while the Embedded Controller is locked for exclusive use
         public static void EcExec(Action<IEmbeddedController> callback, IEmbeddedController ec) {
             if(ec.Request(Config.EcMutexTimeout)) {
+                EcLockSucceeded();
                 try {
                     callback(ec);
                 } finally {
@@ -215,20 +260,21 @@ namespace StarMon.Library {
                 }
             }
             else {
-                App.Error("ErrEcLock");
+                ReportEcLockFailure();
             }
         }
 
         // Runs operations while the Embedded Controller is locked for exclusive use and returns a result
         public static TResult EcExec<TResult>(Func<IEmbeddedController,TResult> callback, IEmbeddedController ec) {
             if(ec.Request(Config.EcMutexTimeout)) {
+                EcLockSucceeded();
                 try {
                     return (TResult) callback(ec);
                 } finally {
                     ec.Release();
                 }
             } else {
-                App.Error("ErrEcLock");
+                ReportEcLockFailure();
                 return default(TResult);
             }
         }
