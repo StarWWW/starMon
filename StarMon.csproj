@@ -206,9 +206,13 @@
         <Compile Include="Library\LocaleData.cs"/>
         <Compile Include="Library\LocaleDataTr.cs"/>
         <Compile Include="Test\SelfTest.cs"/>
+        <Compile Include="Test\Devices\FakeBiosDevice.cs"/>
+        <Compile Include="Test\Devices\FakeEcDevice.cs"/>
+        <Compile Include="Test\Devices\DeviceCatalogue.cs"/>
         <Compile Include="Test\TestBattery.cs"/>
         <Compile Include="Test\TestConfig.cs"/>
         <Compile Include="Test\TestConv.cs"/>
+        <Compile Include="Test\TestDeviceMatrix.cs"/>
         <Compile Include="Test\TestDeviceProfile.cs"/>
         <Compile Include="Test\TestEmbeddedController.cs"/>
         <Compile Include="Test\TestFanCurve.cs"/>

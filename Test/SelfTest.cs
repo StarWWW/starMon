@@ -62,6 +62,21 @@ namespace StarMon.Test {
         private static int Skipped;
         private static readonly List<string> Skips = new List<string>();
 
+        // Expectations the code does not meet yet.
+        //
+        // A device matrix written against machines nobody here owns turns up
+        // behaviour that is wrong and not yet fixed. Deleting those checks
+        // loses the finding; leaving them failing makes every run red and
+        // teaches everyone to ignore it. So they are recorded as gaps, listed
+        // at the end, and counted apart from both passes and failures.
+        //
+        // The important half: a gap that starts holding is a *failure*. Work
+        // that lands has to retire its own marker, or the suite goes on
+        // excusing something that no longer needs excusing - and the next
+        // person reads the gap list as a description of the code and is wrong.
+        private static int Gaps;
+        private static readonly List<string> GapList = new List<string>();
+
         // Failures are printed as they happen and again at the end. A long run
         // scrolls the first occurrence off the screen, and the summary is the
         // part anyone actually reads.
@@ -80,8 +95,10 @@ namespace StarMon.Test {
             Passed = 0;
             Failed = 0;
             Skipped = 0;
+            Gaps = 0;
             Failures.Clear();
             Skips.Clear();
+            GapList.Clear();
             Section = "";
 
             Console.WriteLine("StarMon self-test");
@@ -140,6 +157,13 @@ namespace StarMon.Test {
                 Console.WriteLine();
             }
 
+            if(GapList.Count > 0) {
+                Console.WriteLine("Known gaps - expectations the code does not meet yet:");
+                foreach(string gap in GapList)
+                    Console.WriteLine("  " + gap);
+                Console.WriteLine();
+            }
+
             if(Failures.Count > 0) {
                 Console.WriteLine("Failures:");
                 foreach(string failure in Failures)
@@ -147,8 +171,10 @@ namespace StarMon.Test {
                 Console.WriteLine();
             }
 
-            Console.WriteLine("{0} passed, {1} failed, {2} skipped, {3} suite{4} in {5} ms",
-                Passed, Failed, Skipped, ran, ran == 1 ? "" : "s", total.ElapsedMilliseconds);
+            Console.WriteLine("{0} passed, {1} failed, {2} skipped, {3} known gap{4}, "
+                    + "{5} suite{6} in {7} ms",
+                Passed, Failed, Skipped, Gaps, Gaps == 1 ? "" : "s",
+                ran, ran == 1 ? "" : "s", total.ElapsedMilliseconds);
 
             if(ran == 0 && !string.IsNullOrEmpty(filter)) {
                 Console.WriteLine();
@@ -259,6 +285,31 @@ namespace StarMon.Test {
                 Console.WriteLine("         expected: " + Describe(expected));
                 Console.WriteLine("         actual:   " + Describe(actual));
             }
+        }
+
+        // Records an expectation the code is known not to meet yet.
+        //
+        // Not a pass and not a failure while it holds false. When it starts
+        // holding true, that is a failure: the work has landed and the marker
+        // has to go, or the gap list stops describing the code.
+        internal static void Gap(bool condition, string description) {
+
+            if(condition) {
+
+                Failed++;
+                string message = description
+                    + " - this now holds; replace Gap with Check";
+                Failures.Add((Section.Length > 0 ? Section + ": " : "") + message);
+                Console.WriteLine("   FIXED " + message);
+
+            } else {
+
+                Gaps++;
+                GapList.Add((Section.Length > 0 ? Section + ": " : "") + description);
+                Console.WriteLine("   GAP   " + description);
+
+            }
+
         }
 
         // Records a check that could not run in this environment. Counted
