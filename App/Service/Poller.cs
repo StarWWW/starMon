@@ -630,7 +630,11 @@ namespace StarMon.AppService {
         // are what WMI reports; the registered-trademark marks and the
         // repeated vendor name cost width in a card that has none to spare
         // and tell the reader nothing.
-        private static string Tidy(string name) {
+        // Internal rather than private so the tests can reach it. Pure string
+        // work that shows up in the interface, on a class otherwise
+        // unreachable from a test because constructing it means constructing
+        // a Platform, which means real hardware.
+        internal static string Tidy(string name) {
 
             if(string.IsNullOrEmpty(name))
                 return "";
@@ -653,7 +657,7 @@ namespace StarMon.AppService {
         // anyone who has not read them: "TNT4" is a probe, but it does not say
         // where. The known ones get the name of the part they sit on; the rest
         // keep their register label, which is at least honest about being one.
-        private static string SensorLabel(string register) {
+        internal static string SensorLabel(string register) {
 
             switch(register) {
                 case "RTMP": return Config.Locale.Get("GuiWpfSensorChipset");
@@ -671,7 +675,7 @@ namespace StarMon.AppService {
 
         }
 
-        private static string Describe(Hardware.Cpu.CpuTemperature.ThrottleFlags flags) {
+        internal static string Describe(Hardware.Cpu.CpuTemperature.ThrottleFlags flags) {
 
             bool thermal = (flags & Hardware.Cpu.CpuTemperature.ThrottleFlags.Thermal) != 0;
             bool power = (flags & Hardware.Cpu.CpuTemperature.ThrottleFlags.PowerLimit) != 0;

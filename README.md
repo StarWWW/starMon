@@ -292,7 +292,13 @@ Both are searched for, so nothing has to be configured. If either is somewhere u
 
 ### The self-test
 
-The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **332 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **425 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+
+#### The device matrix
+
+This application is developed on one laptop out of a family it claims to support, and on that laptop every compiled-in assumption is correct — which is why several of them survived. So the other machines come to the code instead: `Test/Devices` holds a controller backed by a register file, a BIOS interface that can refuse a call *or accept it and do nothing*, and a set of boards each differing from this one in a single stated way. Every scenario is drawn from a report where that difference broke something on a real machine.
+
+Expectations the code does not meet yet are recorded as **known gaps** rather than deleted or left failing. A gap is not a pass and not a failure; it is listed at the end and counted apart. When one starts holding, it fails — so work that lands has to retire its own marker, and the gap list cannot drift into describing code that has moved on.
 
 Suites are found by reflection — a class marked `[TestSuite]` runs because it exists, rather than because someone remembered to add it to a list. An optional argument narrows the run:
 
@@ -637,7 +643,7 @@ Betik düz .NET SDK ile çalışır — Visual Studio gerekmez. Bu projeyi başk
 
 ### Öz test
 
-Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **332 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
+Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **425 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
 
 ### Tasarım döngüsü
 

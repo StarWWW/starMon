@@ -218,6 +218,7 @@
         <Compile Include="Test\TestFanCurve.cs"/>
         <Compile Include="Test\TestGraph.cs"/>
         <Compile Include="Test\TestLocale.cs"/>
+        <Compile Include="Test\TestPresentation.cs"/>
         <Compile Include="Test\TestService.cs"/>
         <Compile Include="Library\OnlyOnce.cs"/>
         <Compile Include="Library\Os.cs"/>
