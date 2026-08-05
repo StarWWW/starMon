@@ -267,15 +267,50 @@ namespace StarMon.Hardware {
                     if(level.Fan2Level > top) top = level.Fan2Level;
                 }
 
+                // Whether this is a curve at all, before any of it is believed.
+                //
+                // The row count was standing in for this and does not measure
+                // it. A board answering this call returned twelve rows of
+                // which exactly one carried anything — a single level of 24
+                // at nought degrees, every other row and every temperature
+                // zero, and a fan count of one on a machine with two. Twelve
+                // rows sailed past a check for six.
+                //
+                // That answer was refused, but by luck rather than by
+                // judgement: 24 happens to fall below the plausibility floor.
+                // Had the stray byte been 30, this would have read a table
+                // "topping out at 30", found twelve rows to believe it on, and
+                // lowered the ceiling from 56 to 30 — capping the top of the
+                // user's fan curve at some three thousand rpm on fans that
+                // demonstrably reach five and a half.
+                //
+                // A curve is rows that ask for a fan speed. Padding is not.
+                int curveRows = 0;
+                foreach(BiosData.FanLevel level in table.Level)
+                    if(level.Fan1Level > 0 || level.Fan2Level > 0)
+                        curveRows++;
+
+                if(curveRows < CredibleTableRows) {
+                    FanLevelCeilingSource = "configured (the fan table had "
+                        + table.Level.Length + " rows but only " + curveRows
+                        + " asking for a fan speed, so it is not a curve)";
+                    return;
+                }
+
                 if(top < CeilingMin || top > CeilingMax) {
                     FanLevelCeilingSource = "configured (the fan table topped out at "
                         + top + ", which is not a fan level)";
                     return;
                 }
 
-                // A table that reaches higher than the configured ceiling is
-                // proof the ceiling is too low, whatever the table's length:
-                // the firmware is demonstrably driving the fans up there.
+                // Past the credibility check above, the table is a curve, and
+                // either direction can be taken on it.
+                //
+                // Raising used to be allowed on a table of any length, on the
+                // reasoning that a firmware driving the fans above the ceiling
+                // proves the ceiling too low. That reasoning needs the table
+                // to be a table: a stray byte in a buffer of padding proves
+                // nothing, and would have raised the ceiling just as readily.
                 if(top > FanLevelCeiling) {
                     FanLevelCeilingSource = "fan table, raised from " + FanLevelCeiling;
                     FanLevelCeiling = top;
@@ -290,20 +325,8 @@ namespace StarMon.Hardware {
                     return;
                 }
 
-                // Lowering is the riskier direction — it costs the user the
-                // top of their range — so it takes a table long enough to be
-                // an actual curve rather than a stub answer. The array is
-                // sized to the count the firmware reported, so its length is
-                // the number of real rows.
-                if(table.Level.Length >= CredibleTableRows) {
-                    FanLevelCeilingSource = "fan table, lowered from " + FanLevelCeiling;
-                    FanLevelCeiling = top;
-                    return;
-                }
-
-                FanLevelCeilingSource = "configured (the fan table stopped at "
-                    + top + " but had only " + table.Level.Length
-                    + " rows, too few to lower it on)";
+                FanLevelCeilingSource = "fan table, lowered from " + FanLevelCeiling;
+                FanLevelCeiling = top;
 
             } catch(Exception e) {
                 FanLevelCeilingSource = "configured (asking for the fan table failed: "

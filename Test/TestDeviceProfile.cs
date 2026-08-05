@@ -74,8 +74,37 @@ namespace StarMon.Test {
             // fake used to leave it at a fixed fourteen whatever it held.
             string stub = CeilingSourceFor(ceiling: 56, tableTop: 44, rows: 3);
             SelfTest.Check(stub.IndexOf("configured", StringComparison.Ordinal) >= 0
-                    && stub.IndexOf("too few", StringComparison.Ordinal) >= 0,
-                "a stub answer is refused, and says why");
+                    && stub.IndexOf("not a curve", StringComparison.Ordinal) >= 0,
+                "a stub answer is refused, and says why (" + stub + ")");
+
+            // The answer a real Victus 8DCF gives: twelve rows of padding with
+            // one stray level in the first. It is not a curve, and the row
+            // count — which is what the credibility check used to measure —
+            // sails past a threshold of six.
+            //
+            // The stray byte on that machine is 24, which happens to fall
+            // below the plausibility floor, so the answer was refused by luck.
+            // These use 30, which does not: with the old check this lowered
+            // the ceiling from 56 to 30 and capped the top of the user's fan
+            // curve at some three thousand rpm on fans that reach five and a
+            // half thousand.
+            string malformed = CeilingSourceForMalformedTable(strayLevel: 30);
+
+            SelfTest.Check(malformed.IndexOf("configured", StringComparison.Ordinal) >= 0,
+                "a buffer of padding with a stray level in it is not a fan table");
+
+            SelfTest.Check(malformed.IndexOf("not a curve", StringComparison.Ordinal) >= 0,
+                "and the report says that is why (" + malformed + ")");
+
+            SelfTest.Equal(56, CeilingFromMalformedTable(strayLevel: 30),
+                "so the ceiling is left where it was");
+
+            // The same shape cannot raise it either. Raising used to be
+            // allowed on a table of any length, on the reasoning that a
+            // firmware driving the fans that high proves the ceiling too low —
+            // which needs the table to be a table.
+            SelfTest.Equal(56, CeilingFromMalformedTable(strayLevel: 90),
+                "and a stray level above the ceiling does not raise it");
 
             // A firmware that refuses the call. Distinct from one that answers
             // with nothing, and worth distinguishing: a refusal names itself,
@@ -99,6 +128,25 @@ namespace StarMon.Test {
             bios.FanTable = Devices.FakeBiosDevice.DefaultFanTable(tableTop, rows);
 
             return ProbeAgainst(bios, ceiling);
+
+        }
+
+        private static string CeilingSourceForMalformedTable(byte strayLevel) {
+
+            Devices.FakeBiosDevice bios = Devices.DeviceCatalogue.HealthyBios();
+            bios.FanTable = Devices.FakeBiosDevice.MalformedFanTable(strayLevel);
+
+            return ProbeAgainst(bios, 56);
+
+        }
+
+        private static int CeilingFromMalformedTable(byte strayLevel) {
+
+            Devices.FakeBiosDevice bios = Devices.DeviceCatalogue.HealthyBios();
+            bios.FanTable = Devices.FakeBiosDevice.MalformedFanTable(strayLevel);
+
+            ProbeAgainst(bios, 56);
+            return DeviceProfile.FanLevelCeiling;
 
         }
 

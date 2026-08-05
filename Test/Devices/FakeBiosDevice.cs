@@ -131,6 +131,29 @@ namespace StarMon.Test.Devices {
             return new BiosData.FanTable(data);
 
         }
+
+        // The answer a real Victus 8DCF gives to GetFanTable.
+        //
+        // Twelve rows, of which exactly one carries anything: a level of 24 at
+        // nought degrees, every other row and every temperature zero, and a
+        // fan count of one on a machine with two fans. It is not a curve, it
+        // is a buffer with a stray byte in it — and it passed a check for six
+        // rows without difficulty.
+        //
+        // Taken from a hardware report rather than invented, because the shape
+        // of a bad answer is not something worth guessing at.
+        internal static BiosData.FanTable MalformedFanTable(byte strayLevel = 24) {
+
+            byte[] data = new byte[2 + 12 * 3];
+
+            data[0] = 1;            // fan count, on a two-fan board
+            data[1] = 12;           // level count
+            data[2] = strayLevel;   // row 0, fan 1
+                                    // everything else zero
+
+            return new BiosData.FanTable(data);
+
+        }
 #endregion
 
 #region IBios
