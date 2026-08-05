@@ -138,6 +138,96 @@ namespace StarMon.Test {
             TestFlushDropsStaleByte();
             TestFailedReadIsReported();
 
+            SelfTest.Group("Embedded Controller: the register map");
+
+            TestNoTwoRegistersShareAnAddress();
+            TestWordRegistersAreConsecutive();
+
+        }
+
+        // Two names on one address is not a harmless duplication.
+        //
+        // Enum.GetName returns the first match, so the second name becomes
+        // unreachable and every reverse lookup of that address answers with
+        // the wrong one — which is what the register dump, the hardware report
+        // and the -Ec output are all built out of. On a board being diagnosed
+        // by somebody reading those names, a wrong name is worse than no name.
+        //
+        // Two pairs shared an address here. The SMD0 block is 32 bytes, its
+        // own comments number each byte within it, and its first and last
+        // entries bracket exactly 32 addresses — so the twenty-five entries
+        // between them that did not fit were a transcription slip, which had
+        // also left 0x1D unnamed. BFCD is the high byte of a word whose low
+        // byte is BFCC, exactly as BADD is to BADC, and was given BFCC's
+        // address rather than the one after it.
+        private static void TestNoTwoRegistersShareAnAddress() {
+
+            var byAddress = new Dictionary<byte, string>();
+            var clashes = new List<string>();
+
+            foreach(EmbeddedControllerData.Register register
+                in Enum.GetValues(typeof(EmbeddedControllerData.Register))) {
+
+                byte address = (byte) register;
+                string name = register.ToString();
+
+                // GetValues returns one entry per distinct value, so a
+                // duplicate shows up as a name that is not its own enum member
+                if(name != Enum.GetName(typeof(EmbeddedControllerData.Register), register))
+                    continue;
+
+                string existing;
+                if(byAddress.TryGetValue(address, out existing))
+                    clashes.Add("0x" + address.ToString("X2") + ": "
+                        + existing + " and " + name);
+                else
+                    byAddress[address] = name;
+
+            }
+
+            SelfTest.Check(clashes.Count == 0,
+                clashes.Count == 0
+                    ? "every named register has an address of its own ("
+                        + byAddress.Count + " names)"
+                    : "sharing an address: " + string.Join("; ", clashes.ToArray()));
+
+            // The two addresses the slip had left without a name
+            SelfTest.Equal("SME9",
+                Enum.GetName(typeof(EmbeddedControllerData.Register),
+                    (EmbeddedControllerData.Register) 0x1D),
+                "0x1D is named");
+
+            SelfTest.Equal("BFCD",
+                Enum.GetName(typeof(EmbeddedControllerData.Register),
+                    (EmbeddedControllerData.Register) 0x73),
+                "0x73 is named");
+
+        }
+
+        // A word is two registers, low byte first, and the reader assembles it
+        // by asking for the register and the one after it. A pair that is not
+        // consecutive describes a word that cannot be read.
+        private static void TestWordRegistersAreConsecutive() {
+
+            string[][] pairs = {
+                new string[] { "BADC", "BADD" },
+                new string[] { "BFCC", "BFCD" },
+                new string[] { "BTPL", "BTPH" }
+            };
+
+            foreach(string[] pair in pairs) {
+
+                byte low = (byte) (EmbeddedControllerData.Register)
+                    Enum.Parse(typeof(EmbeddedControllerData.Register), pair[0]);
+                byte high = (byte) (EmbeddedControllerData.Register)
+                    Enum.Parse(typeof(EmbeddedControllerData.Register), pair[1]);
+
+                SelfTest.Equal(low + 1, (int) high,
+                    pair[1] + " is the register after " + pair[0]
+                        + " (0x" + low.ToString("X2") + ", 0x" + high.ToString("X2") + ")");
+
+            }
+
         }
 
         // A wait for a condition that never arrives has to actually wait. The

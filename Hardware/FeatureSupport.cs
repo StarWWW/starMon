@@ -18,6 +18,16 @@ namespace StarMon.Hardware {
             public string Name;       // User-facing name
             public bool Supported;    // Probe outcome
             public string Detail;     // Optional extra info (e.g. zone count)
+
+            // Set where the answer is not this machine's answer.
+            //
+            // Three capability queries are stubbed out in BiosCtl for every
+            // machine, because one board returned an error for them. The
+            // report listed the results under "hidden on this device", which
+            // is not what a stub means: they are hidden on all devices, and
+            // saying otherwise tells the reader something about their machine
+            // that is not true of it.
+            public bool NotQueried;
         }
 
         // Platform reference, set once at startup by the GUI
@@ -98,11 +108,13 @@ namespace StarMon.Hardware {
                 list.Add(new Feature { Key = "BiosTemp", Name = "BIOS temperature sensor",
                     Supported = Try(() => Hw.BiosGet(Hw.Bios.GetTemperature) > 0) });
                 list.Add(new Feature { Key = "BiosThrottle", Name = "BIOS throttling status",
-                    Supported = Try(() => p.System.GetThrottling() != BiosData.Throttling.Unknown) });
+                    Supported = Try(() => p.System.GetThrottling() != BiosData.Throttling.Unknown),
+                    NotQueried = true });
                 list.Add(new Feature { Key = "MemOc", Name = "Memory overclocking (XMP)",
                     Supported = Try(() => Hw.BiosGet<byte>(Hw.Bios.HasMemoryOverclock) != 0) });
                 list.Add(new Feature { Key = "Undervolt", Name = "Undervolt support (BIOS)",
-                    Supported = Try(() => Hw.BiosGet<byte>(Hw.Bios.HasUndervoltBios) != 0) });
+                    Supported = Try(() => Hw.BiosGet<byte>(Hw.Bios.HasUndervoltBios) != 0),
+                    NotQueried = true });
                 list.Add(new Feature { Key = "LedAnim", Name = "LED animation table",
                     Supported = Try(() => { Hw.BiosGetStruct<BiosData.AnimTable>(Hw.Bios.GetAnimTable); return true; }) });
 

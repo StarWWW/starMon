@@ -127,23 +127,69 @@ namespace StarMon.Hardware {
         // the extra key beside it — rather than ANSI. Null when setup does not
         // say. Observed: "US5 (Europe KB)" on a European machine.
         public static bool? IsIsoKeyboard {
-            get {
-                string type = Get("Keyboard Type");
-                if(type.Length == 0)
-                    return null;
+            get { return ClassifyBody(Get("Keyboard Type")); }
+        }
 
-                if(type.IndexOf("Europe", StringComparison.OrdinalIgnoreCase) >= 0
-                    || type.IndexOf("International", StringComparison.OrdinalIgnoreCase) >= 0
-                    || type.IndexOf("ISO", StringComparison.OrdinalIgnoreCase) >= 0)
+        // Whether a keyboard-type string describes an ISO body.
+        //
+        // Separated out because it is a string classification and nothing
+        // else, and because getting it wrong draws the machine's own keyboard
+        // with the wrong Enter key.
+        //
+        // The country code used to be looked for as a bare substring, so any
+        // value containing the letters "us" anywhere was read as a US layout
+        // and therefore ANSI: "Russia", "Belarus", "Austria", "Prussia". The
+        // Europe and International tests run first and mask most of that, but
+        // a value naming a country without also naming its region does not
+        // reach them. It is matched as a whole token now — HP's codes look
+        // like "US", "US5 (Europe KB)", "UK", "Japan" — so letters inside a
+        // longer word do not count.
+        internal static bool? ClassifyBody(string type) {
+
+            if(string.IsNullOrEmpty(type))
+                return null;
+
+            if(type.IndexOf("Europe", StringComparison.OrdinalIgnoreCase) >= 0
+                || type.IndexOf("International", StringComparison.OrdinalIgnoreCase) >= 0
+                || type.IndexOf("ISO", StringComparison.OrdinalIgnoreCase) >= 0)
+                return true;
+
+            // A plain US or Japanese code is an ANSI body
+            if(HasToken(type, "US") || HasToken(type, "Japan"))
+                return false;
+
+            return null;
+
+        }
+
+        // Whether a word appears in a string as its own token rather than as
+        // letters inside a longer one. HP's codes carry a trailing digit
+        // often enough ("US5") that it is treated as part of the token.
+        private static bool HasToken(string text, string word) {
+
+            int at = 0;
+
+            while((at = text.IndexOf(word, at, StringComparison.OrdinalIgnoreCase)) >= 0) {
+
+                bool leftClear = at == 0 || !char.IsLetter(text[at - 1]);
+
+                int after = at + word.Length;
+
+                // Skip a numeric suffix, so "US5" is the token "US"
+                while(after < text.Length && char.IsDigit(text[after]))
+                    after++;
+
+                bool rightClear = after >= text.Length || !char.IsLetter(text[after]);
+
+                if(leftClear && rightClear)
                     return true;
 
-                // A plain US or Japanese code is an ANSI body
-                if(type.IndexOf("US", StringComparison.OrdinalIgnoreCase) >= 0
-                    || type.IndexOf("Japan", StringComparison.OrdinalIgnoreCase) >= 0)
-                    return false;
+                at += word.Length;
 
-                return null;
             }
+
+            return false;
+
         }
 
         // Whether setup has the fans permanently spinning. Worth knowing: it

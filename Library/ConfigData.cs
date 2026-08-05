@@ -368,8 +368,27 @@ namespace StarMon.Library
         // Maximum believable percent value when reading from the Embedded Controller (used for fan rate)
         public const int MaxBelievablePercent = 100;
 
-        // Maximum believable temperature value when reading from the Embedded Controller
-        public const int MaxBelievableTemperature = 99;
+        // Highest temperature an Embedded Controller register may report and
+        // still be believed.
+        //
+        // This was 99, and 99 is inside the range a modern mobile processor
+        // actually reaches — Intel's junction limit on these parts is commonly
+        // 100. A reading above the ceiling is not clamped, it is discarded:
+        // the component keeps reporting whatever it last read below it. So a
+        // machine at 100 degrees went on showing the last figure in the
+        // nineties, and the thermal guard — whose entire job is to notice
+        // exactly that — was reading a stale cooler number.
+        //
+        // Silently discarding the high readings is the wrong direction to
+        // fail in. The ceiling exists to reject a register holding something
+        // that is not a temperature at all, and 0xFF is still rejected.
+        //
+        // 110 is what the processor-native path already used, and the comment
+        // beside it in PlatformComponent.cs named this cap as the reason:
+        // "defaults high enough to admit genuine full-load temperatures
+        // (which routinely exceed the Embedded Controller's cap)". Two
+        // different truths about the same machine in one build.
+        public const int MaxBelievableTemperature = 110;
 
         // nVidia Display Container service name
         public const string NvDisplayContainerService = "NVDisplay.ContainerLocalSystem";

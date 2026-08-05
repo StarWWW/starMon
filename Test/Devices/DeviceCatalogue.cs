@@ -114,6 +114,7 @@ namespace StarMon.Test.Devices {
             list.Add(LowCeilingBoard());
             list.Add(HighCeilingBoard());
             list.Add(FirmwareReportsNoFanTable());
+            list.Add(RunningPastAHundred());
 
             return list;
 
@@ -353,6 +354,33 @@ namespace StarMon.Test.Devices {
                 Property = "the ceiling comes from the board, and full speed reaches it",
                 Ec = HealthyEc(120),
                 Bios = bios
+            };
+
+        }
+
+        // A machine at a temperature modern mobile parts genuinely reach.
+        //
+        // The believability ceiling was 99, and a reading above the ceiling is
+        // discarded rather than clamped — so the component went on reporting
+        // the last figure it had seen in the nineties, and the thermal guard
+        // read a stale cooler number at exactly the moment it exists for.
+        internal static DeviceScenario RunningPastAHundred() {
+
+            FakeEcDevice ec = HealthyEc();
+
+            // On the processor probe and on one that is never substituted for
+            // a processor-native reading, so the register path is exercised
+            // whatever the machine running the test can do for itself
+            ec.Set(Register.CPUT, 101);
+            ec.Set(Register.RTMP, 103);
+            ec.Set(Register.TMP1, 58);
+
+            return new DeviceScenario {
+                Name = "Machine running past a hundred degrees",
+                Source = "Library/ConfigData.cs:372 against PlatformComponent.cs:380",
+                Property = "a real full-load temperature is read rather than discarded",
+                Ec = ec,
+                Bios = HealthyBios()
             };
 
         }

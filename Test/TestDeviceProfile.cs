@@ -31,6 +31,52 @@ namespace StarMon.Test {
             TestFanArraySizesToWhatItWasGiven();
             TestPublishedSensorsAreParsedOrRejected();
             TestThermalZonesConvertFromTenthsOfAKelvin();
+            TestKeyboardBodyIsReadFromTheCountryCode();
+
+        }
+
+        // Which body the deck has, from the code the firmware reports.
+        //
+        // It decides which keyboard is drawn: an ISO body has a tall Enter and
+        // a narrow left Shift with an extra key beside it, and an ANSI one does
+        // not. Getting it wrong draws somebody a keyboard that is not theirs.
+        //
+        // The country code used to be matched as a bare substring, so anything
+        // containing the letters "us" was read as a US layout: Russia, Belarus,
+        // Austria. The region tests run first and hide most of that, which is
+        // why the cases below include a country named without its region.
+        private static void TestKeyboardBodyIsReadFromTheCountryCode() {
+
+            // ISO, by region
+            SelfTest.Equal(true, HpBiosSettings.ClassifyBody("US5 (Europe KB)"),
+                "a European code is an ISO body");
+            SelfTest.Equal(true, HpBiosSettings.ClassifyBody("International"),
+                "so is an international one");
+            SelfTest.Equal(true, HpBiosSettings.ClassifyBody("ISO KB"),
+                "and one that says ISO outright");
+
+            // ANSI, by country
+            SelfTest.Equal(false, HpBiosSettings.ClassifyBody("US"),
+                "a plain US code is an ANSI body");
+            SelfTest.Equal(false, HpBiosSettings.ClassifyBody("US5"),
+                "a US code with a trailing digit likewise");
+            SelfTest.Equal(false, HpBiosSettings.ClassifyBody("Japan KB"),
+                "and a Japanese one");
+
+            // The letters us inside a longer word are not a country code
+            SelfTest.Equal(null, HpBiosSettings.ClassifyBody("Russia KB"),
+                "Russia is not read as US");
+            SelfTest.Equal(null, HpBiosSettings.ClassifyBody("Belarus"),
+                "nor is Belarus");
+            SelfTest.Equal(null, HpBiosSettings.ClassifyBody("Austria"),
+                "nor Austria");
+
+            // Nothing said means nothing concluded, so the caller can fall
+            // back to the keyboard-type enumeration rather than to a guess
+            SelfTest.Equal(null, HpBiosSettings.ClassifyBody(""),
+                "an empty value yields no verdict");
+            SelfTest.Equal(null, HpBiosSettings.ClassifyBody(null),
+                "and neither does a missing one");
 
         }
 

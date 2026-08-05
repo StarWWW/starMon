@@ -256,13 +256,36 @@ namespace StarMon.Hardware {
             sb.AppendLine();
             sb.AppendLine("UNSUPPORTED FEATURES (hidden on this device)");
             bool anyUnsupported = false;
+            bool anyStubbed = false;
             foreach(FeatureSupport.Feature f in features)
                 if(!f.Supported) {
+                    if(f.NotQueried) {
+                        anyStubbed = true;
+                        continue;
+                    }
                     anyUnsupported = true;
                     sb.AppendLine("  ✗ " + f.Name);
                 }
             if(!anyUnsupported)
                 sb.AppendLine("  (none — everything is supported)");
+
+            // Kept out of the list above rather than listed in it.
+            //
+            // These read as unsupported because this build does not make the
+            // call, not because the machine declined it — the query was
+            // stubbed out for everyone after one board answered with an error.
+            // Listing them under "hidden on this device" told every reader
+            // something about their own machine that was not true of it.
+            if(anyStubbed) {
+
+                sb.AppendLine();
+                sb.AppendLine("NOT ASKED (this build does not make the call, on any machine)");
+
+                foreach(FeatureSupport.Feature f in features)
+                    if(!f.Supported && f.NotQueried)
+                        sb.AppendLine("  ? " + f.Name);
+
+            }
 
             sb.AppendLine();
 

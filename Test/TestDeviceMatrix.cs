@@ -46,6 +46,7 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: readings that are not temperatures");
             TestSilentControllerYieldsNoReading();
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
+            TestAHundredDegreesIsARealTemperature();
 
             SelfTest.Group("Device matrix: writes that do not take");
             TestRefusedFanWriteIsNotRetriedForever();
@@ -434,6 +435,48 @@ namespace StarMon.Test {
 
                 SelfTest.Check(highest > 0 && highest < 84,
                     "so the hottest used reading is a real one (" + highest + " C)");
+
+            }
+
+        }
+
+        // The believability ceiling has to admit temperatures the hardware
+        // actually reaches. A reading above it is discarded, not clamped, so
+        // the component keeps reporting the last cooler figure it saw — and
+        // the thermal guard, whose whole job is to notice a machine getting
+        // too hot, reads that stale number instead.
+        private static void TestAHundredDegreesIsARealTemperature() {
+
+            DeviceScenario board = DeviceCatalogue.RunningPastAHundred();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                for(int i = 0; i < 3; i++)
+                    platform.UpdateTemperature(false);
+
+                // Asserted on the chipset probe rather than the processor one:
+                // CPUT is replaced by the processor's own MSR reading wherever
+                // that is available, which on the machine running these tests
+                // it is, so it would be measuring the wrong path.
+                int hot = -1;
+                for(int i = 0; i < platform.Temperature.Length; i++)
+                    if(platform.Temperature[i].GetName() == "RTMP")
+                        hot = platform.Temperature[i].GetValue();
+
+                SelfTest.Equal(103, hot,
+                    "a register reading of 103 C is kept rather than discarded");
+
+                // Whichever probe the board reports it through, the hottest
+                // reading has to be able to exceed a hundred at all
+                SelfTest.Check(Config.MaxBelievableTemperature >= 105,
+                    "the ceiling admits a full-load mobile processor ("
+                        + Config.MaxBelievableTemperature + " C)");
+
+                // And it still rejects a register that is not a temperature
+                SelfTest.Check(Config.MaxBelievableTemperature < 255,
+                    "while still rejecting a register holding something else");
 
             }
 

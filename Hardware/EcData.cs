@@ -1,4 +1,4 @@
-﻿// StarMon: hardware monitoring and control
+// StarMon: hardware monitoring and control
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
 using System;
@@ -90,31 +90,31 @@ namespace StarMon.Hardware.Ec {
             SMAD = 0x02,
             SMCM = 0x03,
             SMD0 = 0x04,  // SMD0 01/32
-            SMD1 = 0x04,  // SMD0 02/32
-            SMD2 = 0x05,  // SMD0 03/32
-            SMD3 = 0x06,  // SMD0 04/32
-            SMD4 = 0x07,  // SMD0 05/32
-            SMD5 = 0x08,  // SMD0 06/32
-            SMD6 = 0x09,  // SMD0 07/32
-            SMD7 = 0x0A,  // SMD0 08/32
-            SMD8 = 0x0B,  // SMD0 09/32
-            SMD9 = 0x0C,  // SMD0 10/32
-            SMDA = 0x0D,  // SMD0 11/32
-            SMDB = 0x0E,  // SMD0 12/32
-            SMDC = 0x0F,  // SMD0 13/32
-            SMDD = 0x10,  // SMD0 14/32
-            SMDE = 0x11,  // SMD0 15/32
-            SMDF = 0x12,  // SMD0 16/32
-            SME0 = 0x13,  // SMD0 17/32
-            SME1 = 0x14,  // SMD0 18/32
-            SME2 = 0x15,  // SMD0 19/32
-            SME3 = 0x16,  // SMD0 20/32
-            SME4 = 0x17,  // SMD0 21/32
-            SME5 = 0x18,  // SMD0 22/32
-            SME6 = 0x19,  // SMD0 23/32
-            SME7 = 0x1A,  // SMD0 24/32
-            SME8 = 0x1B,  // SMD0 25/32
-            SME9 = 0x1C,  // SMD0 26/32
+            SMD1 = 0x05,  // SMD0 02/32
+            SMD2 = 0x06,  // SMD0 03/32
+            SMD3 = 0x07,  // SMD0 04/32
+            SMD4 = 0x08,  // SMD0 05/32
+            SMD5 = 0x09,  // SMD0 06/32
+            SMD6 = 0x0A,  // SMD0 07/32
+            SMD7 = 0x0B,  // SMD0 08/32
+            SMD8 = 0x0C,  // SMD0 09/32
+            SMD9 = 0x0D,  // SMD0 10/32
+            SMDA = 0x0E,  // SMD0 11/32
+            SMDB = 0x0F,  // SMD0 12/32
+            SMDC = 0x10,  // SMD0 13/32
+            SMDD = 0x11,  // SMD0 14/32
+            SMDE = 0x12,  // SMD0 15/32
+            SMDF = 0x13,  // SMD0 16/32
+            SME0 = 0x14,  // SMD0 17/32
+            SME1 = 0x15,  // SMD0 18/32
+            SME2 = 0x16,  // SMD0 19/32
+            SME3 = 0x17,  // SMD0 20/32
+            SME4 = 0x18,  // SMD0 21/32
+            SME5 = 0x19,  // SMD0 22/32
+            SME6 = 0x1A,  // SMD0 23/32
+            SME7 = 0x1B,  // SMD0 24/32
+            SME8 = 0x1C,  // SMD0 25/32
+            SME9 = 0x1D,  // SMD0 26/32
             SMEA = 0x1E,  // SMD0 27/32
             SMEB = 0x1F,  // SMD0 28/32
             SMEC = 0x20,  // SMD0 29/32
@@ -123,8 +123,8 @@ namespace StarMon.Hardware.Ec {
             SMEF = 0x23,  // SMD0 32/32
             BCNT = 0x24,
             SMAA = 0x25,
-            BTPL = 0x30,  // Word together with BTPL
-            BTPH = 0x31,  // Word together with BTPH
+            BTPL = 0x30,  // Word together with BTPH
+            BTPH = 0x31,  // Word together with BTPL
             BCLC = 0x32,
             ECL1 = 0x37,
             ECL2 = 0x38,
@@ -152,7 +152,7 @@ namespace StarMon.Hardware.Ec {
             BADC = 0x70,  // Word together with BADD
             BADD = 0x71,  // Word together with BADC
             BFCC = 0x72,  // Word together with BFCD
-            BFCD = 0x72,  // Word together with BFCC
+            BFCD = 0x73,  // Word together with BFCC
             BVLB = 0x74,
             BVHB = 0x75,
             BDVO = 0x76,
