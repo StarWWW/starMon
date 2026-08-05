@@ -435,8 +435,34 @@ namespace StarMon.Library {
             // Add logon trigger to definition, if requested
             TaskSchd.ITrigger trigger = null;
             if(logonTrigger) {
+
                 trigger = definition.Triggers.Create(TaskSchd.TriggerType.Logon);
                 trigger.Enabled = true;
+
+                // Whose logon.
+                //
+                // A logon trigger with no user fires for every account on the
+                // machine, while the principal stays whoever registered it. On
+                // a shared machine that means a second user logging in starts
+                // a copy of StarMon as the first user - into a session they
+                // are not in, holding the machine-wide single-instance lock
+                // the person actually sitting there then cannot take.
+                //
+                // This is a per-user preference: it was turned on from one
+                // account's settings page, and it belongs to that account.
+                try {
+
+                    TaskSchd.ILogonTrigger logon = trigger as TaskSchd.ILogonTrigger;
+
+                    if(logon != null)
+                        logon.UserId = System.Security.Principal.WindowsIdentity
+                            .GetCurrent().Name;
+
+                } catch(Exception e) {
+                    Logger.Warning("Os", "Could not pin the logon trigger to this user",
+                        e.Message);
+                }
+
             }
 
             // Open the specified task folder
@@ -498,6 +524,30 @@ namespace StarMon.Library {
         }
 
         // Checks if a scheduled task exists
+        // What a registered task actually runs, or an empty string where that
+        // could not be established. An unreadable definition is not evidence
+        // the task is wrong, so it is treated as agreeing.
+        private static string TaskCommand(TaskSchd.IRegisteredTask task) {
+
+            try {
+
+                TaskSchd.IActionCollection actions = task.Definition.Actions;
+
+                for(int i = 1; i <= actions.Count; i++) {
+
+                    TaskSchd.IExecAction exec = actions[i] as TaskSchd.IExecAction;
+
+                    if(exec != null && !string.IsNullOrEmpty(exec.Path))
+                        return exec.Path.Trim('"');
+
+                }
+
+            } catch { }
+
+            return "";
+
+        }
+
         public static bool HasTask(string folderName, string taskName) {
 
             // Set up a Task Service instance and connect to it
@@ -511,7 +561,32 @@ namespace StarMon.Library {
             try {
 
                 // Attempt to retrieve the task details
-                folder.GetTask(taskName);
+                TaskSchd.IRegisteredTask task = folder.GetTask(taskName);
+
+                // A task naming a different executable is not this one.
+                //
+                // The path is written into the task when it is registered, and
+                // nothing revalidates it. Move the folder, or copy the
+                // application somewhere else and run it from there, and the
+                // task goes on pointing at where it used to be — while the
+                // settings page, which asked only whether a task by that name
+                // existed, went on reporting "Start with Windows" as on. The
+                // switch said yes and the machine did nothing.
+                //
+                // Reported as absent instead, so the switch tells the truth
+                // and turning it on again rewrites the path.
+                string path = TaskCommand(task);
+
+                if(path.Length > 0 && !string.Equals(path, Config.AppFile,
+                    StringComparison.OrdinalIgnoreCase)) {
+
+                    Logger.Warning("Os", "Scheduled task points elsewhere",
+                        path + " rather than " + Config.AppFile);
+
+                    return false;
+
+                }
+
                 return true;
 
             } catch {

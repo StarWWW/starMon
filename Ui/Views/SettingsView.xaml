@@ -196,14 +196,22 @@
                                     Minimum="25" Maximum="120" Value="{Binding FanLevelCeiling}"
                                     ToolTip="{loc:Str GuiWpfTipCeiling}"/>
 
-                            <DockPanel Margin="0,10,0,0">
-                                <TextBlock Style="{StaticResource NumberLabel}"
-                                           Text="{Binding FanLevelFloor, StringFormat={}{0:0}}"/>
-                                <TextBlock Text="{loc:Str GuiWpfFanFloor}" Style="{StaticResource Caption}"
-                                           VerticalAlignment="Center"/>
-                            </DockPanel>
-                            <Slider Style="{StaticResource NumberSlider}"
-                                    Minimum="0" Maximum="60" Value="{Binding FanLevelFloor}" ToolTip="{loc:Str GuiWpfTipFanFloor}"/>
+            <!-- The minimum fan level had a slider here, and moving it did
+                 nothing at all: the value is written to the configuration
+                 file, read back, and shown in the hardware report, and
+                 nothing in the application clamps a fan level to it. The
+                 constant-speed sliders run from zero to the ceiling.
+
+                 Making it work would mean deciding what a level below the
+                 minimum should become, and the minimum itself is a compiled
+                 constant no board has been asked to confirm — so the fans
+                 would be driven by a number nobody has checked. A control
+                 that does nothing is worse than no control; a control that
+                 does something arbitrary to the cooling is worse than both.
+
+                 The value stays in the configuration file, so existing files
+                 keep working, and it stays in the hardware report where it
+                 describes the range rather than promising to enforce it. -->
 
                             <DockPanel Margin="0,10,0,0">
                                 <TextBlock Style="{StaticResource NumberLabel}"
