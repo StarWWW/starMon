@@ -80,6 +80,9 @@ namespace StarMon.Test {
             private readonly int PreviousWaitTimeout;
             private readonly bool PreviousProbed;
 
+            private readonly System.Collections.Generic.Dictionary<string,
+                Config.TemperatureSensorData> PreviousSensors;
+
             internal readonly DeviceScenario Scenario;
 
             internal Installed(DeviceScenario scenario) {
@@ -92,6 +95,17 @@ namespace StarMon.Test {
                 PreviousAutoDetect = Config.FanLevelAutoDetect;
                 PreviousWaitTimeout = Config.EcWaitTimeoutMs;
                 PreviousProbed = DeviceProfile.Probed;
+                PreviousSensors = Config.TemperatureSensor;
+
+                // The scenarios describe boards, not the machine running the
+                // tests. A configuration file beside the test host replaces
+                // the sensor set wholesale, so without this a user who had
+                // opted a probe back into the fan decision would see these
+                // fail — reporting a defect in the application when what
+                // changed was their own preference.
+                Config.TemperatureSensor =
+                    new System.Collections.Generic.Dictionary<string,
+                        Config.TemperatureSensorData>(Config.TemperatureSensorShipped);
 
                 // A register the board does not carry costs a full wait before
                 // the read gives up, and these scenarios are largely made of
@@ -140,6 +154,7 @@ namespace StarMon.Test {
                 Config.FanLevelAutoDetect = PreviousAutoDetect;
                 Config.EcWaitTimeoutMs = PreviousWaitTimeout;
                 SetProfile("Probed", PreviousProbed);
+                Config.TemperatureSensor = PreviousSensors;
                 DeviceProfile.Attach(null);
             }
 

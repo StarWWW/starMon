@@ -26,6 +26,76 @@ namespace StarMon.Test {
             TestThermalThresholdsMakeSense();
             TestFanLevelRange();
             TestTheLogSizeSliderReachesItsOwnMaximum();
+            TestASilentFileDoesNotOverrideAShippedDecision();
+
+        }
+
+        // A configuration file that says nothing about a sensor must not be
+        // read as saying yes.
+        //
+        // Found by comparing what a running application wrote back against
+        // what this build ships. The four auxiliary probes are kept out of the
+        // hottest-reading check here, because an unconnected channel on a
+        // given board still answers with a believable temperature that never
+        // moves — and every machine with a configuration file already on disk
+        // listed those probes without a Use attribute. The loader started the
+        // flag at true, a missing attribute threw, the throw was swallowed,
+        // and true stood: the decision was undone on load. The writer only
+        // emits the attribute when it is false, so it was undone again on
+        // save, and nothing in the file showed it had happened.
+        //
+        // An explicit value in the file is the user's and is kept. Silence is
+        // not an answer, and now takes this build's.
+        private static void TestASilentFileDoesNotOverrideAShippedDecision() {
+
+            // Asserted against what this build ships rather than against what
+            // is in force: a configuration file sitting beside the test host
+            // replaces the second, and these are statements about the first.
+            foreach(string name in new string[] { "TNT2", "TNT3", "TNT4", "TNT5" }) {
+
+                Config.TemperatureSensorData shipped;
+
+                SelfTest.Check(Config.TemperatureSensorShipped
+                        .TryGetValue(name, out shipped),
+                    name + " is one of the shipped sensors");
+
+                if(!Config.TemperatureSensorShipped.TryGetValue(name, out shipped))
+                    continue;
+
+                SelfTest.Check(!shipped.Use,
+                    name + " is shipped kept out of the hottest-reading check");
+
+                // The loader's answer for a file that does not mention it
+                SelfTest.Equal(shipped.Use, DefaultUseFor(name),
+                    "and a file silent about " + name + " gets that answer");
+
+            }
+
+            // The named probes stay in the check, so the fix did not simply
+            // switch everything off
+            foreach(string name in new string[] { "CPUT", "GPTM" }) {
+
+                SelfTest.Check(DefaultUseFor(name),
+                    name + " is still used for the hottest reading");
+
+            }
+
+            // A probe somebody added by hand is acted on rather than ignored:
+            // adding one and having it quietly do nothing would be a stranger
+            // answer than using it
+            SelfTest.Check(DefaultUseFor("SomethingNobodyShips"),
+                "a sensor this build does not know is used");
+
+        }
+
+        // The loader's default for a sensor the file does not have an opinion
+        // about. Private to Config, and the point of the test is what it
+        // answers, so it is reached the same way the loader reaches it.
+        private static bool DefaultUseFor(string name) {
+
+            return (bool) typeof(Config)
+                .GetMethod("DefaultUseFor", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, new object[] { name });
 
         }
 

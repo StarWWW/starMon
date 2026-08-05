@@ -599,6 +599,18 @@ namespace StarMon.Library
         // Maximum number of temperature sensors
         public const int TemperatureSensorMax = 9;
 
+        // What this build ships, kept apart from what is in force.
+        //
+        // TemperatureSensor above is replaced wholesale when a configuration
+        // file defines sensors, so once one has been loaded there is no longer
+        // anything to answer "what would this build have done here". That
+        // question has to stay answerable: a file that is silent about a
+        // sensor takes the shipped decision, and working that out by consulting
+        // the dictionary the file just replaced is circular.
+        public static readonly Dictionary<string, TemperatureSensorData>
+            TemperatureSensorShipped =
+                new Dictionary<string, TemperatureSensorData>(TemperatureSensor);
+
         // Timestamp format in fan program status messages
         public const string TimestampFormat = "HH:mm:ss";
 
@@ -675,8 +687,30 @@ namespace StarMon.Library
         private const string XmlElementConfig = "Config";
         private const string XmlElementKeyCustomAction = "KeyCustomAction";
 
-        // Configuration XML node prefixes
-        private static string XmlPrefix = AppName + "/" + XmlElementConfig + "/"; // Must end with a slash
+        // Configuration XML node prefixes.
+        //
+        // Rooted at the brand, which is a constant, rather than at the
+        // assembly name, which is not.
+        //
+        // The configuration file is rooted at <StarMon>, and every path into
+        // it was built from typeof(App).Assembly.GetName().Name. That is
+        // "StarMon" for the shipping build and the two agree, so this was
+        // invisible — until the same sources are built under another name,
+        // which is exactly what the test host is: it looked for
+        // StarMonTest/Config/... in a file rooted <StarMon>, matched nothing,
+        // and fell back to the compiled defaults for every single setting.
+        //
+        // No error, no log line, nothing to see. The test host has never been
+        // able to read a configuration file, so any check that believed it was
+        // exercising a load was reading the defaults and agreeing with itself.
+        // Found while trying to prove that a file which says nothing about a
+        // sensor no longer overrides what this build ships — the proof failed
+        // to fail when it should have, which is how this turned up.
+        //
+        // The same trap is live in production, if quieter: renaming the
+        // executable would silently orphan every existing configuration file
+        // rather than reporting anything.
+        private static string XmlPrefix = AppBrand + "/" + XmlElementConfig + "/"; // Must end with a slash
         private static string XmlPrefixColorPresets = XmlPrefix + XmlElementColorPresets + "/"; // Slash
         private static string XmlPrefixColorPreset = XmlPrefixColorPresets + XmlElementColorPreset; // No slash
         private static string XmlPrefixFanPrograms = XmlPrefix + XmlElementFanPrograms + "/"; // Slash

@@ -207,6 +207,21 @@ namespace StarMon.Library {
 
         }
 
+        // Whether this build uses a given sensor for the hottest-reading
+        // check, for a configuration file that does not say.
+        //
+        // A name this build does not know is used: it is a probe somebody
+        // added by hand, and adding one and having it ignored would be a
+        // stranger answer than acting on it.
+        private static bool DefaultUseFor(string name) {
+
+            TemperatureSensorData shipped;
+
+            return !TemperatureSensorShipped.TryGetValue(name, out shipped)
+                || shipped.Use;
+
+        }
+
         // Loads the configuration data from the XML file
         public static void Load() {
 
@@ -503,11 +518,43 @@ namespace StarMon.Library {
                             if(TemperatureSensorXml.Count >= TemperatureSensorMax)
                                 break;
 
-                            // Set the optional use flag
-                            // based on the XML attribute
-                            bool use = true;
+                            // Set the optional use flag based on the XML
+                            // attribute, or on what this build ships where the
+                            // file does not say.
+                            //
+                            // The absence of the attribute is not the user
+                            // saying yes. It used to be read as one: the flag
+                            // started at true, a missing attribute threw, the
+                            // throw was swallowed, and true stood.
+                            //
+                            // That quietly undid a decision this build makes.
+                            // The four auxiliary probes are shipped kept out
+                            // of the fan and thermal-guard decision, because a
+                            // channel that is unconnected on a given board
+                            // still answers with a believable temperature that
+                            // never moves — the most reported failure there
+                            // is. Every machine with a configuration file
+                            // already on disk listed them without a Use
+                            // attribute, so all four were read back as used,
+                            // and the writer only emits the attribute when it
+                            // is false: the change was undone on load, undone
+                            // again on save, and nothing in the file showed it
+                            // had happened.
+                            //
+                            // A sensor the file says nothing about now takes
+                            // this build's answer. One the file has an opinion
+                            // about keeps it, either way.
+                            bool use = DefaultUseFor(
+                                node.Attributes[XmlAttrTemperatureSensorName].Value);
+
                             try {
-                                Conv.GetBool(node.Attributes[XmlAttrTemperatureSensorUse].Value, out use);
+
+                                System.Xml.XmlAttribute attribute =
+                                    node.Attributes[XmlAttrTemperatureSensorUse];
+
+                                if(attribute != null)
+                                    Conv.GetBool(attribute.Value, out use);
+
                             } catch {  }
 
                             // Check for Embedded Controller sensor source
