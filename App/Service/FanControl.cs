@@ -191,6 +191,29 @@ namespace StarMon.AppService {
         // headroom. Several models — this Victus among them — report no
         // support at all, and on those the call is skipped rather than made
         // and silently ignored, so the interface can say so.
+        // Hands the fans back to the firmware, in the order that leaves no
+        // override outliving the mode it was applied under.
+        //
+        // Takes the array rather than the platform so the sequence can be
+        // recorded and asserted: what matters here is not the end state of any
+        // one toggle but that all three come off, and that they come off
+        // before anything else is decided.
+        //
+        // Each step is separate and each is allowed to fail. A board that
+        // refuses one of these refuses it; stopping at the first refusal would
+        // leave the rest of the state exactly as it was, which is the outcome
+        // being avoided.
+        public static void ReleaseToFirmware(IFanArray fans) {
+
+            if(fans == null)
+                return;
+
+            try { fans.SetOff(false); } catch { }
+            try { fans.SetMax(false); } catch { }
+            try { fans.SetManual(false); } catch { }
+
+        }
+
         public static bool ApplyGpuPower(Platform platform, GpuPower level) {
 
             try {

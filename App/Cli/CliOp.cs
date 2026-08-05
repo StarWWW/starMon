@@ -90,7 +90,7 @@ namespace StarMon.AppCli {
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
-                    if(++i == args.Length || args[i].StartsWith("-")) {
+                    if(++i == args.Length || args[i].StartsWith("-", StringComparison.Ordinal)) {
 
                         // Run all the operations that do not make any changes
                         Loop(new string[] {
@@ -343,7 +343,7 @@ namespace StarMon.AppCli {
 
                         // The loop will continue until there are no more arguments
                         // or a context switch is encountered, but always runs at least once
-                        } while(++i < args.Length && !args[i].StartsWith("-"));
+                        } while(++i < args.Length && !args[i].StartsWith("-", StringComparison.Ordinal));
                     }
 
                     // Point the iterator to the next context argument, if any
@@ -366,7 +366,7 @@ namespace StarMon.AppCli {
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
-                    if(++i == args.Length || args[i].StartsWith("-"))
+                    if(++i == args.Length || args[i].StartsWith("-", StringComparison.Ordinal))
 
                         // Just output all register values in a table form
                         EcGetTable();
@@ -397,7 +397,7 @@ namespace StarMon.AppCli {
 
                     // The loop will continue until there are no more arguments
                     // or a context switch is encountered but always runs at least once
-                    } while(++i < args.Length && !args[i].StartsWith("-"));
+                    } while(++i < args.Length && !args[i].StartsWith("-", StringComparison.Ordinal));
 
                     // Point the iterator to the next context argument, if any
                     i--;
@@ -418,7 +418,7 @@ namespace StarMon.AppCli {
 
                     // Check if the next argument might be a filename to save to
                     string filename = null;
-                    if(++i < args.Length && !args[i].StartsWith("-"))
+                    if(++i < args.Length && !args[i].StartsWith("-", StringComparison.Ordinal))
                         filename = args[i];
 
                     // If the next argument was not a filename
@@ -436,7 +436,7 @@ namespace StarMon.AppCli {
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
-                    if(++i == args.Length || args[i].StartsWith("-"))
+                    if(++i == args.Length || args[i].StartsWith("-", StringComparison.Ordinal))
 
                         // List all available fan control programs
                         ProgList();
@@ -459,7 +459,7 @@ namespace StarMon.AppCli {
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
-                    if(++i == args.Length || args[i].StartsWith("-")) {
+                    if(++i == args.Length || args[i].StartsWith("-", StringComparison.Ordinal)) {
 
                         // Check the status of all tasks
                         Loop(new string[] {
@@ -545,7 +545,7 @@ namespace StarMon.AppCli {
 
                         // The loop will continue until there are no more arguments
                         // or a context switch is encountered, but always runs at least once
-                        } while(++i < args.Length && !args[i].StartsWith("-"));
+                        } while(++i < args.Length && !args[i].StartsWith("-", StringComparison.Ordinal));
                     }
 
                     // Point the iterator to the next context argument, if any

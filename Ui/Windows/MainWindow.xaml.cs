@@ -43,6 +43,68 @@ namespace StarMon.Ui.Windows {
             // handle.
             this.SourceInitialized += OnSourceInitialized;
 
+            FitToScreen();
+
+        }
+
+        // The size the interface is drawn at, before any scaling
+        private const double DesignWidth = 1000;
+        private const double DesignHeight = 760;
+
+        // Keeps the window inside the desktop it is opening on.
+        //
+        // The design size is in device-independent units, so on a display at
+        // 150 % it asks for 1500x1140 physical pixels — and a 1920x1080
+        // desktop has around 1040 of usable height once the taskbar has its
+        // share. The window used to be pinned to exactly the design size in
+        // both directions, so the bottom of every page was simply off the
+        // screen with no way to reach it.
+        //
+        // SystemParameters gives the work area in the same units the window is
+        // sized in, so no conversion is needed here: the scaling is already
+        // accounted for on both sides.
+        private void FitToScreen() {
+
+            try {
+
+                Size size = FitTo(
+                    SystemParameters.WorkArea.Width,
+                    SystemParameters.WorkArea.Height,
+                    this.MinWidth, this.MinHeight);
+
+                if(size.IsEmpty)
+                    return;
+
+                this.Width = size.Width;
+                this.Height = size.Height;
+
+            } catch { }
+
+        }
+
+        // The size to open at, given the room available.
+        //
+        // Separated from the window so the arithmetic can be checked against
+        // the displays that broke it — a 1366x768 panel, and a 1080p one at
+        // 150 % — without opening a window on each of them.
+        internal static Size FitTo(double workWidth, double workHeight,
+            double minWidth, double minHeight) {
+
+            if(workWidth <= 0 || workHeight <= 0)
+                return Size.Empty;
+
+            // A margin, so the window does not sit corner to corner against
+            // the edges of the work area
+            const double Margin = 16;
+
+            // Never larger than the design size, never larger than the room
+            // there is, and never below the minimum the window declares —
+            // in that order, because a window smaller than its own minimum is
+            // resized back up by WPF and would overflow again.
+            return new Size(
+                Math.Min(DesignWidth, Math.Max(minWidth, workWidth - Margin)),
+                Math.Min(DesignHeight, Math.Max(minHeight, workHeight - Margin)));
+
         }
 
         public ShellView View { get { return this.Shell; } }

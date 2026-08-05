@@ -25,6 +25,37 @@ namespace StarMon.Test {
             TestMutexTimeoutCoversWorstCase();
             TestThermalThresholdsMakeSense();
             TestFanLevelRange();
+            TestTheLogSizeSliderReachesItsOwnMaximum();
+
+        }
+
+        // The top of a slider has to be a position that sticks.
+        //
+        // The log size is stored in kilobytes and was read back through a
+        // word, so the slider's own maximum of 64 MB — 65536 kilobytes — was
+        // one past what a ushort holds. The parse threw, the reader swallowed
+        // it and reported failure, and the setting reverted to the compiled
+        // 4 MB on the next launch: saved correctly, discarded on load, with
+        // nothing in the log to say so.
+        private static void TestTheLogSizeSliderReachesItsOwnMaximum() {
+
+            SelfTest.Check(Config.LogFileMaxKilobytes > ushort.MaxValue,
+                "the largest log size does not fit in a word ("
+                    + Config.LogFileMaxKilobytes + " KB), so it is not read as one");
+
+            // The value the settings page writes at the top of its range
+            SelfTest.Equal(64u * 1024u, Config.LogFileMaxKilobytes,
+                "and it is the 64 MB the slider offers");
+
+            // Still a sane figure: the rotation holds the file in memory to
+            // trim it, so this is a bound and not just a wide type
+            SelfTest.Check(Config.LogFileMaxKilobytes <= 1024 * 1024,
+                "while staying inside what can be rotated in memory");
+
+            SelfTest.Check(Config.LogFileMaxBytes > 0
+                && Config.LogFileMaxBytes <= (int) Config.LogFileMaxKilobytes * 1024,
+                "and the compiled default is inside its own bound ("
+                    + (Config.LogFileMaxBytes / 1024) + " KB)");
 
         }
 

@@ -677,7 +677,7 @@ namespace StarMon.AppService {
                 default:
                     // TNT2 … TNT5 are the board's spare probes, numbered as
                     // the firmware numbers them so two machines can be compared
-                    return register != null && register.StartsWith("TNT")
+                    return register != null && register.StartsWith("TNT", StringComparison.Ordinal)
                         ? Config.Locale.Get("GuiWpfSensorProbe") + " " + register.Substring(3)
                         : register;
             }

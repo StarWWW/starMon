@@ -218,9 +218,27 @@ namespace StarMon {
                 // since that's the end of it
                 Cli.RestorePrompt();
 
-            // Running as a Windows Forms (GUI) application
-            if(GuiTray.Context != null && GuiTray.Context.Tray != null)
-                GuiTray.Context.Tray.Dispose();
+            // Running as a Windows Forms (GUI) application.
+            //
+            // The whole shutdown, not just the tray icon. Environment.Exit
+            // never returns to Main, so tray.Shutdown() there did not run on
+            // this path — and this is the path taken when GuiCloseWindowExit
+            // is set and the user clicks the window's close button. The fan
+            // program was left running, the hotkey and the suspend/resume
+            // notification were left registered, and the fans were left
+            // wherever they had last been set. The tray menu's own Exit went
+            // through Application.Current.Shutdown() and unwound correctly, so
+            // the two ways of quitting did different things.
+            //
+            // Shutdown is written to be safe to call twice: it stops a stopped
+            // timer, disposes a disposed icon and unsubscribes handlers that
+            // are already gone.
+            if(GuiTray.Context != null)
+                try {
+                    GuiTray.Context.Shutdown();
+                } catch(Exception shutdown) {
+                    Logger.Error("App", "Shutdown failed on exit", shutdown.Message);
+                }
 
             System.Environment.Exit((int) code);
 

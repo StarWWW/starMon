@@ -48,6 +48,9 @@ namespace StarMon.Test {
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
             TestAHundredDegreesIsARealTemperature();
 
+            SelfTest.Group("Device matrix: leaving the machine as it was found");
+            TestExitHandsTheFansBack();
+
             SelfTest.Group("Device matrix: writes that do not take");
             TestRefusedFanWriteIsNotRetriedForever();
             TestIgnoredFanWriteIsIndistinguishable();
@@ -477,6 +480,74 @@ namespace StarMon.Test {
                 // And it still rejects a register that is not a temperature
                 SelfTest.Check(Config.MaxBelievableTemperature < 255,
                     "while still rejecting a register holding something else");
+
+            }
+
+        }
+
+        // Quitting has to put the machine back.
+        //
+        // Nothing on any exit path did. Quitting with the fans switched off
+        // left them off; quitting while thermal protection had them pinned at
+        // maximum left them there. The controller's own failsafe countdown was
+        // the only recovery, and it governs the manual level rather than the
+        // off switch or the maximum toggle - and the panic path zeroes it
+        // deliberately.
+        private static void TestExitHandsTheFansBack() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                // Leave the machine in the state that used to survive a quit
+                platform.Fans.SetOff(true);
+                platform.Fans.SetMax(true);
+                platform.Fans.SetManual(true);
+
+                board.Bios.WriteLog.Clear();
+                board.Ec.ResetCounts();
+
+                StarMon.AppService.FanControl.ReleaseToFirmware(platform.Fans);
+
+                SelfTest.Check(!platform.Fans.GetOff(),
+                    "the fans are switched back on");
+
+                SelfTest.Check(!platform.Fans.GetMax(),
+                    "the maximum override is lifted");
+
+                SelfTest.Check(!platform.Fans.GetManual(),
+                    "and manual control is handed back");
+
+            }
+
+            // A board that refuses one of the three still gets the other two.
+            // Stopping at the first refusal would leave the rest of the state
+            // exactly as it was, which is the outcome being avoided.
+            DeviceScenario awkward = DeviceCatalogue.Reference();
+            awkward.Bios.Refuse("SetMaxFan");
+
+            using(new Installed(awkward)) {
+
+                Platform platform = new Platform();
+
+                platform.Fans.SetOff(true);
+                platform.Fans.SetManual(true);
+
+                string failure = null;
+                try {
+                    StarMon.AppService.FanControl.ReleaseToFirmware(platform.Fans);
+                } catch(Exception e) {
+                    failure = e.GetType().Name;
+                }
+
+                SelfTest.Check(failure == null,
+                    "a refused step does not abandon the rest"
+                        + (failure == null ? "" : " - " + failure));
+
+                SelfTest.Check(!platform.Fans.GetOff() && !platform.Fans.GetManual(),
+                    "and the steps either side of it still happen");
 
             }
 

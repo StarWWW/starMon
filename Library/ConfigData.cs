@@ -336,6 +336,14 @@ namespace StarMon.Library
         // Size at which the log file is rolled over to a single backup [bytes]
         public static int LogFileMaxBytes = 4 * 1024 * 1024;
 
+        // The largest the log file may be set to, in kilobytes.
+        //
+        // Matches the top of the slider on the settings page, in the unit the
+        // configuration file stores. A value above this in a hand-edited file
+        // is refused rather than accepted, since the rotation has to keep the
+        // whole file in memory to trim it.
+        public const uint LogFileMaxKilobytes = 64 * 1024;
+
         // Log file extension, appended to the executable's own path
         public const string LogFileExt = ".log";
 

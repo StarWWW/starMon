@@ -257,9 +257,50 @@ namespace StarMon.AppGui
             if (this.Op != null && this.Op.Program.IsEnabled)
                 this.Op.Program.Terminate();
 
+            ReleaseTheFans();
+
             // Release the global hotkey and its hidden window
             if (this.Hotkey != null)
                 this.Hotkey.Destroy();
+
+        }
+
+        // Hands the fans back to the firmware.
+        //
+        // Nothing on any exit path did this. Quitting with the fans switched
+        // off left them off; quitting while thermal protection had them pinned
+        // at maximum left them there. Recovery depended entirely on the
+        // controller's own failsafe countdown, which governs the manual level
+        // and not the off switch or the maximum toggle - and which the panic
+        // path deliberately zeroes.
+        //
+        // The comment on the dispatcher exception handler in App.cs names the
+        // concern exactly: "a tray application that vanishes leaves the fans
+        // wherever it last set them". It was identified and not acted on.
+        //
+        // Each step is separate and each is allowed to fail. A machine that
+        // will not take one of these is a machine that will not take it, and
+        // stopping at the first refusal would leave the rest of the state
+        // exactly as it was.
+        internal void ReleaseTheFans() {
+
+            if(this.Op == null || this.Op.Platform == null)
+                return;
+
+            StarMon.Hardware.Platform.IFanArray fans = this.Op.Platform.Fans;
+            if(fans == null)
+                return;
+
+            // Order matters as much here as it does when setting them: the
+            // overrides come off before the mode goes back to automatic, or
+            // the mode is applied under an override that then outlives it.
+            StarMon.AppService.FanControl.ReleaseToFirmware(fans);
+
+            try { this.Op.Platform.ClearFanModeSticky(); } catch { }
+            try { this.Op.Platform.ClearGpuPowerSticky(); } catch { }
+
+            Library.Logger.Info("Fan", "Fans handed back to the firmware",
+                "on shutdown");
 
         }
         #endregion

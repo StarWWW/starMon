@@ -390,7 +390,15 @@ namespace StarMon.Ui.Windows {
             try {
                 Version v = Environment.OSVersion.Version;
                 string edition = v.Build >= 22000 ? "Windows 11" : "Windows 10";
-                return edition + " · " + Config.Locale.Get("GuiWpfBuilt").ToLower()
+                // ToLowerInvariant, not ToLower. This lowercases a localised
+                // string under the operating system's culture, and on a
+                // Turkish one an uppercase I becomes the dotless i - so a
+                // translation containing one would render wrongly on exactly
+                // the machines that translation is for. It was the last
+                // culture-sensitive case fold left in the codebase; the
+                // command-line parser was given the same treatment years of
+                // debugging ago, and the note in App.cs explains why.
+                return edition + " · " + Config.Locale.Get("GuiWpfBuilt").ToLowerInvariant()
                     + " " + v.Build;
             } catch {
                 return "Windows";
@@ -1401,15 +1409,42 @@ namespace StarMon.Ui.Windows {
             // hardware for a moment is the same bargain the fan controls
             // strike, and for the same reason.
             this.PowerModeSetAt = Environment.TickCount;
+            this.PowerModeHasBeenSet = true;
 
         }
 
-        // When the power mode was last written from here
-        private int PowerModeSetAt = int.MinValue;
+        // When the power mode was last written from here, and whether it ever
+        // has been.
+        //
+        // The flag is the point. This was int.MinValue standing in for "never",
+        // and the guard below subtracts it from Environment.TickCount — which
+        // is positive for the first twenty-five days of uptime, so the
+        // subtraction overflowed and came out negative every single time. The
+        // settle window therefore never opened, and the System page's power
+        // mode selector never seeded itself from the machine: it sat blank
+        // until the user clicked something, on every machine, always. The
+        // poller reads the mode every tick specifically to keep that row
+        // fresh, and nothing consumed it.
+        //
+        // A separate bool is what the fan controls a few hundred lines above
+        // already use for the same question, and it cannot overflow.
+        private int PowerModeSetAt;
+        private bool PowerModeHasBeenSet;
 
         // How long the user's choice outranks what the machine reports. Short:
         // the mode is read every tick now, so one second is several readings.
         private const int PowerModeSettleMs = 2500;
+
+        // Whether a reading from the machine should replace what is shown.
+        //
+        // Takes the clock rather than reading it, so the window either side of
+        // a click can be checked without waiting for one.
+        internal static bool ShouldFollowHardware(bool hasBeenSet, int setAt,
+            int now, int settleMs) {
+
+            return !hasBeenSet || unchecked(now - setAt) > settleMs;
+
+        }
 
         // Which program to run, given what the user last had in front of them.
         //
@@ -1880,7 +1915,8 @@ namespace StarMon.Ui.Windows {
             // reports, so a change made from the battery flyout shows here —
             // but not while a change made from here is still settling
             if(reading.PowerMode.Length > 0
-                && unchecked(Environment.TickCount - this.PowerModeSetAt) > PowerModeSettleMs)
+                && ShouldFollowHardware(this.PowerModeHasBeenSet, this.PowerModeSetAt,
+                    Environment.TickCount, PowerModeSettleMs))
                 this.SystemModel.PowerMode = reading.PowerMode;
 
             strip.IsThermalProtection = reading.IsThermalProtectionActive;

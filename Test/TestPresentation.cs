@@ -9,6 +9,7 @@ using StarMon.Hardware;
 using StarMon.Library;
 using StarMon.Ui.ViewModels;
 using StarMon.Ui.Views;
+using StarMon.Ui.Windows;
 
 namespace StarMon.Test {
 
@@ -42,6 +43,122 @@ namespace StarMon.Test {
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
             TestNumberFormatting();
+
+            SelfTest.Group("Presentation: fitting the screen");
+            TestWindowFitsTheDisplaysThatBrokeIt();
+
+            SelfTest.Group("Presentation: following the machine");
+            TestTheSelectorSeedsItselfBeforeAnyClick();
+
+        }
+
+        // A selector with no choice made yet has to follow the machine.
+        //
+        // The System page's power mode read as blank on every machine, always,
+        // until the user clicked something. "Never set" was stood in for by
+        // int.MinValue, and the guard subtracted it from Environment.TickCount
+        // — which is positive for the first twenty-five days of uptime, so the
+        // subtraction overflowed and came out negative every time. The settle
+        // window never opened. The poller reads the power mode every tick
+        // specifically to keep that row fresh, and nothing consumed it.
+        private static void TestTheSelectorSeedsItselfBeforeAnyClick() {
+
+            const int Settle = 2500;
+
+            // Nothing chosen yet: the machine's answer is the only one there is
+            SelfTest.Check(WindowController.ShouldFollowHardware(
+                    false, 0, 1000, Settle),
+                "before any click, the reading from the machine is shown");
+
+            // This is the case that was broken: an ordinary uptime, no click
+            SelfTest.Check(WindowController.ShouldFollowHardware(
+                    false, int.MinValue, 60000, Settle),
+                "and still is at an ordinary tick count");
+
+            // Just clicked: the user's choice outranks the reading already in
+            // flight, which still carries the old mode
+            SelfTest.Check(!WindowController.ShouldFollowHardware(
+                    true, 100000, 100500, Settle),
+                "just after a click, the choice made here wins");
+
+            SelfTest.Check(!WindowController.ShouldFollowHardware(
+                    true, 100000, 100000 + Settle, Settle),
+                "and on the boundary itself");
+
+            // Settled: back to following the machine, so a change made from
+            // the battery flyout shows here
+            SelfTest.Check(WindowController.ShouldFollowHardware(
+                    true, 100000, 100000 + Settle + 1, Settle),
+                "once settled, the machine is followed again");
+
+            // The tick counter wraps every twenty-five days. Unchecked
+            // subtraction is what makes that a non-event, and it has to stay
+            // that way.
+            SelfTest.Check(WindowController.ShouldFollowHardware(
+                    true, int.MaxValue - 1000, unchecked(int.MaxValue + 4000), Settle),
+                "and a click either side of the tick counter wrapping still settles");
+
+        }
+
+        // The window opens at a size that fits the desktop it opens on.
+        //
+        // It used to be pinned to exactly 1000x760 in both directions and set
+        // to CanMinimize, so there was no recovery when that did not fit. Those
+        // are device-independent units, so the physical size follows the
+        // display scale — and at 150 %, an ordinary accessibility setting, the
+        // window wanted 1140 points of height on a desktop with about 1040 to
+        // give. A hundred points of the interface were below the bottom of the
+        // screen and unreachable.
+        //
+        // The figures below are work areas: the desktop minus the taskbar, in
+        // the same units the window is sized in, which is what
+        // SystemParameters.WorkArea reports.
+        private static void TestWindowFitsTheDisplaysThatBrokeIt() {
+
+            const double MinWidth = 640;
+            const double MinHeight = 480;
+
+            // 1920x1080 at 100 %: the machine this was designed on
+            Size roomy = MainWindow.FitTo(1920, 1040, MinWidth, MinHeight);
+            SelfTest.Equal(1000.0, roomy.Width,
+                "a full-size desktop opens at the design width");
+            SelfTest.Equal(760.0, roomy.Height,
+                "and the design height");
+
+            // 1920x1080 at 150 %: 1280x693 points of room
+            Size scaled = MainWindow.FitTo(1280, 693, MinWidth, MinHeight);
+            SelfTest.Check(scaled.Height <= 693,
+                "at 150 % the window fits the height available ("
+                    + scaled.Height + " of 693)");
+            SelfTest.Check(scaled.Width <= 1280,
+                "and the width");
+
+            // 1366x768, still shipped on entry-level machines in this family
+            Size small = MainWindow.FitTo(1366, 728, MinWidth, MinHeight);
+            SelfTest.Check(small.Height <= 728,
+                "a 1366x768 panel fits too (" + small.Height + " of 728)");
+            SelfTest.Equal(1000.0, small.Width,
+                "with the width unaffected, since there is room for it");
+
+            // Never past the design size, however much room there is
+            Size huge = MainWindow.FitTo(3840, 2000, MinWidth, MinHeight);
+            SelfTest.Equal(1000.0, huge.Width,
+                "a large desktop does not stretch the window past its design size");
+            SelfTest.Equal(760.0, huge.Height,
+                "in either direction");
+
+            // And never below the minimum the window declares: WPF would
+            // resize it back up, and it would overflow again
+            Size cramped = MainWindow.FitTo(400, 300, MinWidth, MinHeight);
+            SelfTest.Equal(MinWidth, cramped.Width,
+                "a desktop smaller than the minimum yields the minimum");
+            SelfTest.Equal(MinHeight, cramped.Height,
+                "in both directions");
+
+            // A work area that could not be read is left alone rather than
+            // guessed at
+            SelfTest.Check(MainWindow.FitTo(0, 0, MinWidth, MinHeight).IsEmpty,
+                "an unreadable work area yields no answer rather than a wrong one");
 
         }
 

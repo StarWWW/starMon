@@ -177,6 +177,36 @@ namespace StarMon.Library {
 
         }
 
+        // Retrieves a value too large for a word from the XML configuration.
+        //
+        // LogFileMaxBytes is why this exists. It is written in kilobytes with
+        // SetUInt and was read back with GetWord, so the slider's own maximum
+        // of 64 MB - 65536 kilobytes - was one past what a ushort holds. The
+        // parse threw, GetWord swallowed it and returned false, and the
+        // setting silently reverted to the compiled 4 MB on the next launch.
+        // Saved correctly, discarded on load, with nothing in the log: the
+        // top of the slider was a position that would not stick.
+        private static bool GetUInt(XmlDocument xml, string node, out uint value) {
+
+            value = 0;
+
+            try {
+
+                XmlNode found = xml.SelectSingleNode(node);
+                if(found == null)
+                    return false;
+
+                return uint.TryParse(found.InnerText.Trim(),
+                    System.Globalization.NumberStyles.Integer,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    out value);
+
+            } catch { }
+
+            return false;
+
+        }
+
         // Loads the configuration data from the XML file
         public static void Load() {
 
@@ -371,8 +401,12 @@ namespace StarMon.Library {
                     if(GetBool(xml, XmlPrefix + "LogToFile", out flag))
                         LogToFile = flag;
 
-                    if(GetWord(xml, XmlPrefix + "LogFileMaxBytes", out value))
-                        LogFileMaxBytes = value * 1024; // Stored in kilobytes
+                    // Stored in kilobytes, and read as something wider than a
+                    // word: the slider's own maximum does not fit in one
+                    uint kilobytes;
+                    if(GetUInt(xml, XmlPrefix + "LogFileMaxBytes", out kilobytes)
+                        && kilobytes > 0 && kilobytes <= LogFileMaxKilobytes)
+                        LogFileMaxBytes = (int) (kilobytes * 1024);
 
                     if(GetBool(xml, XmlPrefix + "KbdColorByTemp", out flag))
                         KbdColorByTemp = flag;

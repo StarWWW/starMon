@@ -24,7 +24,7 @@ namespace StarMon.AppCli {
 #region Embedded Controller Information Retrieval
         // Prints out the value of a specific register parsed from the command-line
         private static void EcGet(string registerString) {
-            bool isWord = registerString.EndsWith("(2)") ? true : false;
+            bool isWord = registerString.EndsWith("(2)", StringComparison.Ordinal) ? true : false;
             string registerStringParsed = isWord ? registerString.Split('(')[0] : registerString;
             byte register = 0xFF; // Cannot leave unassigned
             bool registerSet = false;
@@ -89,7 +89,7 @@ namespace StarMon.AppCli {
 #region Embedded Controller Assignment Operations
         // Sets the value of a specific register parsed from the command-line
         private static void EcSet(string registerString, string valueString) {
-            bool isWord = registerString.EndsWith("(2)") ? true : false;
+            bool isWord = registerString.EndsWith("(2)", StringComparison.Ordinal) ? true : false;
             string registerStringParsed = isWord ? registerString.Split('(')[0] : registerString;
             byte register = 0xFF; // Cannot leave unassigned
             bool registerSet = false;
