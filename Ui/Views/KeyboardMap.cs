@@ -636,7 +636,7 @@ namespace StarMon.Ui.Views {
 
             FormattedText text = new FormattedText(label,
                 CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                LegendFace, size, ink, 1.25);
+                LegendFace, size, ink, Dpi.For(this));
 
             if(text.Width > face.Width - 3 && text.Width > 0) {
                 size *= (face.Width - 3) / text.Width;
@@ -644,7 +644,7 @@ namespace StarMon.Ui.Views {
                     return;
                 text = new FormattedText(label,
                     CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    LegendFace, size, ink, 1.25);
+                    LegendFace, size, ink, Dpi.For(this));
             }
 
             // A faint glow behind a lit legend, so the lettering reads as
@@ -723,7 +723,7 @@ namespace StarMon.Ui.Views {
             FormattedText formatted = new FormattedText(text.ToUpperInvariant(),
                 CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
                 LegendFace, 9,
-                new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)), 1.25);
+                new SolidColorBrush(Color.FromArgb(0x66, 0xFF, 0xFF, 0xFF)), Dpi.For(this));
 
             context.DrawText(formatted, new Point(
                 deck.Right - formatted.Width - 12, deck.Bottom - formatted.Height - 7));

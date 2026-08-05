@@ -268,7 +268,7 @@ namespace StarMon.Ui.Views {
 
             FormattedText formatted = new FormattedText(text,
                 CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                this.Face, size, ink, 1.0);
+                this.Face, size, ink, Dpi.For(this));
 
             context.DrawText(formatted, at);
 

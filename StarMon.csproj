@@ -123,6 +123,7 @@
         <Compile Include="Ui\ViewModels\RelayCommand.cs"/>
         <Compile Include="Ui\ViewModels\SummaryViewModel.cs"/>
         <Compile Include="Ui\Views\Converters.cs"/>
+        <Compile Include="Ui\Views\Dpi.cs"/>
         <Compile Include="Ui\Views\HistoryChart.cs"/>
         <Compile Include="Ui\Views\FanCurveEditor.cs"/>
         <Compile Include="Ui\ViewModels\KeyboardViewModel.cs"/>

@@ -276,7 +276,7 @@ namespace StarMon.Ui.Views {
 
                 FormattedText text = new FormattedText(label,
                     CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    this.LabelFace, 10, this.MutedBrush, 1.25) {
+                    this.LabelFace, 10, this.MutedBrush, Dpi.For(this)) {
                     TextAlignment = TextAlignment.Right,
                     MaxTextWidth = ScaleGutter - 8
                 };
@@ -404,7 +404,7 @@ namespace StarMon.Ui.Views {
 
                 FormattedText text = new FormattedText(readings[i].Text,
                     CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    this.LabelFace, 10.5, readings[i].Brush, 1.25) {
+                    this.LabelFace, 10.5, readings[i].Brush, Dpi.For(this)) {
                     TextAlignment = TextAlignment.Right,
                     MaxTextWidth = boxWidth - 10
                 };
@@ -470,7 +470,7 @@ namespace StarMon.Ui.Views {
 
                 FormattedText text = new FormattedText(head.Text,
                     CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
-                    this.LabelFace, 11, head.Brush, 1.25) {
+                    this.LabelFace, 11, head.Brush, Dpi.For(this)) {
                     TextAlignment = TextAlignment.Left
                 };
 
