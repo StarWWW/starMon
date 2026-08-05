@@ -86,9 +86,9 @@ namespace StarMon.Ui.Shell {
         // in the wrong place on any display that is not at 100 %. A Popup
         // keeps itself on the monitor from there, which is what the WinForms
         // version had to do by hand by clamping into the working area.
-        public void Show(Point physical) {
+        public void Show(Point physical, IntPtr owner) {
 
-            Point logical = FromDevice(physical);
+            Point logical = FromDevice(physical, owner);
 
             this.Menu.HorizontalOffset = logical.X;
             this.Menu.VerticalOffset = logical.Y;
@@ -100,21 +100,45 @@ namespace StarMon.Ui.Shell {
             this.Menu.IsOpen = false;
         }
 
-        private static Point FromDevice(Point physical) {
+        // Physical screen pixels to the device-independent units WPF places in.
+        //
+        // The window to ask has to be one of this process's own: HwndSource
+        // resolves handles created by this AppDomain's WPF and nothing else.
+        // This used to pass FindWindow(null, null), which returns some
+        // top-level window belonging to some other process — so HwndSource
+        // returned null every time and the conversion never happened. The
+        // anchor was assigned straight through, physical pixels into a
+        // property measured in logical ones.
+        //
+        // At 100 % those coincide, which is why it went unnoticed on the
+        // machine it was written on. At 150 % the menu was placed at 1.5x the
+        // intended coordinates; a Popup pulls itself back onto the monitor, so
+        // with the taskbar bottom-right the damage was cosmetic — and with it
+        // on a left-hand or top monitor the menu opened on the wrong screen.
+        //
+        // The tray icon owns a real top-level window of this process and has
+        // exposed its handle all along.
+        private static Point FromDevice(Point physical, IntPtr owner) {
 
             try {
 
-                System.Windows.Interop.HwndSource source =
-                    System.Windows.Interop.HwndSource.FromHwnd(
-                        External.User32.FindWindow(null, null));
+                if(owner != IntPtr.Zero) {
 
-                if(source != null && source.CompositionTarget != null)
-                    return source.CompositionTarget.TransformFromDevice
-                        .Transform(physical);
+                    System.Windows.Interop.HwndSource source =
+                        System.Windows.Interop.HwndSource.FromHwnd(owner);
+
+                    if(source != null && source.CompositionTarget != null)
+                        return source.CompositionTarget.TransformFromDevice
+                            .Transform(physical);
+
+                }
 
             } catch { }
 
-            // No window to ask: assume the scale the process was told about
+            // Nothing of ours to ask, which happens only before the tray icon
+            // has its window. Assuming the two units coincide is what this did
+            // in every case before; it is now the exception rather than the
+            // rule, and it is a moment when there is no menu to place anyway.
             return physical;
 
         }

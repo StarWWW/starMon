@@ -557,6 +557,23 @@ namespace StarMon.Library
             {
                 try
                 {
+                    // Whatever was open before is closed first.
+                    //
+                    // This assigned straight over the previous writer, so a
+                    // second call left the first one and its file handle to be
+                    // collected whenever a finaliser got round to them - with
+                    // the lock on the file still held meanwhile. It happened
+                    // on an ordinary run: startup opens the log from one path
+                    // and opening the window opened it again from another, so
+                    // a session's log was split across two files and one of
+                    // them was held by a writer nothing could reach.
+                    if (_fileWriter != null)
+                    {
+                        try { _fileWriter.Flush(); } catch { }
+                        try { _fileWriter.Dispose(); } catch { }
+                        _fileWriter = null;
+                    }
+
                     _logFilePath = filePath;
                     _fileWriter = new StreamWriter(filePath, true, Encoding.UTF8);
                     _fileWriter.AutoFlush = true;

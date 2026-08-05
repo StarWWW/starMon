@@ -55,7 +55,7 @@ namespace StarMon.Library {
                 // Start writing the log to a file, if asked to
                 if(LogToFile)
                     Logger.EnableFileLogging(
-                        Path.ChangeExtension(AppFile, LogFileExt));
+                        LogFilePath);
 
                 // Done
                 IsInitialized = true;

@@ -358,7 +358,13 @@ namespace StarMon.AppGui
             // Version 4 of the notification protocol reports where the menu
             // belongs, which is the same place for a right-click and for the
             // keyboard — the cursor position is right only for the first.
-            this.WpfMenu.Show(anchor);
+            //
+            // The icon's own window goes with it: the anchor is in physical
+            // pixels and the menu is placed in device-independent ones, and
+            // the conversion can only be done through a window belonging to
+            // this process.
+            this.WpfMenu.Show(anchor,
+                this.Tray != null ? this.Tray.Handle : IntPtr.Zero);
 
         }
 

@@ -219,6 +219,21 @@ namespace StarMon.External {
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern int SendMessage(IntPtr hWnd, [MarshalAs(UnmanagedType.U4)] uint msg, IntPtr wParam, IntPtr lParam);
 
+        // SendMessage with a bound on how long each recipient may take.
+        //
+        // A broadcast waits for every top-level window on the desktop to
+        // answer, one at a time, and any one of them that is not pumping
+        // messages holds the caller until it does. SendMessage has no way out
+        // of that; this does.
+        public const uint SMTO_ABORTIFHUNG = 0x0002;
+        public const uint SMTO_NORMAL = 0x0000;
+
+        [DllImport(DllName, CallingConvention = CallingConvention.Winapi, SetLastError = true)]
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
+        public static extern IntPtr SendMessageTimeout(IntPtr hWnd,
+            [MarshalAs(UnmanagedType.U4)] uint msg, IntPtr wParam, IntPtr lParam,
+            uint flags, uint timeout, out IntPtr result);
+
         [DllImportAttribute(DllName, CallingConvention = CallingConvention.Winapi)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern bool SetForegroundWindow(IntPtr hWnd);

@@ -45,6 +45,77 @@ namespace StarMon.Test {
             TestKeysUsedBySourceExist();
             TestEnumeratedNamesTranslated(english, turkish);
             TestLanguageResolution();
+            TestSwitchingLanguageLeavesTheTranslationIntact();
+
+        }
+
+        // Switching language must not damage a translation.
+        //
+        // The configuration file's Messages section is an override, and its
+        // entries used to be written into the dictionary of whichever language
+        // was being selected. So an English override in the file was written
+        // over the built-in Turkish strings the moment somebody switched to
+        // Turkish — permanently, for the rest of the session, leaving a
+        // half-translated interface with no way back but editing the file.
+        //
+        // Checked by switching back and forth and asking whether the built-in
+        // strings are still what this build ships. The dictionaries are read
+        // through reflection because they are the shipped ones rather than
+        // anything a test is meant to reach.
+        private static void TestSwitchingLanguageLeavesTheTranslationIntact() {
+
+            Dictionary<string, string> turkish = GetDictionary("msgTurkish");
+            Dictionary<string, string> english = GetDictionary("msgFallback");
+
+            if(turkish == null || english == null) {
+                SelfTest.Skip("the message dictionaries could not be read");
+                return;
+            }
+
+            // A key that exists in both, with different text, so a leak from
+            // one into the other is visible
+            string key = null;
+            foreach(KeyValuePair<string, string> entry in turkish)
+                if(english.ContainsKey(entry.Key)
+                    && english[entry.Key] != entry.Value
+                    && entry.Value.Length > 0) {
+                    key = entry.Key;
+                    break;
+                }
+
+            if(key == null) {
+                SelfTest.Skip("no key differs between the two translations");
+                return;
+            }
+
+            string turkishText = turkish[key];
+            string englishText = english[key];
+
+            LocaleData.Language saved = Config.Locale.GetLanguage();
+
+            try {
+
+                Config.Locale.SetLanguage(LocaleData.Language.Turkish);
+                SelfTest.Equal(turkishText, Config.Locale.Get(key),
+                    "the Turkish string is the Turkish one");
+
+                Config.Locale.SetLanguage(LocaleData.Language.Override);
+                Config.Locale.SetLanguage(LocaleData.Language.Turkish);
+
+                SelfTest.Equal(turkishText, Config.Locale.Get(key),
+                    "and still is after switching away and back");
+
+                // The shipped dictionaries themselves are untouched, which is
+                // what makes the rebuild honest rather than merely idempotent
+                SelfTest.Equal(turkishText, GetDictionary("msgTurkish")[key],
+                    "the built-in Turkish dictionary is not written over");
+
+                SelfTest.Equal(englishText, GetDictionary("msgFallback")[key],
+                    "nor is the English one");
+
+            } finally {
+                Config.Locale.SetLanguage(saved);
+            }
 
         }
 

@@ -53,12 +53,31 @@ namespace StarMon {
                         Logger.Error("App", "Unhandled exception",
                             e.ExceptionObject != null ? e.ExceptionObject.ToString() : "");
 
-                    // Only allow a single GUI instance at any given time
+                    // Only allow a single GUI instance at any given time.
+                    //
+                    // The name is in the Global namespace, so the object can
+                    // already exist and belong to another user's session —
+                    // fast user switching, or a second account with StarMon
+                    // running. Creating one that exists and is owned by
+                    // somebody else throws UnauthorizedAccessException, which
+                    // was not caught here and surfaced as an error dialog on
+                    // startup with nothing to act on. Being unable to create
+                    // it means somebody else has it, which is precisely the
+                    // answer this is asking for.
+                    //
+                    // EcMutex.Open already handles the same case the same way
+                    // for the controller lock; this is that pattern.
                     bool isFirstInstance;
-                    using(Mutex mutex = new Mutex(
-                        true,
-                        Config.LockPathGui,
-                        out isFirstInstance)) {
+                    Mutex mutex;
+
+                    try {
+                        mutex = new Mutex(true, Config.LockPathGui, out isFirstInstance);
+                    } catch(UnauthorizedAccessException) {
+                        mutex = null;
+                        isFirstInstance = false;
+                    }
+
+                    using(mutex) {
 
                         if(isFirstInstance) {
 
@@ -73,7 +92,8 @@ namespace StarMon {
                             tray.Shutdown();
 
                             // Release the lock when done
-                            mutex.ReleaseMutex();
+                            if(mutex != null)
+                                mutex.ReleaseMutex();
 
                         } else {
 

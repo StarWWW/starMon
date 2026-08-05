@@ -72,7 +72,7 @@
         <!-- Fan countdown will always be continually extended, even
              with no fan program running, no constant-speed button
              selected, and the main window hidden, until exit -->
-        <FanCountdownExtendAlways>false</FanCountdownExtendAlways>
+        <FanCountdownExtendAlways>true</FanCountdownExtendAlways>
 
         <!-- Fan countdown timer will be extended by this value [s] -->
         <FanCountdownExtendInterval>120</FanCountdownExtendInterval>

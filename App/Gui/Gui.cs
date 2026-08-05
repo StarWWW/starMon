@@ -148,22 +148,40 @@ namespace StarMon.AppGui {
             Recipient.Callback = RegistrationCallback;
             Recipient.Context = IntPtr.Zero;
 
-            // Obtain a pointer to the recipient structure
-            IntPtr RecipientPtr = Marshal.AllocHGlobal(Marshal.SizeOf(Recipient));
-            Marshal.StructureToPtr(Recipient, RecipientPtr, false);
-
-            // Register for power suspend and resume notifications
-            return PowrProf.PowerRegisterSuspendResumeNotification(
+            // The structure is passed by reference, so the marshaller owns the
+            // copy the API sees and there is nothing to allocate.
+            //
+            // There used to be an AllocHGlobal and a StructureToPtr here whose
+            // result was then not passed to anything and never freed: an
+            // allocation made, orphaned and leaked on the same three lines.
+            bool registered = PowrProf.PowerRegisterSuspendResumeNotification(
                 PowrProf.DEVICE_NOTIFY_CALLBACK,
                 ref Recipient, ref RegistrationHandle) == 0;
 
+            if(!registered)
+                RegistrationHandle = IntPtr.Zero;
+
+            return registered;
+
         }
 
-        // Removes the callback for power event notifications
+        // Removes the callback for power event notifications.
+        //
+        // Tested against Zero rather than null: RegistrationHandle is an
+        // IntPtr, which is a value type, so the null check this used to make
+        // could never be false — and the unregister was attempted even when
+        // the registration had failed and there was nothing to unregister.
         public static bool UnregisterSuspendResumeNotification() {
-            return RegistrationHandle != null ?
-                PowrProf.PowerUnregisterSuspendResumeNotification(RegistrationHandle) == 0
-                : true;
+
+            if(RegistrationHandle == IntPtr.Zero)
+                return true;
+
+            bool ok = PowrProf.PowerUnregisterSuspendResumeNotification(
+                RegistrationHandle) == 0;
+
+            RegistrationHandle = IntPtr.Zero;
+            return ok;
+
         }
 #endregion
 

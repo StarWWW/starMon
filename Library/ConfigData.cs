@@ -347,6 +347,17 @@ namespace StarMon.Library
         // Log file extension, appended to the executable's own path
         public const string LogFileExt = ".log";
 
+        // Where the log is written.
+        //
+        // One place, because there were two. Startup opened
+        // Path.ChangeExtension(AppFile, ".log") - StarMon.log - and the window
+        // opened AppFile + ".log" - StarMon.exe.log - so a session with file
+        // logging already on wrote to one file until the window was opened and
+        // to another afterwards. Neither was wrong on its own; having both was.
+        public static string LogFilePath {
+            get { return System.IO.Path.ChangeExtension(AppFile, LogFileExt); }
+        }
+
         // Localizable string prefixes and suffixes
         public const string L_CLI = "Cli";
         public const string L_CLI_BIOS = "CliBios";
@@ -401,8 +412,34 @@ namespace StarMon.Library
         // nVidia Display Container service name
         public const string NvDisplayContainerService = "NVDisplay.ContainerLocalSystem";
 
-        // Location for temporary files (must be declared before OnlyOncePath)
-        public static string PathTemp = Environment.GetEnvironmentVariable("TEMP");
+        // Location for temporary files (must be declared before OnlyOncePath).
+        //
+        // Path.GetTempPath rather than the TEMP variable alone: it consults
+        // TMP and the Windows directory as well, and it never comes back
+        // empty. With TEMP unset — a scheduled task under an unusual
+        // principal, a stripped service environment — the marker file was
+        // built as "\StarMonMux.txt" and written to the root of the current
+        // drive.
+        public static string PathTemp = GetTempDirectory();
+
+        private static string GetTempDirectory() {
+
+            try {
+
+                string path = System.IO.Path.GetTempPath();
+                if(!string.IsNullOrEmpty(path))
+                    return path.TrimEnd('\\', '/');
+
+            } catch { }
+
+            // Somewhere writable of our own, rather than the drive root
+            try {
+                return System.IO.Path.GetDirectoryName(AppFile);
+            } catch {
+                return ".";
+            }
+
+        }
 
         // Parameters for the persistent state until reboot flag implementation
         public static string OnlyOnceFileExt = ".txt";

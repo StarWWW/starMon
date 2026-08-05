@@ -983,7 +983,7 @@ namespace StarMon.Ui.Windows {
             // until the switch was toggled off and on again — the setting
             // survived a restart and its effect did not.
             if(Config.LogToFile)
-                Guard(() => Logger.EnableFileLogging(Config.AppFile + Config.LogFileExt),
+                Guard(() => Logger.EnableFileLogging(Config.LogFilePath),
                     "Log to file: on (from the saved preference)");
 
             if(this.Host == null)
@@ -1103,7 +1103,7 @@ namespace StarMon.Ui.Windows {
                     // was wanted
                     Guard(() => {
                         if(Config.LogToFile)
-                            Logger.EnableFileLogging(Config.AppFile + Config.LogFileExt);
+                            Logger.EnableFileLogging(Config.LogFilePath);
                         else
                             Logger.DisableFileLogging();
                     }, "Log to file: " + (Config.LogToFile ? "on" : "off"));

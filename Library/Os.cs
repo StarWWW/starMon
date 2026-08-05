@@ -152,14 +152,36 @@ namespace StarMon.Library {
         // Sets the display to standby
         public static void SetDisplayOff() {
 
-            // Send a system command message
-            User32.SendMessage(
+            // Broadcast, with a bound on how long any one recipient may take.
+            //
+            // This was a plain SendMessage to HWND_BROADCAST, which waits for
+            // every top-level window on the desktop in turn and has no way out
+            // if one of them is not pumping messages. It is called from the
+            // hotkey hook and from the tray menu, both on the thread that
+            // draws the interface — so a single hung application anywhere on
+            // the desktop froze StarMon indefinitely, and the hotkey that was
+            // meant to switch the screen off instead stopped the program.
+            //
+            // ABORTIFHUNG skips a recipient already known to be wedged rather
+            // than waiting out the timeout on it.
+            IntPtr result;
+
+            User32.SendMessageTimeout(
                 (IntPtr) User32.HWND_BROADCAST,
                 User32.WM_SYSCOMMAND,
                 (IntPtr) User32.SC_MONITORPOWER,
-                (IntPtr) User32.MONITORPOWER.STANDBY);
+                (IntPtr) User32.MONITORPOWER.STANDBY,
+                User32.SMTO_ABORTIFHUNG,
+                BroadcastTimeoutMs,
+                out result);
 
         }
+
+        // How long any one window may take to acknowledge a broadcast
+        private const uint BroadcastTimeoutMs = 2000;
+
+        // How long to wait for the shell to close before starting it anyway
+        private const int ShellStopTimeoutMs = 15000;
 
         // Sets the display refresh rate to a given value
         public static void SetRefreshRate(int frequency) {
@@ -306,17 +328,34 @@ namespace StarMon.Library {
             // Send a message telling the shell to close
             User32.PostMessage(handle, WM_SHELL_RESTART, (IntPtr) 0, (IntPtr) 0);
 
-            // Give it some time to do so
-            do {
+            // Give it some time to do so, but not forever.
+            //
+            // This was an unbounded while(true). A shell that does not go away
+            // — because the message was refused, because a modal dialog owned
+            // by it is up, because the handle was never found in the first
+            // place — left this loop running for the life of the process, and
+            // it is reached from the headless -Run Mux path where there is
+            // nothing to notice it.
+            //
+            // Giving up and starting the shell anyway is the right end: a
+            // second shell process exits immediately when one is already
+            // running, so the cost of being wrong here is nothing.
+            int waited = 0;
+
+            while(waited < ShellStopTimeoutMs) {
 
                 // If the handle can no longer be found, we're done
                 if((handle = User32.FindWindow(WC_SHELL, null)) == (IntPtr) 0)
                     break;
 
-                // Wait a second
                 Thread.Sleep(Config.WaitToStopProcess);
+                waited += Config.WaitToStopProcess;
 
-            } while(true);
+            }
+
+            if(handle != (IntPtr) 0)
+                Logger.Warning("Os", "Shell did not close in time",
+                    "starting it anyway after " + waited + " ms");
 
             // Obtain the shell executable name from the Registry
             using(RegistryKey key = Registry.LocalMachine.OpenSubKey(Config.RegShellKey, true)) {

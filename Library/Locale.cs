@@ -38,8 +38,16 @@ namespace StarMon.Library.Locale {
         // The identifier of the currently-selected language
         protected Language lang;
 
-        // Localizable message dictionary
+        // Localizable message dictionary.
+        //
+        // Each entry is replaced wholesale rather than edited in place — see
+        // the note in Load() about the thread reading these while the language
+        // changes.
         protected Dictionary<string, string>[] msg;
+
+        // What this build ships, before anything in the configuration file is
+        // layered over it
+        protected Dictionary<string, string>[] builtIn;
 
 #region Initialization & Disposal
         // Constructs an instance
@@ -59,6 +67,13 @@ namespace StarMon.Library.Locale {
 
             // Define the built-in translations
             msg[(int) Language.Turkish] = msgTurkish;
+
+            // Kept apart from the live dictionaries above, so a language can
+            // be rebuilt from what this build ships rather than from whatever
+            // the last load left behind. See Load().
+            builtIn = new Dictionary<string, string>[msg.Length];
+            builtIn[(int) Language.Fallback] = msgFallback;
+            builtIn[(int) Language.Turkish] = msgTurkish;
 
             // Set the language to the default fallback
             SetLanguage(Language.Fallback);
@@ -153,32 +168,62 @@ namespace StarMon.Library.Locale {
             get { return instance; }
         }
 
-        // Implements loading messages for a given language
+        // Implements loading messages for a given language.
+        //
+        // Two things here are deliberate and were not before.
+        //
+        // The dictionary is rebuilt and swapped in, rather than edited where
+        // it stands. This runs on the interface thread when the language
+        // changes, and the poller reads the same dictionary from its own
+        // thread every tick — for sensor labels, zone names and throttle
+        // descriptions. A Dictionary being written while it is read can throw,
+        // and mid-resize can spin. Assigning the reference is atomic, so a
+        // reader sees either the whole of the old one or the whole of the new.
+        //
+        // And it is rebuilt from what this build ships rather than from
+        // whatever is currently loaded. The file's overrides used to be
+        // written into the slot of whichever language was being selected, so
+        // an English override in the configuration file was written over the
+        // built-in Turkish strings the moment somebody switched to Turkish —
+        // permanently, for the rest of the session, giving a half-translated
+        // interface with no way back but editing the file.
         protected override void Load(Language language, bool showError = false) {
 
-            if(Config.FilePath != "" && File.Exists(Config.FilePath)) {
+            if(Config.FilePath == "" || !File.Exists(Config.FilePath))
+                return;
 
-                try {
+            try {
 
-                    // Load the file
-                    XmlDocument xml = new XmlDocument();
-                    xml.Load(Config.FilePath);
+                XmlDocument xml = new XmlDocument();
+                xml.Load(Config.FilePath);
 
-                   // Iterate through the nodes, populating the message dictionary.
-                   // Assigned rather than added, so a key a built-in translation
-                   // already defines is overridden by the file instead of
-                   // throwing and abandoning the rest of the load
-                   XmlNodeList messages = xml.SelectNodes("StarMon/Messages/String");
-                   foreach(XmlNode node in messages)
-                       msg[(int) language][node.Attributes["Key"].Value] = node.InnerText;
+                XmlNodeList messages = xml.SelectNodes("StarMon/Messages/String");
+                if(messages == null || messages.Count == 0)
+                    return;
 
-                } catch {
-		 
-                    // Show an error message if the file is present but malformed
-                    if(File.Exists(Config.FilePath) && showError)
-                        App.Error("ErrLocaleLoad");
+                // From the shipped strings for this language, where there are
+                // any — the Override slot has none of its own and layers onto
+                // the fallback, which is what makes it an override
+                Dictionary<string, string> source =
+                    builtIn[(int) language] ?? builtIn[(int) Language.Fallback];
 
-                }
+                Dictionary<string, string> rebuilt =
+                    new Dictionary<string, string>(source);
+
+                // Assigned rather than added, so a key a built-in translation
+                // already defines is overridden by the file instead of
+                // throwing and abandoning the rest of the load
+                foreach(XmlNode node in messages)
+                    if(node.Attributes["Key"] != null)
+                        rebuilt[node.Attributes["Key"].Value] = node.InnerText;
+
+                msg[(int) language] = rebuilt;
+
+            } catch {
+
+                // Show an error message if the file is present but malformed
+                if(File.Exists(Config.FilePath) && showError)
+                    App.Error("ErrLocaleLoad");
 
             }
 
