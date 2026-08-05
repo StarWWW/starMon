@@ -57,9 +57,22 @@ namespace StarMon.AppCli {
             // Save the console color to be restored later
             ConsoleColor originalColor = Console.ForegroundColor;
 
-            // Initialize the BIOS and the Embedded Controller
-            Hw.BiosInit();
-            Hw.EcInit();
+            // Initialize the BIOS and the Embedded Controller.
+            //
+            // A fan program drives the fans, so both have to be there. Running
+            // one against a machine that cannot be written to would report a
+            // curve being followed while the fans did whatever the firmware
+            // was already doing.
+            if(!Hw.BiosInit()) {
+                App.Error("ErrBiosInit");
+                return;
+            }
+
+            if(!Hw.EcInit()) {
+                App.Error("ErrEcInit");
+                Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
+                return;
+            }
 
             // Ask the board what it is before driving its fans.
             //

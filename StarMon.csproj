@@ -169,7 +169,9 @@
         <Compile Include="External\User.cs"/>
         <Compile Include="External\WinBase.cs"/>
         <Compile Include="Hardware\Bios.cs"/>
+        <Compile Include="Hardware\Absent.cs"/>
         <Compile Include="Hardware\Capabilities.cs"/>
+        <Compile Include="Hardware\CodeIntegrity.cs"/>
         <Compile Include="Hardware\BiosCtl.cs"/>
         <Compile Include="Hardware\Battery.cs"/>
         <Compile Include="Hardware\BiosData.cs"/>
@@ -215,6 +217,7 @@
         <Compile Include="Test\TestConv.cs"/>
         <Compile Include="Test\TestDeviceMatrix.cs"/>
         <Compile Include="Test\TestDeviceProfile.cs"/>
+        <Compile Include="Test\TestDriver.cs"/>
         <Compile Include="Test\TestEmbeddedController.cs"/>
         <Compile Include="Test\TestFanCurve.cs"/>
         <Compile Include="Test\TestGraph.cs"/>

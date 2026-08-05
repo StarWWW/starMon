@@ -109,7 +109,26 @@ namespace StarMon.Hardware {
                 // Start from the compiled defaults, so every finding below is
                 // an improvement on them rather than a replacement for them
                 Board = "?";
-                FanCount = 2;
+
+                // Two where the firmware is there, one where it is not.
+                //
+                // The distinction is worth the line. A board whose firmware
+                // answers everything except the fan count is almost certainly
+                // an ordinary two-fan machine, and falling back to one there
+                // would cost the user control of a fan that exists — the
+                // second fan is written through the firmware's level array,
+                // which is sized from this count.
+                //
+                // A machine with no firmware interface at all is a different
+                // case: nothing can be driven, nothing can be asked, and two
+                // is not a cautious guess but an invention. It would put a
+                // second fan on the dashboard reading nought per cent on a
+                // machine that may not be a laptop.
+                //
+                // Asked of the installed interface rather than of a flag set
+                // beside it, so this cannot disagree with the object the calls
+                // will actually go to.
+                FanCount = Hw.Bios != null && Hw.Bios.IsInitialized ? 2 : 1;
                 FanLevelCeiling = Config.FanLevelMax;
                 FanLevelCeilingSource = "configured";
                 BiosFanLevel = true;

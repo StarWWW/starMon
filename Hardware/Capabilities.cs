@@ -74,6 +74,27 @@ namespace StarMon.Hardware {
 
             sb.AppendLine();
 
+            // ── What this process can actually reach ───────────────────────
+            //
+            // First, because on a machine where the driver is blocked it is
+            // the answer to every other question below. The report used to
+            // describe a machine's capabilities without saying whether any of
+            // them were reachable at all.
+            sb.AppendLine("HARDWARE ACCESS");
+            sb.AppendLine("  Firmware      : "
+                + (Library.Hw.HasBios ? "available" : "NOT AVAILABLE"));
+            sb.AppendLine("  Controller    : "
+                + (Library.Hw.HasEc ? "available" : "NOT REACHABLE"));
+            sb.AppendLine("  Code integrity: " + CodeIntegrity.Summary());
+
+            if(!Library.Hw.HasEc) {
+                sb.AppendLine();
+                foreach(string line in CodeIntegrity.Explain().Split('\n'))
+                    sb.AppendLine("  " + line.Trim());
+            }
+
+            sb.AppendLine();
+
             // ── What was worked out about this board ───────────────────────
             if(DeviceProfile.Probed) {
 

@@ -27,15 +27,32 @@ namespace StarMon.AppGui {
         // Flag to indicate if running on full power
         public bool FullPower { get; private set; }
 
+        // Why the Embedded Controller could not be reached, in a form fit to
+        // show the user, or null where it could. Held rather than shown from
+        // the constructor: this runs before there is a window, and a modal
+        // dialog during startup is how an application that could have told you
+        // something useful becomes one you dismiss without reading.
+        public string DriverObstacle { get; private set; }
+
         // Constructs the operation-running class
         public GuiOp(GuiTray context) {
 
             // Initialize the parent class reference
             this.Context = context;
 
-            // Initialize the BIOS and the Embedded Controller
+            // Initialize the BIOS and the Embedded Controller.
+            //
+            // Neither is fatal any more. A machine where the driver is blocked
+            // — the default configuration of most new Windows 11 machines, and
+            // the reason this application would not start on them — still has
+            // its published sensors, its thermal zones, its battery, its drive
+            // temperature and every one of the firmware's BIOS calls. What it
+            // does not have is fan control, and that is worth saying rather
+            // than worth exiting over.
             Hw.BiosInit();
-            Hw.EcInit();
+
+            if(!Hw.EcInit())
+                this.DriverObstacle = StarMon.Hardware.CodeIntegrity.Explain();
 
             // Work out what this particular board can do and adapt the
             // configuration to it, before anything reads a fan ceiling or

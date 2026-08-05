@@ -56,25 +56,56 @@ namespace StarMon.Library {
         // BIOS Control Interface
         public static IBiosCtl Bios;
 
-        // Prepares the BIOS for use
-        public static void BiosInit() {
+        // Whether the firmware interface is genuinely there.
+        //
+        // False means a stand-in is installed and every call through it will
+        // refuse. Nothing has to test this before calling — the refusals are
+        // the same ones a partially-implemented firmware produces, and are
+        // handled the same way — but the interface uses it to say so, and the
+        // command line uses it to decide whether an operation was possible.
+        public static bool HasBios { get; private set; }
+
+        // Prepares the BIOS for use, and reports whether it is there.
+        //
+        // This used to exit the process on failure. On a machine without the
+        // HP firmware interface that meant no window and no readings, while
+        // the ACPI thermal zones, the battery, the drive temperature, the
+        // network meter and the system metrics would all have worked — none of
+        // which need it. Refusing to start is a decision for the identity
+        // gate, which knows whether this is a machine the application should
+        // be driving at all; a missing interface on a machine that is one is a
+        // reduced application, not a stopped one.
+        public static bool BiosInit() {
+
             Bios = BiosInterface();
-            if(Bios == null || !Bios.IsInitialized)
-                App.Exit(Config.ExitStatus.ErrorBios);
+            HasBios = Bios != null && Bios.IsInitialized;
+
+            if(!HasBios) {
+                Bios = new StarMon.Hardware.AbsentBiosCtl();
+                Logger.Warning("Bios", "Firmware interface unavailable",
+                    "BIOS-backed features are switched off for this session");
+            }
+
+            return HasBios;
+
         }
 
         // Returns the BIOS interface
         public static IBiosCtl BiosInterface() {
             var bios = BiosCtl.Instance;
             if(bios == null) {
-                App.Error("ErrBiosNull");
+                Logger.Error("Bios", "No interface instance", "");
                 return null;
             }
             bios.Initialize();
             if(bios.IsInitialized) {
                 return bios;
             } else {
-                App.Error("ErrBiosInit");
+                // Logged rather than shown. This is reached on every machine
+                // without the HP firmware interface, and BiosInit's caller is
+                // in a better position to decide whether that is worth a
+                // dialog than a routine that only knows a call did not work.
+                Logger.Error("Bios", "Interface would not initialize", "");
                 bios.Close();
             }
             return null;
@@ -181,25 +212,50 @@ namespace StarMon.Library {
         // Embedded Controller interface
         public static IEmbeddedController Ec;
 
-        // Prepares the embedded controller for use
-        public static void EcInit() {
+        // Whether the Embedded Controller is genuinely reachable
+        public static bool HasEc { get; private set; }
+
+        // Prepares the embedded controller for use, and reports whether it is
+        // reachable.
+        //
+        // The failure this handles is not rare and not the user's mistake:
+        // reaching the controller needs a kernel driver, the driver this
+        // application carries is on Microsoft's vulnerable-driver list, and
+        // that list has been enforced by default since the Windows 11 2022
+        // update. Exiting told those users nothing they could act on.
+        //
+        // See Hardware/CodeIntegrity.cs for what is in the way and what to
+        // say about it.
+        public static bool EcInit() {
+
             Ec = EcInterface();
-            if(Ec == null || !Ec.IsInitialized)
-                App.Exit(Config.ExitStatus.ErrorEc);
+            HasEc = Ec != null && Ec.IsInitialized;
+
+            if(!HasEc) {
+                Ec = new StarMon.Hardware.AbsentEmbeddedController();
+                Logger.Warning("Ec", "Controller unreachable",
+                    StarMon.Hardware.CodeIntegrity.Summary());
             }
+
+            return HasEc;
+
+        }
 
         // Returns the Embedded Controller interface
         public static IEmbeddedController EcInterface() {
             var ec = EmbeddedController.Instance;
             if(ec == null) {
-                App.Error("ErrEcNull");
+                Logger.Error("Ec", "No controller instance", "");
                 return null;
             }
             ec.Initialize();
             if(ec.IsInitialized) {
                 return ec;
             } else {
-                App.Error("ErrEcInit");
+                // Logged rather than shown, for the same reason as the BIOS
+                // above: the driver being blocked is the common case now, and
+                // what to say about it is CodeIntegrity's job.
+                Logger.Error("Ec", "Controller would not initialize", "");
                 ec.Close();
             }
             return null;

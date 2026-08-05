@@ -31,6 +31,10 @@ namespace StarMon.AppCli {
                 && !args[1].StartsWith("-", StringComparison.Ordinal)
                 ? args[1] : null;
 
+            // Neither failure stops the report. A machine where one of these
+            // will not initialise is precisely the machine somebody is trying
+            // to describe, and a report that refuses to be produced there
+            // describes nothing.
             Hw.BiosInit();
             Hw.EcInit();
 
@@ -90,6 +94,21 @@ namespace StarMon.AppCli {
             sb.AppendLine("Read-only: this asked the firmware and the Embedded "
                 + "Controller for values and changed neither.");
             sb.AppendLine();
+
+            sb.AppendLine("| | |");
+            sb.AppendLine("|---|---|");
+            sb.AppendLine("| Firmware interface | "
+                + (Hw.HasBios ? "available" : "**not available**") + " |");
+            sb.AppendLine("| Embedded Controller | "
+                + (Hw.HasEc ? "available" : "**not reachable**") + " |");
+            sb.AppendLine("| Code integrity | " + CodeIntegrity.Summary() + " |");
+            sb.AppendLine();
+
+            if(!Hw.HasEc) {
+                sb.AppendLine("> " + CodeIntegrity.Explain().Replace("\n\n", " "));
+                sb.AppendLine();
+            }
+
 
             // Everything the application already knows how to say about a
             // machine, rather than a second description of the same thing

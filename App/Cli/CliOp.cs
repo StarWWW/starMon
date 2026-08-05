@@ -29,8 +29,16 @@ namespace StarMon.AppCli {
                 // Perform BIOS actions
                 case "-bios":
 
-                    // Initialize the BIOS
-                    Hw.BiosInit();
+                    // Initialize the BIOS.
+                    //
+                    // Unlike the interface, the command line stops here: an
+                    // operation asked for explicitly and not carried out is a
+                    // failure a script has to be able to see, and every
+                    // -Bios operation needs the interface that is missing.
+                    if(!Hw.BiosInit()) {
+                        App.Error("ErrBiosInit");
+                        return;
+                    }
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
@@ -299,8 +307,14 @@ namespace StarMon.AppCli {
                 case "-ec":
                     Cli.PrintContext(Config.Locale.Get(Config.L_CLI_EC), "-Ec");
 
-                    // Initialize the Embedded Controller
-                    Hw.EcInit();
+                    // Initialize the Embedded Controller. As for -Bios
+                    // above: asked for explicitly, so a refusal is reported
+                    // rather than worked around.
+                    if(!Hw.EcInit()) {
+                        App.Error("ErrEcInit");
+                        Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
+                        return;
+                    }
 
                     // If no argument, since this was the last one already
                     // or next argument indicates another context
@@ -345,8 +359,14 @@ namespace StarMon.AppCli {
                 case "-ecmon":
                     Cli.PrintContext(Config.Locale.Get(Config.L_CLI_EC + "Mon"), "-EcMon");
 
-                    // Initialize the Embedded Controller
-                    Hw.EcInit();
+                    // Initialize the Embedded Controller. As for -Bios
+                    // above: asked for explicitly, so a refusal is reported
+                    // rather than worked around.
+                    if(!Hw.EcInit()) {
+                        App.Error("ErrEcInit");
+                        Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
+                        return;
+                    }
 
                     // Check if the next argument might be a filename to save to
                     string filename = null;
