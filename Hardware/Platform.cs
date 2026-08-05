@@ -368,6 +368,19 @@ namespace StarMon.Hardware.Platform {
             for(int i = 0; i < this.TemperatureUseIndices.Length; i++) {
                 int idx = this.TemperatureUseIndices[i];
 
+                // A sensor that has been stood down is left out.
+                //
+                // Standing one down used to mean only "stop asking so often";
+                // its last reading went on counting towards the machine's
+                // hottest point for ever. So a probe that failed while holding
+                // a high figure kept that figure in the maximum permanently —
+                // the fans pinned by a sensor that stopped answering minutes
+                // ago, and nothing anywhere saying so.
+                //
+                // A reading nobody can refresh is not a temperature any more.
+                if(this.TemperatureDormant[idx])
+                    continue;
+
                 // Obtain the reading from each temperature sensor
                 // If the value is higher than the current candidate
                 if((value = (byte) this.Temperature[idx].GetValue()) > max)
@@ -510,19 +523,40 @@ namespace StarMon.Hardware.Platform {
                 return;
             }
 
-            // A refused update on a sensor that has never held a value is the
-            // signature of a register that is not there. One that does hold a
-            // value is merely between readings, and is left alone.
-            if(this.Temperature[index].GetValue() != 0)
-                return;
-
+            // A refused update counts against the sensor whether or not it has
+            // a value from before.
+            //
+            // It used to return here for any sensor holding a non-zero
+            // reading, on the reasoning that such a sensor is merely between
+            // readings. That reasoning does not survive a sensor which starts
+            // refusing and never stops: it keeps the last figure it managed,
+            // the counter never moves, it is never stood down, and the value
+            // it froze at goes on being reported as the current temperature
+            // for the life of the process.
+            //
+            // Seen on real hardware. The chipset probe on this board reads
+            // low forties, and intermittently returns 0x90 — 144, which is not
+            // a temperature and which the plausibility ceiling refuses. Once
+            // it settled there every update was refused, and the sensor sat
+            // frozen at the last good reading, indistinguishable from a
+            // working one.
+            //
+            // Frozen at forty-three is harmless. Frozen at ninety would pin
+            // the fans at maximum for ever, with nothing in the interface to
+            // say which sensor was doing it — which is the complaint this
+            // application's upstream gets most often.
             if(this.TemperatureDormant[index])
                 return;
 
             if(++this.TemperatureMisses[index] >= DormantAfter) {
+
                 this.TemperatureDormant[index] = true;
-                Logger.Info("Platform", "Sensor not present on this board",
-                    this.Temperature[index].GetName() + " — polling it rarely from now on");
+
+                Logger.Info("Platform", "Sensor stopped answering",
+                    this.Temperature[index].GetName()
+                        + " — polling it rarely, and leaving it out of the"
+                        + " hottest-reading check");
+
             }
 
         }

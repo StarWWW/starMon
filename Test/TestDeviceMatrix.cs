@@ -47,6 +47,7 @@ namespace StarMon.Test {
             TestSilentControllerYieldsNoReading();
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
             TestAHundredDegreesIsARealTemperature();
+            TestAFrozenProbeStopsCountingTowardsTheMaximum();
 
             SelfTest.Group("Device matrix: leaving the machine as it was found");
             TestExitHandsTheFansBack();
@@ -565,6 +566,88 @@ namespace StarMon.Test {
                     "and the steps either side of it still happen");
 
             }
+
+        }
+
+        // A probe that reads hot and then stops answering must not go on being
+        // the machine's hottest point for ever.
+        //
+        // From a real session log: the chipset probe on this board reads low
+        // forties and intermittently returns 144, which the plausibility
+        // ceiling refuses. Once it settles there every update is refused, and
+        // the sensor keeps whatever it last managed — indistinguishable from a
+        // working one, for the life of the process.
+        //
+        // Standing a sensor down used to mean only "ask less often"; its last
+        // reading still counted. So a probe frozen at ninety pinned the fans
+        // at maximum with nothing anywhere saying which sensor was doing it,
+        // which is the complaint this application's upstream gets most often.
+        private static void TestAFrozenProbeStopsCountingTowardsTheMaximum() {
+
+            DeviceScenario board = DeviceCatalogue.ProbeFreezesHot();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                // It reads, and it is hot
+                platform.UpdateTemperature(false);
+
+                SelfTest.Check(HottestOfControllerBacked(platform) >= 92,
+                    "the probe is read while it is answering");
+
+                // Now it starts returning what the real board returns: 0x90,
+                // which is 144, which the plausibility ceiling refuses. Every
+                // update from here on is refused and the component keeps the
+                // last figure it managed.
+                //
+                // Modelled this way rather than by removing the register: an
+                // absent register answers a blind read with nought, and the
+                // component settles at nought, which is excluded for a
+                // different reason. The case that matters is a register that
+                // answers with something that is not a temperature.
+                board.Ec.Set(Register.RTMP, 144);
+
+                for(int i = 0; i < 40; i++)
+                    platform.UpdateTemperature(false);
+
+                int frozen = -1;
+                for(int i = 0; i < platform.Temperature.Length; i++)
+                    if(platform.Temperature[i].GetName() == "RTMP") {
+                        frozen = platform.Temperature[i].GetValue();
+                        SelfTest.Check(platform.TemperatureDormant[i],
+                            "a sensor that stopped answering is stood down"
+                                + " even though it still holds a reading");
+                    }
+
+                SelfTest.Equal(92, frozen,
+                    "it does still hold the reading it froze at");
+
+                SelfTest.Check(HottestOfControllerBacked(platform) < 92,
+                    "but that reading no longer counts as the machine's hottest point ("
+                        + HottestOfControllerBacked(platform) + " C)");
+
+            }
+
+        }
+
+        // The hottest of the sensors this fake actually backs, ignoring the
+        // real machine's published sensors and thermal zones
+        private static int HottestOfControllerBacked(Platform platform) {
+
+            int hottest = 0;
+
+            for(int i = 0; i < platform.Temperature.Length; i++) {
+
+                if(!platform.TemperatureUse[i] || platform.TemperatureDormant[i])
+                    continue;
+
+                if(platform.Temperature[i].GetValue() > hottest)
+                    hottest = platform.Temperature[i].GetValue();
+
+            }
+
+            return hottest;
 
         }
 

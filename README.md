@@ -293,7 +293,7 @@ Both are searched for, so nothing has to be configured. If either is somewhere u
 
 ### The self-test
 
-The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **573 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **595 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
 
 #### The device matrix
 
@@ -645,7 +645,7 @@ Betik düz .NET SDK ile çalışır — Visual Studio gerekmez. Bu projeyi başk
 
 ### Öz test
 
-Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **573 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
+Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **595 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
 
 ### Tasarım döngüsü
 

@@ -115,6 +115,7 @@ namespace StarMon.Test.Devices {
             list.Add(HighCeilingBoard());
             list.Add(FirmwareReportsNoFanTable());
             list.Add(RunningPastAHundred());
+            list.Add(ProbeFreezesHot());
 
             return list;
 
@@ -379,6 +380,35 @@ namespace StarMon.Test.Devices {
                 Name = "Machine running past a hundred degrees",
                 Source = "Library/ConfigData.cs:372 against PlatformComponent.cs:380",
                 Property = "a real full-load temperature is read rather than discarded",
+                Ec = ec,
+                Bios = HealthyBios()
+            };
+
+        }
+
+        // A probe that reads hot and then stops answering.
+        //
+        // Taken from a log of a real session: the chipset probe on this board
+        // reads low forties and intermittently returns 0x90 — 144, which is
+        // not a temperature and which the plausibility ceiling refuses. Once
+        // it settles there, every update is refused and the sensor keeps
+        // whatever it last managed.
+        //
+        // Here it last managed 92, which is the case that matters: a frozen
+        // reading that high pins the fans at maximum for ever, and the
+        // interface has nothing to say which sensor is doing it.
+        internal static DeviceScenario ProbeFreezesHot() {
+
+            FakeEcDevice ec = HealthyEc();
+
+            // Hot but believable, so it is read and kept
+            ec.Set(Register.RTMP, 92);
+
+            return new DeviceScenario {
+                Name = "Probe freezes at a high reading",
+                Board = "8DCF",
+                Source = "a session log: RTMP reading 0x90 (144) and staying there",
+                Property = "a sensor that stops answering stops counting towards the maximum",
                 Ec = ec,
                 Bios = HealthyBios()
             };
