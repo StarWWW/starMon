@@ -5,6 +5,7 @@ using System;
 using System.Globalization;
 using System.Text;
 using StarMon.Hardware;
+using StarMon.Hardware.Bios;
 using StarMon.Hardware.Ec;
 using StarMon.Hardware.Platform;
 using StarMon.Library;
@@ -137,6 +138,7 @@ namespace StarMon.AppCli {
 
             AppendRegisterMap(sb);
             AppendNamedRegisters(sb);
+            AppendFanTable(sb);
             AppendFans(sb, platform);
 
             sb.AppendLine();
@@ -217,6 +219,68 @@ namespace StarMon.AppCli {
 
             }
 
+            sb.AppendLine();
+
+        }
+
+        // The firmware's own fan curve, as it answered.
+        //
+        // The profile above reports the ceiling this was reduced to and, now,
+        // which branch it took to get there. That was not enough: a report
+        // reading "the fan table topped out at 24, which is not a fan level"
+        // says the answer was rejected without showing the answer, and whether
+        // rejecting it was right is the whole question. This is the evidence.
+        private static void AppendFanTable(StringBuilder sb) {
+
+            sb.AppendLine("## The firmware's fan table");
+            sb.AppendLine();
+
+            BiosData.FanTable table;
+
+            try {
+                table = Hw.BiosGetStruct<BiosData.FanTable>(Hw.Bios.GetFanTable);
+            } catch(Exception e) {
+                sb.AppendLine("The firmware declined to describe its fan table: "
+                    + e.Message);
+                sb.AppendLine();
+                return;
+            }
+
+            if(table.Level == null || table.Level.Length == 0) {
+                sb.AppendLine("The firmware returned no rows.");
+                sb.AppendLine();
+                return;
+            }
+
+            sb.AppendLine("Reported for " + table.FanCount + " fan(s), "
+                + table.Level.Length + " row(s). Levels are the units the fan "
+                + "setpoint registers take; on the boards seen so far a level "
+                + "is roughly a hundredth of the resulting speed in rpm.");
+            sb.AppendLine();
+            sb.AppendLine("| Row | Temperature | Fan 1 level | Fan 2 level |");
+            sb.AppendLine("|---|---|---|---|");
+
+            int top = 0;
+
+            for(int i = 0; i < table.Level.Length; i++) {
+
+                BiosData.FanLevel row = table.Level[i];
+
+                if(row.Fan1Level > top) top = row.Fan1Level;
+                if(row.Fan2Level > top) top = row.Fan2Level;
+
+                sb.AppendLine("| " + i
+                    + " | " + row.Temperature + " C"
+                    + " | " + row.Fan1Level
+                    + " | " + row.Fan2Level + " |");
+
+            }
+
+            sb.AppendLine();
+            sb.AppendLine("Highest level in the table: **" + top + "**. "
+                + "The ceiling in use is " + DeviceProfile.FanLevelCeiling
+                + " — see the device profile above for which of the two won "
+                + "and why.");
             sb.AppendLine();
 
         }
