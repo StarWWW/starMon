@@ -310,6 +310,21 @@ namespace StarMon.Library
         public static void Info(string source, string message, string details = null)
             => Log(LogLevel.Info, source, message, details);
 
+        // An informational entry that collapses while its details hold steady,
+        // reporting how many were dropped when they change.
+        //
+        // For a decision taken on a schedule: a fan curve re-deciding the same
+        // level every fifteen seconds is one fact, and a curve stepping is
+        // several. Unlike a command, which is an event and is never collapsed,
+        // this is a value being recomputed.
+        public static void Deduplicated(string source, string message, string details)
+        {
+            if (!ShouldLog($"INFO_{source}_{message}", details ?? string.Empty, out int n))
+                return;
+
+            Log(LogLevel.Info, source, message, WithSuppressed(details, n));
+        }
+
         public static void Warning(string source, string message, string details = null)
             => Log(LogLevel.Warning, source, message, details);
 

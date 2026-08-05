@@ -161,6 +161,20 @@ namespace StarMon.Hardware.Platform {
             // Save the last GPU power state
             this.LastGpuPowerData = Platform.System.GetGpuPower();
 
+            // The lifecycle of a fan program was entirely unlogged, and it is
+            // the part of this application most likely to misbehave — the
+            // failure reports against its upstream are overwhelmingly about
+            // curves that stop being followed. A verbose log of a session in
+            // which one was started and stopped carried nothing about it at
+            // all: not that it started, not a level it chose, not that it
+            // ended. There was no way to tell a program that never ran from
+            // one that ran and did nothing.
+            Logger.Info("Program", "Fan program running",
+                this.Name + " · " + this.Levels.Count + " steps"
+                    + (isAlternate ? " · alternate" : "")
+                    + " · mode " + this.ProgramData.FanMode
+                    + " · was " + this.LastFanMode);
+
             // Update the program
             Update();
 
@@ -229,6 +243,9 @@ namespace StarMon.Hardware.Platform {
             // Update the status
             Status(Severity.Notice, Config.Locale.Get(Config.L_PROG + "End"));
 
+            Logger.Info("Program", "Fan program stopped",
+                "fan mode put back to " + this.LastFanMode);
+
             // Report success
             return true;
 
@@ -248,6 +265,17 @@ namespace StarMon.Hardware.Platform {
             byte temperature = Platform.GetMaxTemperature(true);
             byte level = GetTemperatureLevel(temperature);
             byte[] fans = GetFanLevel(level);
+
+            // What the curve decided, every time it decides.
+            //
+            // Deduplicated on the decision rather than emitted blindly, so a
+            // steady machine costs one line and a curve that is actually
+            // following the temperature shows every step it takes. This is the
+            // line that answers "is my fan program doing anything", which
+            // nothing in the log could answer before.
+            Logger.Deduplicated("Program", "Curve step",
+                temperature + " C · level " + level
+                    + " · fans " + fans[0] + ", " + fans[1]);
 
             // Note: the above could all be accomplished with
             // a single nested call, except we also want to report
@@ -405,8 +433,14 @@ namespace StarMon.Hardware.Platform {
         private bool Setup(string name) {
 
             // Bail out if referring to a non-existent program
-            if(!Config.FanProgram.ContainsKey(name))
+            if(!Config.FanProgram.ContainsKey(name)) {
+
+                Logger.Error("Program", "No such fan program",
+                    "\"" + name + "\" is not in the configuration file");
+
                 return false;
+
+            }
 
             // Set up the program name
             this.Name = name;
