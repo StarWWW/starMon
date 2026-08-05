@@ -442,8 +442,25 @@ namespace StarMon.Hardware.Ec
                 }
                 else
                 {
-                    // Report driver installation failure details
-                    App.Error(Ring0.GetStatus());
+                    // Logged, not shown.
+                    //
+                    // This was App.Error, which in the interface is a modal
+                    // dialog and on the command line sets a failure exit code.
+                    // Both are wrong here. The text is the driver loader's own
+                    // running commentary - "1st Try: OpenSCManager Error:
+                    // 00000005" - which is untranslated, is not addressed to a
+                    // user, and says nothing they can act on; and it appeared
+                    // before the explanation that can, since Hw.EcInit only
+                    // gets to run after this returns.
+                    //
+                    // It also made -Probe exit 5 while writing a perfectly good
+                    // report, on exactly the machines the report is for.
+                    //
+                    // The detail is worth keeping: it is the first thing to
+                    // look at when a driver will not load. It belongs in the
+                    // log, which the report carries.
+                    Logger.Error("Driver", "Kernel driver would not open",
+                        Ring0.GetStatus());
                 }
             }
         }
