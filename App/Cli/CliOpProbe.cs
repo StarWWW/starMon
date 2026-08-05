@@ -47,8 +47,22 @@ namespace StarMon.AppCli {
             }
 
             try {
+
                 platform = new Platform();
                 DeviceProfile.Attach(platform);
+
+                // Without this the capability report has no platform to probe
+                // against, and silently omits the entire HP BIOS and Embedded
+                // Controller block — the keyboard backlight, the colour zones,
+                // the MUX, the graphics power, the fan-level path, the fan
+                // table. Which is to say: everything this application is for,
+                // missing from the report written to describe it.
+                //
+                // Found by running -Probe on real hardware and reading what
+                // came out. The interface calls this on startup, so nothing
+                // that used the report from a running window could see it.
+                FeatureSupport.Initialize(platform);
+
             } catch(Exception e) {
                 Logger.Error("Device", "Platform initialisation failed", e.Message);
             }

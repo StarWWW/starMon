@@ -179,6 +179,15 @@ namespace StarMon.Hardware {
         // because it is the usual answer and the one with a switch in Windows
         // Security; the blocklist after it, since it is enforced by memory
         // integrity anyway and is a separate switch only when that is off.
+        //
+        // What this returns is a correlation, not a proven cause, and the
+        // wording it produces says so. Measured on the development machine:
+        // memory integrity running, the blocklist on, secure boot on — and the
+        // driver loads anyway, because whether a particular binary is on that
+        // list depends on its own signature rather than on its ancestry. This
+        // is only ever consulted once the driver has already failed to load,
+        // so naming the most likely reason is useful; asserting it as the
+        // reason would be telling the user something not known to be true.
         public static Obstacle Diagnose() {
 
             lock(Lock) {
@@ -227,17 +236,18 @@ namespace StarMon.Hardware {
                         + "Embedded Controller. Run it elevated.";
 
                 case Obstacle.MemoryIntegrity:
-                    return "Windows is blocking the driver StarMon uses to reach "
-                        + "the Embedded Controller, because memory integrity is "
-                        + "switched on and the driver is on Microsoft's "
-                        + "vulnerable-driver list.\n\n"
+                    return "The driver StarMon uses to reach the Embedded "
+                        + "Controller could not be loaded, and memory integrity "
+                        + "is running on this machine — which enforces "
+                        + "Microsoft's vulnerable-driver list, and is the usual "
+                        + "reason.\n\n"
                         + "Temperatures, battery and system readings still work. "
                         + "Fan control and the keyboard backlight do not.\n\n"
                         + Remedy();
 
                 case Obstacle.DriverBlocklist:
-                    return "Windows is blocking the driver StarMon uses, because "
-                        + "the vulnerable-driver blocklist is switched on.\n\n"
+                    return "The driver StarMon uses could not be loaded, and the "
+                        + "vulnerable-driver blocklist is switched on.\n\n"
                         + "Monitoring still works; fan control does not.\n\n"
                         + Remedy();
 
