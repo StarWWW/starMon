@@ -192,6 +192,7 @@
         <Compile Include="Hardware\GpuNvidia.cs"/>
         <Compile Include="Hardware\HpSensors.cs"/>
         <Compile Include="Hardware\HpBiosSettings.cs"/>
+        <Compile Include="Hardware\Identity.cs"/>
         <Compile Include="Hardware\AcpiThermal.cs"/>
         <Compile Include="Hardware\NetworkMeter.cs"/>
         <Compile Include="Hardware\Platform.cs"/>

@@ -31,6 +31,14 @@ namespace StarMon.Test {
             TestEveryVerdictHasAnExplanation();
             TestTheSummaryDescribesThisMachine();
 
+            SelfTest.Group("The hardware gate");
+
+            TestPortableHpMachinesAreDriven();
+            TestOtherMachinesAreRefused();
+            TestUnreadableMachinesAreAllowed();
+            TestThisMachineIsJudgedCorrectly();
+            TestOnlyWritingRunsAreGated();
+
             SelfTest.Group("Running without the hardware");
 
             TestPlatformStandsWithoutAController();
@@ -38,6 +46,141 @@ namespace StarMon.Test {
             TestWritesGoNowhereRatherThanSomewhereWrong();
 
         }
+
+#region The hardware gate
+        // A shorthand for the decision, so the cases read as machines
+        private static Identity.Verdict Judge(string manufacturer, string board,
+            params int[] chassis) {
+
+            string reason;
+            return Identity.Decide(manufacturer, board, chassis, out reason);
+
+        }
+
+        // The machines this application is for
+        private static void TestPortableHpMachinesAreDriven() {
+
+            SelfTest.Equal(Identity.Verdict.Supported,
+                Judge("HP", "8DCF", 10),
+                "an HP notebook is driven");
+
+            SelfTest.Equal(Identity.Verdict.Supported,
+                Judge("Hewlett-Packard", "88F7", 9),
+                "so is one whose firmware spells the name out");
+
+            SelfTest.Equal(Identity.Verdict.Supported,
+                Judge("HP", "8A14", 31),
+                "and a convertible, which is still a portable machine");
+
+        }
+
+        // The machines it is not, each for its own reason
+        private static void TestOtherMachinesAreRefused() {
+
+            // The report this gate exists for: an Omen desktop, left with a
+            // permanently wrong fan curve by writes meant for a laptop
+            SelfTest.Equal(Identity.Verdict.Unsupported,
+                Judge("HP", "89EB", 3),
+                "an HP desktop is refused");
+
+            // And refused by name even where the chassis table says portable,
+            // which is the case the denylist exists for
+            SelfTest.Equal(Identity.Verdict.Unsupported,
+                Judge("HP", "89EB", 10),
+                "a board known to be harmful is refused whatever the chassis claims");
+
+            SelfTest.Equal(Identity.Verdict.Unsupported,
+                Judge("Dell Inc.", "0ABCD", 10),
+                "a laptop from another manufacturer is refused");
+
+            SelfTest.Equal(Identity.Verdict.Unsupported,
+                Judge("HP", "1234", 7),
+                "so is a tower, whoever made it");
+
+            SelfTest.Equal(Identity.Verdict.Unsupported,
+                Judge("HP", "1234", 13),
+                "and an all-in-one");
+
+        }
+
+        // The gate refuses on evidence and allows on the absence of it. A
+        // machine whose WMI will not answer is not thereby a desktop, and
+        // refusing to start because a query failed would be the worse failure.
+        private static void TestUnreadableMachinesAreAllowed() {
+
+            SelfTest.Equal(Identity.Verdict.Unknown,
+                Judge(null, null),
+                "a machine that says nothing about itself is allowed");
+
+            SelfTest.Equal(Identity.Verdict.Unknown,
+                Judge("HP", "8DCF"),
+                "so is one whose chassis type could not be read");
+
+            SelfTest.Equal(Identity.Verdict.Unknown,
+                Judge(null, "8DCF", 10),
+                "and one whose manufacturer could not be read");
+
+            // An unrecognised chassis number is neither portable nor listed as
+            // stationary. Landing in Unknown rather than being refused by a
+            // rule nobody checked is the whole point of listing both sets.
+            SelfTest.Equal(Identity.Verdict.Unknown,
+                Judge("HP", "8DCF", 99),
+                "an unrecognised chassis type is allowed rather than guessed at");
+
+        }
+
+        // And the machine actually running this
+        private static void TestThisMachineIsJudgedCorrectly() {
+
+            Identity.Reset();
+
+            Identity.Verdict verdict = Identity.Examine();
+
+            SelfTest.Check(verdict != Identity.Verdict.Unsupported,
+                "this machine is not refused (" + Identity.Summary() + ")");
+
+            SelfTest.Check(Identity.MayRun(),
+                "so the application may run on it");
+
+            Console.WriteLine("         this machine: " + Identity.Summary());
+
+        }
+
+        // On the command line the gate applies to writes only. Reading a
+        // register on a board nobody understands is how it comes to be
+        // understood, and -Probe exists to be run on exactly those machines.
+        private static void TestOnlyWritingRunsAreGated() {
+
+            SelfTest.Check(!StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Bios" }),
+                "asking the firmware questions is not a write");
+
+            SelfTest.Check(!StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Ec" }),
+                "dumping the registers is not a write");
+
+            SelfTest.Check(!StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Probe", "report.md" }),
+                "and neither is the hardware report, which is for these machines");
+
+            SelfTest.Check(StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Bios", "FanMode=Performance" }),
+                "an assignment is a write");
+
+            SelfTest.Check(StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Ec", "SRP1=40" }),
+                "including one straight to a register");
+
+            SelfTest.Check(StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Prog", "Silent" }),
+                "and a fan program, which is a continuous run of them");
+
+            SelfTest.Check(StarMon.AppCli.CliOp.WouldWrite(
+                    new string[] { "-Ec", "RPM1(2)", "-Bios", "Backlight=Off" }),
+                "a run that reads and then writes counts as a write");
+
+        }
+#endregion
 
 #region Running without the hardware
         // Installs stand-ins and puts back whatever was there

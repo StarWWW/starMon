@@ -107,7 +107,13 @@ namespace StarMon.Library
             // return 1, which is ErrorBios: a build script could not tell a
             // failing test from a machine whose BIOS interface would not
             // initialize, and those call for opposite responses.
-            ErrorSelfTest = 6
+            ErrorSelfTest = 6,
+
+            // The machine was positively identified as one this application
+            // should not be writing to. Distinct from a BIOS or controller
+            // failure: those are a machine that could not be reached, this is
+            // one that could and should not be.
+            ErrorUnsupportedHardware = 7
         }
 
         // Whether to always extend the fan countdown timer, so a manually
@@ -125,6 +131,22 @@ namespace StarMon.Library
         // Victus board has its own; see Hardware/DeviceProfile.cs. Turn this
         // off to pin the settings by hand on a machine whose firmware lies.
         public static bool FanLevelAutoDetect = true;
+
+        // Run on a machine the hardware gate refused.
+        //
+        // The gate declines to start on anything it can positively identify as
+        // not an HP portable, because the registers this application writes to
+        // are one laptop family's and on another machine the same addresses
+        // belong to something else - which the firmware accepts without
+        // reporting an error. An Omen desktop was left with a permanently
+        // wrong fan curve that way, through a BIOS reset and a Windows
+        // reinstall.
+        //
+        // The escape hatch exists because a gate that refuses has to have one:
+        // an OEM variant reporting an unfamiliar manufacturer string would
+        // otherwise be unfixable by the person holding it. It is off, and
+        // turning it on is a statement that you know what this machine is.
+        public static bool HardwareGateOverride = false;
 
         // Fan level thresholds (for custom level setting with trackbars in Const
         // mode, and as the 100 % end of the fan curve). The maximum is a

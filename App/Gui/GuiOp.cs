@@ -40,6 +40,19 @@ namespace StarMon.AppGui {
             // Initialize the parent class reference
             this.Context = context;
 
+            // Whether this is a machine to be driving at all.
+            //
+            // Ahead of every other step here, because every other step leads
+            // to a write eventually and this one is about not making the first
+            // of them. An Omen desktop was left permanently miscooled by fan
+            // writes meant for a laptop, surviving a BIOS reset and a Windows
+            // reinstall — there was no error to see and nothing to undo.
+            if(!StarMon.Hardware.Identity.MayRun()) {
+                Gui.ShowError(StarMon.Hardware.Identity.Explain());
+                App.Exit(Config.ExitStatus.ErrorUnsupportedHardware);
+                return;
+            }
+
             // Initialize the BIOS and the Embedded Controller.
             //
             // Neither is fatal any more. A machine where the driver is blocked

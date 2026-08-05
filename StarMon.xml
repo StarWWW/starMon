@@ -107,6 +107,20 @@
              board's own fan table understates what its fans can do. -->
         <FanLevelAutoDetect>true</FanLevelAutoDetect>
 
+        <!-- Run even on a machine StarMon refuses to recognise.
+
+             StarMon declines to start on anything it can positively identify
+             as not an HP portable: the registers it writes to are one laptop
+             family's, and on another machine those same addresses belong to
+             something else. The firmware accepts the write and reports no
+             error, so there is nothing to notice afterwards - an Omen desktop
+             was left with a permanently wrong fan curve this way, surviving
+             both a BIOS reset and a Windows reinstall.
+
+             Turn this on only if you know what your machine is and StarMon has
+             got it wrong. -->
+        <HardwareGateOverride>false</HardwareGateOverride>
+
         <!-- Before setting fan levels, set manual
              fan mode first using the Embedded Controller
              (auto-detected unless FanLevelAutoDetect is false) -->

@@ -18,7 +18,55 @@ namespace StarMon.AppCli {
         internal static volatile bool IsStop;
 
         // Processes the command-line operations
+        // Whether a run would change the hardware.
+        //
+        // An assignment anywhere is a write — that is the whole of the syntax
+        // for one — and a fan program is a continuous run of them. Everything
+        // else on the command line asks questions.
+        //
+        // Deliberately generous about what counts: a run that is refused when
+        // it would only have read is an inconvenience, and one that is allowed
+        // when it writes to a board it should not is the thing being prevented.
+        internal static bool WouldWrite(string[] args) {
+
+            if(args == null)
+                return false;
+
+            foreach(string argument in args) {
+
+                if(argument == null)
+                    continue;
+
+                if(argument.IndexOf('=') >= 0)
+                    return true;
+
+                if(string.Equals(argument, "-prog", StringComparison.OrdinalIgnoreCase))
+                    return true;
+
+            }
+
+            return false;
+
+        }
+
         public static void Loop(string[] args) {
+
+            // The hardware gate, for the arguments that would write.
+            //
+            // The interface refuses to start at all on a machine positively
+            // identified as one this application should not be driving. The
+            // command line is narrower: reading a register on a desktop board
+            // is how somebody finds out what it is, and -Probe exists to be
+            // run on machines that are not understood yet. Writing to one is
+            // the thing that cannot be undone.
+            if(WouldWrite(args) && !StarMon.Hardware.Identity.MayRun()) {
+
+                Cli.PrintError(StarMon.Hardware.Identity.Explain());
+                App.Error("ErrUnsupportedHardware");
+                Environment.ExitCode = (int) Config.ExitStatus.ErrorUnsupportedHardware;
+                return;
+
+            }
 
             // Iterate through the command-line arguments
             // selecting the context first
@@ -505,7 +553,9 @@ namespace StarMon.AppCli {
                     break;
 
                 // Write down everything this machine says about itself, so a
-                // board nobody here owns can still be diagnosed. Read-only.
+                // board nobody here owns can still be diagnosed. Read-only,
+                // and so deliberately not behind the hardware gate: a machine
+                // the gate refuses is the one most worth describing.
                 case "-probe":
                     Cli.PrintContext(Config.Locale.Get(Config.L_CLI + "Probe"), "-Probe");
 
@@ -536,6 +586,7 @@ namespace StarMon.AppCli {
             } // Context loop
 
             return;
+
 
             showUsage:
             Cli.PrintUsage();

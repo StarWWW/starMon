@@ -537,6 +537,7 @@ namespace StarMon.Library.Locale
                 ["ErrEcInit"] = "Gömülü denetleyici başlatılamadı",
                 ["ErrEcLock"] = "Gömülü denetleyici için dışlayıcı kilit alınamadı",
                 ["ErrProbeWrite"] = "Donanım raporu yazılamadı",
+                ["ErrUnsupportedHardware"] = "Bu makine StarMon'un yazmaması gereken bir makine",
                 ["ErrEcNull"] = "Gömülü denetleyici örneklenemedi",
                 ["ErrFileSave"] = "Dosya kaydedilemedi",
                 ["ErrLocaleNull"] = "Yerelleştirilebilir mesaj sistemi örneklenemedi",

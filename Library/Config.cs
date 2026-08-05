@@ -259,6 +259,9 @@ namespace StarMon.Library {
                     if(GetBool(xml, XmlPrefix + "FanLevelAutoDetect", out flag))
                         FanLevelAutoDetect = flag;
 
+                    if(GetBool(xml, XmlPrefix + "HardwareGateOverride", out flag))
+                        HardwareGateOverride = flag;
+
                     if(GetWord(xml, XmlPrefix + "FanLevelMax", out value))
                         FanLevelMax = value;
 
@@ -621,6 +624,7 @@ namespace StarMon.Library {
                     SetUInt(xml, XmlPrefix + "FanCountdownExtendInterval", (uint) FanCountdownExtendInterval);
                     SetUInt(xml, XmlPrefix + "FanCountdownExtendThreshold", (uint) FanCountdownExtendThreshold);
                     SetBool(xml, XmlPrefix + "FanLevelAutoDetect", FanLevelAutoDetect);
+                    SetBool(xml, XmlPrefix + "HardwareGateOverride", HardwareGateOverride);
                     SetUInt(xml, XmlPrefix + "FanLevelMax", (uint) FanLevelMax);
                     SetUInt(xml, XmlPrefix + "FanLevelMin", (uint) FanLevelMin);
                     SetBool(xml, XmlPrefix + "FanLevelNeedManual", FanLevelNeedManual);
