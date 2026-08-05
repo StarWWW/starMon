@@ -41,7 +41,15 @@ namespace StarMon.Hardware {
                             || ni.NetworkInterfaceType == NetworkInterfaceType.Tunnel)
                             continue;
 
-                        IPv4InterfaceStatistics s = ni.GetIPv4Statistics();
+                        // GetIPStatistics rather than GetIPv4Statistics.
+                        //
+                        // The IPv4-only counters report nothing on a link
+                        // carrying IPv6, which on a mobile network or an
+                        // IPv6-only home connection is all of the traffic —
+                        // the meter sat at zero while the machine was
+                        // downloading. The general form counts both, and on
+                        // an IPv4-only link returns the same numbers.
+                        IPInterfaceStatistics s = ni.GetIPStatistics();
                         rx += s.BytesReceived;
                         tx += s.BytesSent;
                         any = true;

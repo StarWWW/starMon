@@ -20,8 +20,54 @@ namespace StarMon.Hardware {
         private static bool HasSample;
         private static long LastRead, LastWrite, LastTicks;
 
-        // Physical drive to query (the system / boot drive)
-        private static int Drive = 0;
+        // Physical drive to query, worked out once from where Windows is
+        // installed rather than assumed to be the first one.
+        //
+        // It was fixed at 0, with a comment calling that "the system / boot
+        // drive". It usually is. On a machine with a second NVMe fitted, or
+        // one that boots from a drive the firmware does not enumerate first,
+        // it is not — and the dashboard then reported the throughput of a
+        // disk the user was not using, with nothing to say it had.
+        private static int Drive = -1;
+        private static readonly object DriveLock = new object();
+
+        // Which physical drive carries the Windows directory.
+        //
+        // Asked of the volume that Windows is actually on, through the extents
+        // that map it onto physical disks. Falling back to 0 where that cannot
+        // be established keeps the previous behaviour for the machines where
+        // it was right, rather than reporting nothing.
+        private static int SystemDrive {
+            get {
+                lock(DriveLock) {
+
+                    if(Drive >= 0)
+                        return Drive;
+
+                    Drive = 0;
+
+                    try {
+
+                        string root = System.IO.Path.GetPathRoot(
+                            Environment.GetFolderPath(Environment.SpecialFolder.Windows));
+
+                        if(string.IsNullOrEmpty(root))
+                            return Drive;
+
+                        // \\.\C: rather than C:\ - the volume, not the path
+                        string volume = @"\\.\" + root.TrimEnd('\\', '/');
+
+                        int number;
+                        if(TryReadVolumeDiskNumber(volume, out number) && number >= 0)
+                            Drive = number;
+
+                    } catch { }
+
+                    return Drive;
+
+                }
+            }
+        }
 
         // Clears the baseline so the next sample starts a fresh interval
         public static void Reset() {
@@ -67,7 +113,7 @@ namespace StarMon.Hardware {
             IntPtr handle = IntPtr.Zero;
             try {
                 handle = Kernel32.CreateFile(
-                    @"\\.\PhysicalDrive" + Drive,
+                    @"\\.\PhysicalDrive" + SystemDrive,
                     0,                                  // No access needed for the query
                     FileShare.ReadWrite,
                     IntPtr.Zero,
@@ -96,6 +142,61 @@ namespace StarMon.Hardware {
                 if(handle != IntPtr.Zero && handle != new IntPtr(-1))
                     Kernel32.CloseHandle(handle);
             }
+        }
+
+        // IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS
+        private const uint IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS = 0x00560000;
+
+        // Which physical disk a volume's first extent lives on.
+        //
+        // A volume can span several disks, in which case the first extent is
+        // the honest answer to "which disk is Windows on" for a throughput
+        // figure - there is no single one, and picking the first is at least
+        // a disk the system is genuinely using.
+        private static bool TryReadVolumeDiskNumber(string volume, out int number) {
+
+            number = -1;
+            IntPtr handle = IntPtr.Zero;
+
+            try {
+
+                handle = Kernel32.CreateFile(
+                    volume,
+                    0,
+                    FileShare.ReadWrite,
+                    IntPtr.Zero,
+                    FileMode.Open,
+                    0,
+                    IntPtr.Zero);
+
+                if(handle == IntPtr.Zero || handle == new IntPtr(-1))
+                    return false;
+
+                // VOLUME_DISK_EXTENTS: a count, then that many extents of
+                // { DiskNumber, StartingOffset, ExtentLength }. Only the first
+                // extent's disk number is wanted, which is at offset 8 once
+                // the count and its padding are accounted for.
+                byte[] buffer = new byte[1024];
+
+                if(!Kernel32.DeviceIoControl(
+                        handle, IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS,
+                        null, 0, buffer, (uint) buffer.Length,
+                        out uint _, IntPtr.Zero))
+                    return false;
+
+                if(BitConverter.ToUInt32(buffer, 0) < 1)
+                    return false;
+
+                number = BitConverter.ToInt32(buffer, 8);
+                return true;
+
+            } catch {
+                return false;
+            } finally {
+                if(handle != IntPtr.Zero && handle != new IntPtr(-1))
+                    Kernel32.CloseHandle(handle);
+            }
+
         }
 
     }
