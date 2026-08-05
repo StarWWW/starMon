@@ -238,14 +238,28 @@ namespace StarMon.Hardware {
 
         }
 
-        // Works out the highest fan level this firmware uses
+        // Works out the highest fan level this firmware uses.
+        //
+        // The source string this sets is the only thing that tells anybody
+        // whether the ceiling is a number the machine confirmed or one the
+        // build shipped, and it is printed in the hardware report for exactly
+        // that reason. It used to say "configured" in two very different
+        // situations — the firmware declined to describe its fans, and the
+        // firmware described them and agreed — because the branch that agrees
+        // assigned nothing. A report saying "ceiling from configured" on a
+        // board whose own table confirms the ceiling is not a small
+        // inaccuracy: it is the report saying the value is unverified when it
+        // has in fact been verified.
         private static void ProbeFanCeiling() {
 
             try {
 
                 BiosData.FanTable table = Hw.BiosGetStruct<BiosData.FanTable>(Hw.Bios.GetFanTable);
-                if(table.Level == null)
+
+                if(table.Level == null || table.Level.Length == 0) {
+                    FanLevelCeilingSource = "configured (the firmware gave no fan table)";
                     return;
+                }
 
                 int top = 0;
                 foreach(BiosData.FanLevel level in table.Level) {
@@ -253,27 +267,48 @@ namespace StarMon.Hardware {
                     if(level.Fan2Level > top) top = level.Fan2Level;
                 }
 
-                if(top < CeilingMin || top > CeilingMax)
+                if(top < CeilingMin || top > CeilingMax) {
+                    FanLevelCeilingSource = "configured (the fan table topped out at "
+                        + top + ", which is not a fan level)";
                     return;
+                }
 
                 // A table that reaches higher than the configured ceiling is
                 // proof the ceiling is too low, whatever the table's length:
                 // the firmware is demonstrably driving the fans up there.
                 if(top > FanLevelCeiling) {
+                    FanLevelCeilingSource = "fan table, raised from " + FanLevelCeiling;
                     FanLevelCeiling = top;
-                    FanLevelCeilingSource = "fan table";
+                    return;
+                }
+
+                // The firmware's own table and the configured value agree.
+                // Worth saying so: it is the difference between a number
+                // nobody has checked and one this machine has confirmed.
+                if(top == FanLevelCeiling) {
+                    FanLevelCeilingSource = "fan table, confirming the configured value";
                     return;
                 }
 
                 // Lowering is the riskier direction — it costs the user the
                 // top of their range — so it takes a table long enough to be
-                // an actual curve rather than a stub answer.
-                if(top < FanLevelCeiling && table.Level.Length >= CredibleTableRows) {
+                // an actual curve rather than a stub answer. The array is
+                // sized to the count the firmware reported, so its length is
+                // the number of real rows.
+                if(table.Level.Length >= CredibleTableRows) {
+                    FanLevelCeilingSource = "fan table, lowered from " + FanLevelCeiling;
                     FanLevelCeiling = top;
-                    FanLevelCeilingSource = "fan table";
+                    return;
                 }
 
-            } catch { }
+                FanLevelCeilingSource = "configured (the fan table stopped at "
+                    + top + " but had only " + table.Level.Length
+                    + " rows, too few to lower it on)";
+
+            } catch(Exception e) {
+                FanLevelCeilingSource = "configured (asking for the fan table failed: "
+                    + e.Message + ")";
+            }
 
         }
 

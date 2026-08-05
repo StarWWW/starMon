@@ -32,6 +32,112 @@ namespace StarMon.Test {
             TestPublishedSensorsAreParsedOrRejected();
             TestThermalZonesConvertFromTenthsOfAKelvin();
             TestKeyboardBodyIsReadFromTheCountryCode();
+            TestTheCeilingSaysWhereItCameFrom();
+
+        }
+
+        // Where the fan ceiling came from has to be reported honestly.
+        //
+        // That string is printed in the hardware report and on the cooling
+        // page, and it is the only thing telling anybody whether the ceiling
+        // is a number this machine confirmed or one the build shipped. It used
+        // to read "configured" in two situations that mean opposite things:
+        // the firmware declined to describe its fans, and the firmware
+        // described them and agreed — because the branch where they agree
+        // assigned nothing and left the starting value in place.
+        //
+        // Found by reading a report from real hardware, where the ceiling is
+        // 56 and the line said "from configured" on a board whose own table
+        // almost certainly confirms it.
+        private static void TestTheCeilingSaysWhereItCameFrom() {
+
+            // A table agreeing with the configured value
+            SelfTest.Check(CeilingSourceFor(ceiling: 56, tableTop: 56, rows: 7)
+                    .IndexOf("fan table", StringComparison.Ordinal) >= 0,
+                "a table that agrees is reported as having confirmed the ceiling");
+
+            // A table that reaches higher
+            string raised = CeilingSourceFor(ceiling: 56, tableTop: 68, rows: 7);
+            SelfTest.Check(raised.IndexOf("fan table", StringComparison.Ordinal) >= 0
+                    && raised.IndexOf("raised", StringComparison.Ordinal) >= 0,
+                "a table that reaches higher says it raised the ceiling");
+
+            // A table that stops lower, with enough rows to be believed
+            string lowered = CeilingSourceFor(ceiling: 56, tableTop: 44, rows: 7);
+            SelfTest.Check(lowered.IndexOf("fan table", StringComparison.Ordinal) >= 0
+                    && lowered.IndexOf("lowered", StringComparison.Ordinal) >= 0,
+                "a table that stops lower says it lowered it");
+
+            // The same, from a table too short to be a curve. This is the
+            // check that was being tested against a shape no firmware
+            // produces: the array is sized to the reported row count, and the
+            // fake used to leave it at a fixed fourteen whatever it held.
+            string stub = CeilingSourceFor(ceiling: 56, tableTop: 44, rows: 3);
+            SelfTest.Check(stub.IndexOf("configured", StringComparison.Ordinal) >= 0
+                    && stub.IndexOf("too few", StringComparison.Ordinal) >= 0,
+                "a stub answer is refused, and says why");
+
+            // A firmware that refuses the call. Distinct from one that answers
+            // with nothing, and worth distinguishing: a refusal names itself,
+            // and the message carries what the firmware said.
+            string refused = CeilingSourceForRefusedTable();
+
+            SelfTest.Check(refused.IndexOf("configured", StringComparison.Ordinal) >= 0,
+                "a firmware that will not describe its fans leaves the ceiling configured");
+
+            SelfTest.Check(refused.IndexOf("failed", StringComparison.Ordinal) >= 0
+                    && refused.Length > "configured".Length + 10,
+                "and the reason travels with it (" + refused + ")");
+
+        }
+
+        // Runs the ceiling probe against a board with a given fan table and
+        // returns what it said about where the ceiling came from
+        private static string CeilingSourceFor(int ceiling, byte tableTop, int rows) {
+
+            Devices.FakeBiosDevice bios = Devices.DeviceCatalogue.HealthyBios();
+            bios.FanTable = Devices.FakeBiosDevice.DefaultFanTable(tableTop, rows);
+
+            return ProbeAgainst(bios, ceiling);
+
+        }
+
+        private static string CeilingSourceForRefusedTable() {
+
+            Devices.FakeBiosDevice bios = Devices.DeviceCatalogue.HealthyBios();
+            bios.Refuse("GetFanTable");
+
+            return ProbeAgainst(bios, 56);
+
+        }
+
+        private static string ProbeAgainst(Devices.FakeBiosDevice bios, int ceiling) {
+
+            IBiosCtl previousBios = Hw.Bios;
+            var previousEc = Hw.Ec;
+            int previousCeiling = Config.FanLevelMax;
+            bool previousProbed = DeviceProfile.Probed;
+
+            try {
+
+                Hw.Bios = bios;
+                Hw.Ec = Devices.DeviceCatalogue.HealthyEc();
+                Config.FanLevelMax = ceiling;
+
+                Set("Probed", false);
+                DeviceProfile.Probe(new StarMon.Hardware.Platform.Settings());
+
+                return DeviceProfile.FanLevelCeilingSource ?? "";
+
+            } finally {
+
+                Hw.Bios = previousBios;
+                Hw.Ec = previousEc;
+                Config.FanLevelMax = previousCeiling;
+                Set("Probed", previousProbed);
+                DeviceProfile.Attach(null);
+
+            }
 
         }
 

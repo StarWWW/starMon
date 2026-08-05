@@ -99,23 +99,36 @@ namespace StarMon.Test.Devices {
 
         // A fan table shaped like the ones boards actually report: a rising
         // ramp of levels against temperature, topping out at the ceiling.
-        internal static BiosData.FanTable DefaultFanTable(byte ceiling) {
+        //
+        // Built through the byte-array constructor, which is the one the
+        // firmware's answer goes through. That matters: it sizes Level to the
+        // number of rows the firmware reported, while the parameterless
+        // constructor leaves a fixed array of fourteen. Building it the second
+        // way gave every scenario a table whose Length was fourteen whatever
+        // it actually held — so the "is this table long enough to trust"
+        // check was being tested against a shape no firmware produces.
+        internal static BiosData.FanTable DefaultFanTable(byte ceiling, int rows = 7) {
 
-            BiosData.FanTable table = new BiosData.FanTable();
-            byte[] temperature = { 0, 40, 50, 60, 70, 80, 90 };
+            byte[] temperature = { 0, 40, 50, 60, 70, 80, 90, 95, 100, 105 };
 
-            table.FanCount = 2;
-            table.LevelCount = (byte) temperature.Length;
+            if(rows < 0) rows = 0;
+            if(rows > temperature.Length) rows = temperature.Length;
 
-            for(int i = 0; i < temperature.Length; i++) {
+            byte[] data = new byte[2 + rows * 3];
+            data[0] = 2;             // fan count
+            data[1] = (byte) rows;   // level count
 
-                byte level = (byte) (ceiling * (i + 1) / temperature.Length);
+            for(int i = 0; i < rows; i++) {
 
-                table.Level[i] = new BiosData.FanLevel(level, level, temperature[i]);
+                byte level = (byte) (ceiling * (i + 1) / rows);
+
+                data[2 + i * 3 + 0] = level;
+                data[2 + i * 3 + 1] = level;
+                data[2 + i * 3 + 2] = temperature[i];
 
             }
 
-            return table;
+            return new BiosData.FanTable(data);
 
         }
 #endregion
