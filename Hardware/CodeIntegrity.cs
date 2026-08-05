@@ -128,6 +128,42 @@ namespace StarMon.Hardware {
             }
         }
 
+        // Whether PawnIO is installed on this machine.
+        //
+        // PawnIO is a signed, blocklist-clean input-output driver that loads
+        // with memory integrity on — it is what LibreHardwareMonitor moved to
+        // for the same reason this application needs it. Whether it is there
+        // changes the advice completely: "install this" is useful, and telling
+        // somebody to install what they already have is not.
+        //
+        // Detected by the library the loader would use rather than by the
+        // service, since a registered service whose files have been removed is
+        // not something to point a user at.
+        public static bool PawnIoInstalled {
+            get {
+                try {
+
+                    foreach(string directory in new string[] {
+                        Environment.GetEnvironmentVariable("ProgramFiles"),
+                        Environment.GetEnvironmentVariable("ProgramW6432")
+                    }) {
+
+                        if(string.IsNullOrEmpty(directory))
+                            continue;
+
+                        if(System.IO.File.Exists(System.IO.Path.Combine(
+                            directory, "PawnIO", "PawnIOLib.dll")))
+                            return true;
+
+                    }
+
+                } catch { }
+
+                return false;
+
+            }
+        }
+
         public static bool SecureBootEnabled {
             get {
                 return ToInt(ReadRegistry(
@@ -197,21 +233,17 @@ namespace StarMon.Hardware {
                         + "vulnerable-driver list.\n\n"
                         + "Temperatures, battery and system readings still work. "
                         + "Fan control and the keyboard backlight do not.\n\n"
-                        + "Installing PawnIO (pawnio.eu) gives StarMon a signed "
-                        + "driver it can use with memory integrity left on, which "
-                        + "is the option worth taking.";
+                        + Remedy();
 
                 case Obstacle.DriverBlocklist:
                     return "Windows is blocking the driver StarMon uses, because "
                         + "the vulnerable-driver blocklist is switched on.\n\n"
-                        + "Monitoring still works; fan control does not. "
-                        + "Installing PawnIO (pawnio.eu) resolves this without "
-                        + "turning any protection off.";
+                        + "Monitoring still works; fan control does not.\n\n"
+                        + Remedy();
 
                 case Obstacle.SecureBoot:
                     return "The driver StarMon uses could not be loaded, and "
-                        + "secure boot is enabled. Installing PawnIO "
-                        + "(pawnio.eu) gives StarMon a signed driver instead.";
+                        + "secure boot is enabled.\n\n" + Remedy();
 
                 default:
                     return "The driver StarMon uses to reach the Embedded "
@@ -223,6 +255,26 @@ namespace StarMon.Hardware {
 
         }
 
+        // What to do about it, which depends on what is already there.
+        //
+        // Telling somebody to install what they already have is worse than
+        // saying nothing: it reads as though nothing had actually been checked.
+        private static string Remedy() {
+
+            return PawnIoInstalled
+
+                ? "PawnIO is already installed here — it is the signed driver "
+                    + "that works with these protections left on. StarMon does "
+                    + "not use it yet, so fan control is unavailable in this "
+                    + "build even though the means to have it is present."
+
+                : "Installing PawnIO (pawnio.eu) gives StarMon a signed driver "
+                    + "it can use with these protections left on, which is the "
+                    + "option worth taking. Switching memory integrity off "
+                    + "would also work, and is not worth it.";
+
+        }
+
         // The one-line form, for the log and the capability report
         public static string Summary() {
 
@@ -231,7 +283,8 @@ namespace StarMon.Hardware {
             return "elevated: " + (IsElevated ? "yes" : "no")
                 + " · memory integrity: " + (MemoryIntegrityRunning ? "running" : "off")
                 + " · driver blocklist: " + (DriverBlocklistEnabled ? "on" : "off")
-                + " · secure boot: " + (SecureBootEnabled ? "on" : "off");
+                + " · secure boot: " + (SecureBootEnabled ? "on" : "off")
+                + " · PawnIO: " + (PawnIoInstalled ? "installed" : "not installed");
 
         }
 

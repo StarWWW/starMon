@@ -417,7 +417,8 @@ namespace StarMon.Test {
                 "the summary is produced");
 
             foreach(string part in new string[] {
-                "elevated", "memory integrity", "driver blocklist", "secure boot" })
+                "elevated", "memory integrity", "driver blocklist",
+                "secure boot", "PawnIO" })
 
                 SelfTest.Check(summary.IndexOf(part, StringComparison.Ordinal) >= 0,
                     "the summary reports " + part);
