@@ -369,10 +369,23 @@ namespace StarMon.Library
         {
             if (!Config.LogVerbose) return;
 
+            // Not deduplicated. A call is an event, not a value.
+            //
+            // This used to collapse on the parameter text, which for a given
+            // command is usually identical every time - so the first call was
+            // logged and every one after it disappeared, for the life of the
+            // process. Six presses of the keyboard backlight switch produced
+            // six writes to the firmware and one line in the log, and the log
+            // could not answer the only question anybody opens it for: did the
+            // application send the command.
+            //
+            // Worse where it matters most. A board that reverts its fan
+            // settings after a couple of minutes is diagnosed by whether the
+            // keep-alive is firing, and the keep-alive sends the same call
+            // with the same parameters every time - so it was invisible by
+            // construction, in the log written to investigate it.
             string desc = LogDescriptions.GetBiosDescription(command);
-            // Deduplicate based on command parameters
-            if (!ShouldLog($"BIOS_C_{command}", parameters ?? string.Empty, out int n)) return;
-            Log(LogLevel.BiosCall, "BIOS", $"Cmd=0x{command:X2}", WithSuppressed(parameters, n), desc);
+            Log(LogLevel.BiosCall, "BIOS", $"Cmd=0x{command:X2}", parameters, desc);
         }
 
         public static void BiosResult(int command, string result)
@@ -411,26 +424,26 @@ namespace StarMon.Library
         {
             if (!Config.LogVerbose) return;
 
-            // Writing the same value repeatedly (a fan control loop re-applying
-            // its setting, say) says nothing new, so runs are collapsed the
-            // same way reads are
-            if (!ShouldLog($"EC_W_{register}", value.ToString(), out int n)) return;
-
+            // Not deduplicated, for the same reason as a BIOS call above: a
+            // write is something the application did, not a value it observed.
+            //
+            // The note that used to be here said a control loop re-applying
+            // its setting "says nothing new". It says the loop is running,
+            // which is the single most useful fact in the log on a board that
+            // reverts its fan settings - and collapsing it hid exactly that.
             string desc = LogDescriptions.GetEcDescription(register);
             string message = $"Write 0x{register:X2}";
             string details = $"Value: 0x{value:X2} ({value})";
-            Log(LogLevel.EcWrite, "EC", message, WithSuppressed(details, n), desc);
+            Log(LogLevel.EcWrite, "EC", message, details, desc);
         }
 
         public static void EcWriteWord(byte register, ushort value)
         {
             if (!Config.LogVerbose) return;
-            if (!ShouldLog($"EC_WW_{register}", value.ToString(), out int n)) return;
-
             string desc = LogDescriptions.GetEcDescription(register);
             string message = $"Write word 0x{register:X2}";
             string details = $"Value: 0x{value:X4} ({value})";
-            Log(LogLevel.EcWrite, "EC", message, WithSuppressed(details, n), desc);
+            Log(LogLevel.EcWrite, "EC", message, details, desc);
         }
 
         // A register exchange that failed every retry, and has kept failing:
