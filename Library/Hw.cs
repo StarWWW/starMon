@@ -233,8 +233,14 @@ namespace StarMon.Library {
 
             if(!HasEc) {
                 Ec = new StarMon.Hardware.AbsentEmbeddedController();
+                // The one place that knows there is genuinely a problem, so
+                // the one place that says so. CodeIntegrity examines without
+                // logging: it is asked the same question by the capability
+                // report on machines where nothing is wrong.
                 Logger.Warning("Ec", "Controller unreachable",
-                    StarMon.Hardware.CodeIntegrity.Summary());
+                    StarMon.Hardware.CodeIntegrity.Summary()
+                        + " — " + StarMon.Hardware.CodeIntegrity.Explain()
+                            .Replace("\n\n", " "));
             }
 
             return HasEc;

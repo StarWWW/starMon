@@ -216,8 +216,19 @@ namespace StarMon.Hardware {
                     Detail = "no cause could be identified";
                 }
 
-                Logger.Warning("Driver", "Kernel driver unavailable", Detail);
-
+                // Deliberately silent.
+                //
+                // This is an examination of the machine, not a report of a
+                // failure, and it is run for both. The capability report asks
+                // for it every time the System page is built — so on a machine
+                // where the driver loads perfectly well, opening that page
+                // wrote "Kernel driver unavailable" into the log, in a session
+                // that went on to make seven hundred Embedded Controller reads.
+                //
+                // It shipped that way in 1.1.0 and turned up in a log from a
+                // five-hour run. Whoever knows there is a problem does the
+                // telling: Hw.EcInit logs the summary when the controller
+                // actually could not be reached.
                 return Found;
 
             }
