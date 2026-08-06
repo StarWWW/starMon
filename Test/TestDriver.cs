@@ -129,18 +129,44 @@ namespace StarMon.Test {
 
         }
 
-        // And the machine actually running this
+        // And the machine actually running this.
+        //
+        // What is asserted is that the verdict is coherent, not that it is
+        // favourable. This used to require the machine to be a supported HP
+        // portable — which is a statement about wherever the tests happen to
+        // be running, not about the code. It passed on the laptop this was
+        // written on and failed the first time the suite ran anywhere else:
+        // the build runner is a virtual machine reporting chassis type 3, the
+        // gate refused it exactly as designed, and the test called that a
+        // defect.
+        //
+        // Being refused on a desktop is the gate working. The only thing worth
+        // insisting on here is that whatever it decides, it decides
+        // consistently and says so.
         private static void TestThisMachineIsJudgedCorrectly() {
 
             Identity.Reset();
 
             Identity.Verdict verdict = Identity.Examine();
 
-            SelfTest.Check(verdict != Identity.Verdict.Unsupported,
-                "this machine is not refused (" + Identity.Summary() + ")");
+            SelfTest.Check(Enum.IsDefined(typeof(Identity.Verdict), verdict),
+                "the gate reaches a verdict about this machine");
 
-            SelfTest.Check(Identity.MayRun(),
-                "so the application may run on it");
+            SelfTest.Check(!string.IsNullOrEmpty(Identity.Summary()),
+                "and can say what it was (" + Identity.Summary() + ")");
+
+            // MayRun is the verdict plus the override, and nothing else
+            bool expected = verdict != Identity.Verdict.Unsupported
+                || Config.HardwareGateOverride;
+
+            SelfTest.Equal(expected, Identity.MayRun(),
+                "and whether the application may run follows from it");
+
+            // A refusal has to come with something to act on, since it is the
+            // only outcome that stops the application
+            if(verdict == Identity.Verdict.Unsupported)
+                SelfTest.Check(Identity.Explain().Length > 80,
+                    "a refused machine is told why, and how to override it");
 
             Console.WriteLine("         this machine: " + Identity.Summary());
 
