@@ -167,6 +167,27 @@ namespace StarMon.AppService {
         public double SelfMemoryMB = -1;
         public double SelfPrivateMB = -1;
 
+        // When this reading was started, and when the graphics power in it was
+        // actually read [Environment.TickCount].
+        //
+        // A reading is not an instant. Gathering one is dozens of round trips
+        // through the firmware and the Embedded Controller, and on a contended
+        // machine it takes seconds — so a reading that arrives now may describe
+        // a machine as it was several seconds ago, from before the user
+        // touched anything.
+        //
+        // That is what made the fan selector jump back to Automatic after
+        // being set to Maximum: the answer to "is the maximum flag set" had
+        // been fetched before the click and delivered after it. Stamping when
+        // the question was asked is what lets the window tell a stale answer
+        // from a current one.
+        //
+        // The graphics power carries its own stamp because it is not read
+        // every time — it is refreshed one tick in five, so a reading taken
+        // now can carry an answer from four seconds before it.
+        public int TakenAt;
+        public int GpuPowerReadAt;
+
         // The card's memory clock [MHz]. Read from NVAPI alongside the core
         // clock all along and dropped on the floor here.
         public int GpuNvidiaMemMhz = -1;

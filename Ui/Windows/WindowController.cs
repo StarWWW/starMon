@@ -1782,7 +1782,13 @@ namespace StarMon.Ui.Windows {
                 // chose, because there is nothing to read it back from.
                 model.IsGpuPowerSupported = true;
 
-                if(reading.GpuPowerSupported)
+                // Behind the same guard, and against its own stamp. Asking for
+                // maximum fans raises the graphics limits with them, and this
+                // value is refreshed one tick in five — so the reading that
+                // carries it can be four seconds newer than the answer inside
+                // it, which is long enough to outlive any settle window and
+                // pull the selector back on its own.
+                if(reading.GpuPowerSupported && ShouldFollow(reading.GpuPowerReadAt))
                     model.GraphicsPower = reading.GpuPower;
 
                 model.HasExtremeMode = Hardware.DeviceProfile.ExtremeMode;
@@ -1914,9 +1920,13 @@ namespace StarMon.Ui.Windows {
             // The System section's selector follows what Windows actually
             // reports, so a change made from the battery flyout shows here —
             // but not while a change made from here is still settling
+            // Against the reading's own stamp as well as the clock: this
+            // selector is the same shape as the fan one, and so was the way it
+            // could be pulled back — by an answer fetched before the click and
+            // delivered after the window had lapsed
             if(reading.PowerMode.Length > 0
-                && ShouldFollowHardware(this.PowerModeHasBeenSet, this.PowerModeSetAt,
-                    Environment.TickCount, PowerModeSettleMs))
+                && ShouldFollowReading(this.PowerModeHasBeenSet, this.PowerModeSetAt,
+                    reading.TakenAt, Environment.TickCount, PowerModeSettleMs))
                 this.SystemModel.PowerMode = reading.PowerMode;
 
             strip.IsThermalProtection = reading.IsThermalProtectionActive;
@@ -1983,12 +1993,53 @@ namespace StarMon.Ui.Windows {
             this.HasRequested = true;
         }
 
-        private bool IsSettling {
-            get {
-                return this.HasRequested
-                    && unchecked(Environment.TickCount - this.RequestedAt)
-                        < SettleMilliseconds;
-            }
+        // Whether a reading is allowed to move a control the user has set.
+        //
+        // The settle window above was the whole answer, and it was the wrong
+        // shape. It asks "was the request recent", when the question is "was
+        // this answer fetched before or after the request" — and those come
+        // apart exactly when the machine is slow, which is when the window is
+        // being watched.
+        //
+        // Taking a reading is dozens of round trips through the firmware and
+        // the Embedded Controller. On a contended machine it takes seconds.
+        // So: the poller starts gathering, reads "the maximum flag is off",
+        // the user clicks Maximum a moment later, and four seconds after that
+        // the reading finally arrives carrying an answer from before the
+        // click. The settle window has lapsed by then, so the selector jumps
+        // back to Automatic and the application looks like it refused.
+        //
+        // Sometimes, not always — which is what an intermittent report of
+        // exactly this reads like, and why lengthening the window would only
+        // have made it rarer rather than absent.
+        //
+        // A reading taken before the request is never allowed to move the
+        // control, however long ago the request was. The settle window stays
+        // as the second line: a reading taken just after the click is current,
+        // but the firmware may still not have acted on it.
+        //
+        // Pure and takes its clock, so both halves can be tested without
+        // waiting for one.
+        internal static bool ShouldFollowReading(bool hasRequested,
+            int requestedAt, int readingTakenAt, int now, int settleMs) {
+
+            if(!hasRequested)
+                return true;
+
+            // Fetched before the request was made: stale by definition, and
+            // no amount of waiting makes it current
+            if(unchecked(readingTakenAt - requestedAt) < 0)
+                return false;
+
+            // Fetched after it, so the settle window is the only question left
+            return ShouldFollowHardware(hasRequested, requestedAt, now, settleMs);
+
+        }
+
+        // The same question for whatever the user last asked of the fans
+        private bool ShouldFollow(int readingTakenAt) {
+            return ShouldFollowReading(this.HasRequested, this.RequestedAt,
+                readingTakenAt, Environment.TickCount, SettleMilliseconds);
         }
 
         // Whether the fan mode has ever been settled from a reading. Until it
@@ -2014,9 +2065,10 @@ namespace StarMon.Ui.Windows {
         // last choice, left untouched by readings.
         private void ApplyMode(DashboardViewModel model, Reading reading) {
 
-            // While a request is settling the selector stays where the user
-            // put it. The hardware has not caught up yet.
-            if(this.IsSettling)
+            // The selector stays where the user put it while the request is
+            // settling — and also, for as long as it takes, against any
+            // reading that was fetched before the request was made
+            if(!ShouldFollow(reading.TakenAt))
                 return;
 
             if(reading.IsProgramRunning) {

@@ -53,6 +53,7 @@ namespace StarMon.AppService {
         private int[] KbdColorsCache;
         private bool GpuPowerSupportedCache;
         private GpuPower GpuPowerCache = GpuPower.Base;
+        private int GpuPowerReadAt;
 
         // Slow-changing readings behind heavy calls, cached between slow
         // ticks. The disk temperature opens a device handle and issues an
@@ -136,6 +137,12 @@ namespace StarMon.AppService {
         private Reading Gather() {
 
             Reading reading = new Reading();
+
+            // Stamped before anything is asked, not after everything has been.
+            // What the window needs to know is when the machine was questioned,
+            // so it can tell an answer that predates the user's last request
+            // from one that follows it.
+            reading.TakenAt = Environment.TickCount;
 
             // One in every few ticks refreshes the slow-changing readings; the
             // rest reuse what those found. Computed once up front so every
@@ -486,10 +493,18 @@ namespace StarMon.AppService {
                         : power.CustomTgp == BiosData.GpuCustomTgp.On ? GpuPower.Custom
                         : GpuPower.Base;
 
+                    // Stamped where it is read rather than where it is handed
+                    // over. This one is refreshed a fifth as often as the rest,
+                    // so the reading that carries it can be four seconds newer
+                    // than the answer inside it — long enough to outlive the
+                    // window's settle guard and snap a just-set selector back.
+                    this.GpuPowerReadAt = Environment.TickCount;
+
                 } catch { }
 
             reading.GpuPowerSupported = this.GpuPowerSupportedCache;
             reading.GpuPower = this.GpuPowerCache;
+            reading.GpuPowerReadAt = this.GpuPowerReadAt;
 
             try { reading.CpuWatts = Hardware.Cpu.CpuMetrics.GetPowerWatts(); } catch { }
 

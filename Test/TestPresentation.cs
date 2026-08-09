@@ -50,6 +50,75 @@ namespace StarMon.Test {
 
             SelfTest.Group("Presentation: following the machine");
             TestTheSelectorSeedsItselfBeforeAnyClick();
+            TestAnAnswerFetchedBeforeTheClickNeverWins();
+
+        }
+
+        // The selector jumping back to Automatic a few seconds after being set
+        // to Maximum.
+        //
+        // Taking a reading is dozens of round trips through the firmware and
+        // the Embedded Controller, and on a contended machine it takes
+        // seconds. So the poller starts gathering, reads "the maximum flag is
+        // off", the user clicks Maximum a moment later, and the reading
+        // finally arrives carrying an answer from before the click. If the
+        // settle window has lapsed by then — and on a slow machine it has —
+        // the selector moves back and the application looks like it refused
+        // the request.
+        //
+        // Intermittent, because it depends on how long that particular gather
+        // took. Which is why widening the settle window was never the fix: it
+        // would have made this rarer and left it in.
+        private static void TestAnAnswerFetchedBeforeTheClickNeverWins() {
+
+            const int Settle = 4000;
+
+            // The failing case, stated exactly. Clicked at 100000; the reading
+            // was fetched at 99500, half a second before; it arrives at
+            // 106000, well past the settle window.
+            SelfTest.Check(!WindowController.ShouldFollowReading(
+                    true, 100000, 99500, 106000, Settle),
+                "an answer fetched before the click never moves the selector, "
+                    + "however long ago the click was");
+
+            // A whole minute later, and it is still the same stale answer
+            SelfTest.Check(!WindowController.ShouldFollowReading(
+                    true, 100000, 99500, 160000, Settle),
+                "not even a minute later");
+
+            // Fetched after the click, but the firmware may not have acted
+            // yet: the settle window still holds
+            SelfTest.Check(!WindowController.ShouldFollowReading(
+                    true, 100000, 100200, 101000, Settle),
+                "an answer fetched just after it waits for the settle window");
+
+            // Fetched after the click and the window has run: this is the
+            // machine's current state and it wins. Without this the selector
+            // would never follow the hardware again — a program ending or
+            // thermal protection releasing has to be able to move it.
+            SelfTest.Check(WindowController.ShouldFollowReading(
+                    true, 100000, 100200, 105000, Settle),
+                "once fetched after the click and settled, the machine is followed");
+
+            // Nothing has been asked for at all
+            SelfTest.Check(WindowController.ShouldFollowReading(
+                    false, 0, 1000, 2000, Settle),
+                "before any click the machine is simply followed");
+
+            // The tick counter wraps every twenty-five days, and both
+            // comparisons here are subtractions that have to survive it
+            SelfTest.Check(!WindowController.ShouldFollowReading(
+                    true, unchecked(int.MaxValue + 1000),
+                    int.MaxValue - 500,
+                    unchecked(int.MaxValue + 20000), Settle),
+                "a reading fetched before a click either side of the tick "
+                    + "counter wrapping is still recognised as the older one");
+
+            SelfTest.Check(WindowController.ShouldFollowReading(
+                    true, int.MaxValue - 1000,
+                    unchecked(int.MaxValue + 500),
+                    unchecked(int.MaxValue + 20000), Settle),
+                "and one fetched after it is still recognised as the newer");
 
         }
 
