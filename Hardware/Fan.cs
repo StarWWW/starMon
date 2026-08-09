@@ -184,6 +184,94 @@ namespace StarMon.Hardware.Platform {
         private static int RequestedStamp;
         private static bool Reported;
 
+        // The reading before this one, kept because a single sample cannot
+        // tell a board that refused from fans that are still spinning up
+        private static byte[] LastSeen;
+
+        // Whether the board is reporting the level it was given.
+        //
+        // A request above the ceiling is answered by the ceiling, which is the
+        // firmware doing its job rather than ignoring the write - the Maximum
+        // button asks for Config.FanLevelMax precisely so it lands there.
+        internal static bool Agrees(byte[] asked, byte[] actual, int ceiling) {
+
+            if(asked == null || actual == null)
+                return false;
+
+            int count = Math.Min(asked.Length, actual.Length);
+            if(count == 0)
+                return false;
+
+            for(int i = 0; i < count; i++) {
+
+                if(asked[i] == actual[i])
+                    continue;
+
+                // Clamped to the ceiling: asked for more than the board will
+                // give, and given everything it has
+                if(ceiling > 0 && asked[i] > ceiling && actual[i] >= ceiling)
+                    continue;
+
+                return false;
+
+            }
+
+            return true;
+
+        }
+
+        // Whether a write can be said to have been ignored.
+        //
+        // Three things have to hold, and each of them is here because leaving
+        // it out produced a warning on hardware doing exactly as it was told:
+        //
+        //   The reading disagrees with the request, and not by having been
+        //   clamped to the ceiling.
+        //
+        //   The reading has stopped moving. Fans take seconds to spin up, and
+        //   the level register reports where they are rather than where they
+        //   were sent - so a board asked for 56 answers 40, then 48, then 56.
+        //   Two readings that agree with each other are fans that have
+        //   settled; two that differ are fans on their way.
+        //
+        //   There is a previous reading to compare against at all. Without one
+        //   nothing can be concluded, and concluding anyway is what produced
+        //   "asked for 56/56, the firmware reports 40/38" about a board that
+        //   reached 56 four seconds later.
+        internal static bool DidNotTake(byte[] asked, byte[] actual,
+            byte[] previous, int ceiling) {
+
+            if(asked == null || actual == null || previous == null)
+                return false;
+
+            // 0xFF is a release rather than a level, and there is nothing to
+            // have taken. Checked here as well as where a request is recorded:
+            // this method is what says whether a board misbehaved, and it
+            // should mean that for whatever it is handed rather than only for
+            // what one caller happens to pass it.
+            if(HasRelease(asked))
+                return false;
+
+            if(Agrees(asked, actual, ceiling))
+                return false;
+
+            return Same(actual, previous);
+
+        }
+
+        private static bool Same(byte[] a, byte[] b) {
+
+            if(a == null || b == null || a.Length != b.Length)
+                return false;
+
+            for(int i = 0; i < a.Length; i++)
+                if(a[i] != b[i])
+                    return false;
+
+            return true;
+
+        }
+
         // How many writes have been seen not to take. Counted so a test can
         // assert the detection rather than assume it.
         internal static int LevelWriteMismatches { get; private set; }
@@ -192,13 +280,36 @@ namespace StarMon.Hardware.Platform {
         // against it
         internal static void NoteLevelRequest(byte[] levels) {
 
-            if(levels == null)
-                return;
-
             lock(LevelLock) {
+
+                // 0xFF is not a fan level. It is the sentinel that clears any
+                // custom level and hands the speeds back to the firmware, so
+                // there is nothing for the board to have taken and nothing to
+                // compare a reading against. Checking it anyway is how a
+                // perfectly ordinary switch back to Automatic came out in the
+                // log as "the firmware reports 50/50" against a request for
+                // 255 - a complaint about a number nobody asked for.
+                if(levels == null || HasRelease(levels)) {
+                    Requested = null;
+                    LastSeen = null;
+                    return;
+                }
+
                 Requested = (byte[]) levels.Clone();
                 RequestedStamp = Environment.TickCount;
+                LastSeen = null;
+
             }
+
+        }
+
+        private static bool HasRelease(byte[] levels) {
+
+            for(int i = 0; i < levels.Length; i++)
+                if(levels[i] == byte.MaxValue)
+                    return true;
+
+            return false;
 
         }
 
@@ -217,21 +328,27 @@ namespace StarMon.Hardware.Platform {
                 return null;
 
             byte[] asked = Requested;
-            int count = Math.Min(asked.Length, actual.Length);
+            byte[] previous = LastSeen;
 
-            bool agrees = count > 0;
-            for(int i = 0; i < count; i++)
-                if(asked[i] != actual[i])
-                    agrees = false;
+            LastSeen = (byte[]) actual.Clone();
 
-            // Whether it took or not, this request has now been judged; the
-            // next write starts the question again
-            Requested = null;
+            if(!DidNotTake(asked, actual, previous, Config.FanLevelMax)) {
 
-            if(agrees) {
-                Reported = false;
+                // Agreement is only conclusive when the reading matches; a
+                // reading that is still on its way to the requested level is
+                // neither an agreement nor a refusal, and the request has to
+                // stay on the books until the fans have stopped moving
+                if(Agrees(asked, actual, Config.FanLevelMax)) {
+                    Requested = null;
+                    Reported = false;
+                }
+
                 return null;
+
             }
+
+            // Judged. The next write starts the question again.
+            Requested = null;
 
             LevelWriteMismatches++;
 
@@ -244,6 +361,8 @@ namespace StarMon.Hardware.Platform {
                 return null;
 
             Reported = true;
+
+            int count = Math.Min(asked.Length, actual.Length);
 
             return "asked for " + Describe(asked, count)
                 + ", the firmware reports " + Describe(actual, count)
@@ -270,6 +389,7 @@ namespace StarMon.Hardware.Platform {
         internal static void ResetLevelVerification() {
             lock(LevelLock) {
                 Requested = null;
+                LastSeen = null;
                 Reported = false;
                 LevelWriteMismatches = 0;
             }

@@ -56,6 +56,7 @@ namespace StarMon.Test {
             TestRefusedFanWriteIsNotRetriedForever();
             TestIgnoredFanWriteIsNoticed();
             TestAWriteThatTookIsNotComplainedAbout();
+            TestTheTwoFalseAlarmsRealHardwareProduced();
 
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
@@ -723,12 +724,17 @@ namespace StarMon.Test {
                     SelfTest.Check(!took,
                         "the board did not take the level, as the scenario declares");
 
-                    // The reading the application takes anyway, which is where
-                    // the comparison happens
+                    // The readings the application takes anyway, which is where
+                    // the comparison happens. Two of them, because one on its
+                    // own cannot tell a board that refused from fans that are
+                    // still spinning up — this board's answer does not move,
+                    // and that is what identifies it.
+                    platform.Fans.Fan[0].GetLevel();
+                    Fan.InvalidateLevels();
                     platform.Fans.Fan[0].GetLevel();
 
                     SelfTest.Check(Fan.LevelWriteMismatches > 0,
-                        "and the next reading noticed that it had not ("
+                        "and the readings after it noticed that it had not ("
                             + Fan.LevelWriteMismatches + " mismatch)");
 
                     // Once per episode. A fan curve rewrites its level
@@ -738,6 +744,8 @@ namespace StarMon.Test {
 
                     for(int i = 0; i < 5; i++) {
                         try { platform.Fans.SetLevels(new byte[] { 30, 30 }); } catch { }
+                        platform.Fans.Fan[0].GetLevel();
+                        Fan.InvalidateLevels();
                         platform.Fans.Fan[0].GetLevel();
                     }
 
@@ -754,8 +762,10 @@ namespace StarMon.Test {
 
                     try { platform.Fans.SetLevels(new byte[] { 44, 44 }); } catch { }
 
-                    for(int i = 0; i < 5; i++)
+                    for(int i = 0; i < 5; i++) {
                         platform.Fans.Fan[0].GetLevel();
+                        Fan.InvalidateLevels();
+                    }
 
                     SelfTest.Equal(0, Fan.LevelWriteMismatches,
                         "a board that has not had time to answer is not accused");
@@ -765,6 +775,78 @@ namespace StarMon.Test {
                 }
 
             }
+
+        }
+
+        // The two false alarms this check produced on real hardware, kept as
+        // the cases they are.
+        //
+        // Both came out of an eighteen-minute run on the machine this was
+        // written for, and both were the check being wrong rather than the
+        // board. The comment above the original said a check that fires on
+        // hardware doing as it is told is worse than no check at all; the
+        // fake board in the matrix answers instantly and exactly, so the test
+        // agreed with the code and neither noticed.
+        private static void TestTheTwoFalseAlarmsRealHardwareProduced() {
+
+            int ceiling = 56;
+
+            // "asked for 255/255, the firmware reports 50/50".
+            //
+            // Nobody asked for level 255. It is the sentinel that clears a
+            // custom level and hands the speeds back to the firmware, which is
+            // what switching to Automatic does — so there is no level for the
+            // board to have taken and nothing to compare against.
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 255, 255 }, new byte[] { 50, 50 },
+                    new byte[] { 50, 50 }, ceiling),
+                "clearing the custom level is not a write that failed");
+
+            // "asked for 56/56, the firmware reports 40/38".
+            //
+            // The Maximum button, four seconds in, with the fans still on
+            // their way up. The level register reports where they are, not
+            // where they were sent.
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 56, 56 }, new byte[] { 40, 38 },
+                    new byte[] { 32, 30 }, ceiling),
+                "fans still spinning up are not a board refusing the level");
+
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 56, 56 }, new byte[] { 48, 46 },
+                    new byte[] { 40, 38 }, ceiling),
+                "nor are they one sample later");
+
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 56, 56 }, new byte[] { 56, 56 },
+                    new byte[] { 48, 46 }, ceiling),
+                "and arriving is agreement");
+
+            // A request above the ceiling answered by the ceiling is the
+            // firmware doing its job
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 70, 70 }, new byte[] { 56, 56 },
+                    new byte[] { 56, 56 }, ceiling),
+                "a level clamped to the ceiling is not a refusal");
+
+            // With no previous reading nothing can be concluded, which is the
+            // state the very first sample after a write is always in
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 56, 56 }, new byte[] { 40, 38 }, null, ceiling),
+                "one sample on its own concludes nothing");
+
+            // And the case that is real: the fans have stopped moving, and
+            // they are nowhere near what was asked for
+            SelfTest.Check(Fan.DidNotTake(
+                    new byte[] { 56, 56 }, new byte[] { 30, 30 },
+                    new byte[] { 30, 30 }, ceiling),
+                "a level that has settled somewhere else is a write that "
+                    + "did not take");
+
+            SelfTest.Check(Fan.DidNotTake(
+                    new byte[] { 30, 30 }, new byte[] { 0, 0 },
+                    new byte[] { 0, 0 }, ceiling),
+                "and so is one the board answered with nothing at all");
 
         }
 
