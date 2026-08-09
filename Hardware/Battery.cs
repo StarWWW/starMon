@@ -87,6 +87,10 @@ namespace StarMon.Hardware {
                         info.Percent = sps.BatteryLifePercent;
                     if(sps.BatteryLifeTime >= 0)
                         info.MinutesLeft = sps.BatteryLifeTime / 60;
+
+                    NoteCriticalFlag(sps.BatteryFlag,
+                        sps.BatteryLifePercent <= 100 ? sps.BatteryLifePercent : -1,
+                        info.OnAc);
                 }
             } catch { }
 
@@ -124,6 +128,95 @@ namespace StarMon.Hardware {
 
             return info;
         }
+
+#region The Critical Flag
+        // The bit Windows acts on, watched so a false one leaves a trace.
+        //
+        // Windows does not read this application's opinion of the battery. It
+        // reads the ACPI fuel gauge itself, and when that gauge says the
+        // charge is critical it carries out whatever the power plan says to do
+        // about it - which on a default Windows install is to shut the machine
+        // down at once, with no warning and no undo.
+        //
+        // On this hardware the gauge can be poisoned: a momentarily desynced
+        // Embedded Controller leaves the wrong bytes where the charge belongs.
+        // The desync is fixed at the EC layer and Sanitise below keeps a bad
+        // sample out of the interface, but neither of those can help - by the
+        // time this application sees anything, Windows has already decided.
+        //
+        // What is left is to be a witness. A machine that shuts down at a full
+        // battery is otherwise a mystery: the event log records that Windows
+        // was told the battery was critical and not that it was not true.
+        //
+        // Written to the log as an error rather than a warning. It is the most
+        // serious thing this application can observe about the machine, and
+        // whoever reads the log afterwards is reading it because their laptop
+        // switched itself off.
+        private static bool CriticalReported;
+
+        // How many times a false critical flag has been seen. Counted so the
+        // detection can be asserted rather than assumed.
+        internal static int FalseCriticalReports { get; private set; }
+
+        internal static void ResetCriticalWatch() {
+            CriticalReported = false;
+            FalseCriticalReports = 0;
+        }
+
+        // Whether Windows is being told something about this battery that
+        // cannot be true.
+        //
+        // Bit 2 of the flag is "critical", which Windows documents as below
+        // five per cent. On mains it is not a state a battery can be in at
+        // all, and at a charge above a fifth it is not one it can have reached
+        // since the previous reading a second ago.
+        //
+        // Pure, and internal, so the condition can be tested without a
+        // battery: the whole point is a state this machine reaches roughly
+        // once a fortnight and never on demand.
+        internal static bool IsFalseCritical(byte flag, int percent, bool onAc) {
+
+            // No battery, or a state the API could not determine
+            if((flag & 128) != 0 || flag == 255)
+                return false;
+
+            if((flag & 4) == 0)
+                return false;
+
+            return onAc || percent > 20;
+
+        }
+
+        // Records a critical flag that contradicts everything else known
+        private static void NoteCriticalFlag(byte flag, int percent, bool onAc) {
+
+            if(!IsFalseCritical(flag, percent, onAc)) {
+                CriticalReported = false;
+                return;
+            }
+
+            FalseCriticalReports++;
+
+            // Said once per episode. Windows acts on this within a second, so
+            // there is unlikely to be a second entry - but if the flag sticks,
+            // one line an episode is the difference between a log and a wall.
+            if(CriticalReported)
+                return;
+
+            CriticalReported = true;
+
+            Logger.Error("Battery",
+                "Windows has been told this battery is critically low",
+                "the charge reads " + percent + " %"
+                    + (onAc ? " and the machine is on mains" : "")
+                    + ", so this cannot be true. Windows acts on this flag by "
+                    + "itself, without asking StarMon, and on most machines "
+                    + "the action is to shut down immediately. If this machine "
+                    + "switches itself off in the next few seconds, this line "
+                    + "is why. Power flag: 0x" + flag.ToString("X2"));
+
+        }
+#endregion
 
         // Rejects a physically impossible charge reading, holding the last
         // good one in its place.

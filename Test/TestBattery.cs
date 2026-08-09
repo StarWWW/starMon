@@ -37,6 +37,67 @@ namespace StarMon.Test {
             TestRejectionGivesUpEventually();
             TestDesignCapacityIsFoundSomehow();
 
+            SelfTest.Group("Battery: the flag Windows shuts down on");
+
+            TestAFalseCriticalFlagIsRecognised();
+            TestARealCriticalFlagIsLeftAlone();
+
+        }
+
+        // The failure this exists to witness.
+        //
+        // Windows does not read this application's opinion of the battery. It
+        // reads the ACPI fuel gauge itself, and when that gauge says critical
+        // it does what the power plan says — which by default is to shut the
+        // machine down at once, no warning, no undo. On this hardware the
+        // gauge can be poisoned, and a laptop that switches itself off at a
+        // full battery is otherwise a mystery: the event log records that
+        // Windows was told the charge was critical, and not that it was false.
+        //
+        // Nothing here can prevent it. What it can do is leave a line saying
+        // the flag was a lie, in the log, the second before the machine goes.
+        private static void TestAFalseCriticalFlagIsRecognised() {
+
+            // Critical while plugged in. Not a state a battery can be in.
+            SelfTest.Check(Battery.IsFalseCritical(0x04, 100, true),
+                "critical at a full charge on mains is recognised as false");
+
+            SelfTest.Check(Battery.IsFalseCritical(0x04, 87, false),
+                "and so is critical at 87 % on battery");
+
+            // Charging and critical at once, which is the exact combination
+            // seen when the fuel gauge is poisoned
+            SelfTest.Check(Battery.IsFalseCritical(0x0C, 100, true),
+                "charging and critical at the same time is false");
+
+        }
+
+        // And the other half, which matters more: a laptop that really is
+        // about to die must be allowed to say so. A guard that suppressed a
+        // true critical flag would turn a warning into lost work.
+        private static void TestARealCriticalFlagIsLeftAlone() {
+
+            SelfTest.Check(!Battery.IsFalseCritical(0x04, 3, false),
+                "a genuine critical charge on battery is believed");
+
+            SelfTest.Check(!Battery.IsFalseCritical(0x04, 0, false),
+                "and so is an empty one");
+
+            SelfTest.Check(!Battery.IsFalseCritical(0x01, 100, true),
+                "a high charge is not a critical flag at all");
+
+            SelfTest.Check(!Battery.IsFalseCritical(0x02, 30, false),
+                "nor is a low one");
+
+            // A machine with no battery reports the critical bit alongside
+            // the no-battery bit on some firmware, and a desktop is not a
+            // laptop about to lie about its charge
+            SelfTest.Check(!Battery.IsFalseCritical(0x84, 100, true),
+                "a machine with no battery is not accused of anything");
+
+            SelfTest.Check(!Battery.IsFalseCritical(0xFF, 100, true),
+                "and neither is one whose state could not be determined");
+
         }
 
         // Sanitise holds the last good percentage; every case has to start
