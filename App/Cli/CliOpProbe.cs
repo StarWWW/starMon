@@ -116,6 +116,8 @@ namespace StarMon.AppCli {
                 + (Hw.HasBios ? "available" : "**not available**") + " |");
             sb.AppendLine("| Embedded Controller | "
                 + (Hw.HasEc ? "available" : "**not reachable**") + " |");
+            sb.AppendLine("| Kernel driver | " + StarMon.Driver.LowLevel.Describe()
+                + " |");
             sb.AppendLine("| Code integrity | " + CodeIntegrity.Summary() + " |");
             sb.AppendLine();
 

@@ -8,6 +8,22 @@ This directory holds the non-_GPL3_ resources bundled with **StarMon**. These it
 * Copyright © 2007-2010 OpenLibSys & Noriyuki Miyazaki
 * Licensed under the terms of the [Modified BSD License](https://openlibsys.org/manual/License.html)
 
+# LpcACPIEC.bin, IntelMSR.bin, AMDFamily17.bin
+
+**_PawnIO_ modules from [PawnIO_Modules](https://github.com/namazso/PawnIO_Modules)**
+* Copyright © 2023-2025 namazso
+* Licensed under the terms of the [LGPL-2.1-or-later](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
+
+Unmodified binaries, taken from release `0.2.10` of that project. They are small verified programs that run inside the signed _PawnIO_ driver, which loads on machines where _WinRing0_ is blocked by Microsoft's vulnerable-driver list. `LpcACPIEC` permits I/O ports `0x62` and `0x66` and nothing else; `IntelMSR` and `AMDFamily17` each permit a fixed list of processor registers and refuse a processor they are not for.
+
+They must be byte-for-byte as published: the driver verifies each module's signature and will not run one that has been altered.
+
+| Module | SHA-256 |
+|:--|:--|
+| `LpcACPIEC.bin` | `C38FD116E7AFF4D1FDB0A494E296BE0A6708E5A22FC72F14587442FB7F8F7906` |
+| `IntelMSR.bin` | `D6ED85D65AB17A22F813EF98207D6D537155EE2DED5976A21CB48413C9B92E5F` |
+| `AMDFamily17.bin` | `DAE74615761B78BDF064DFB3E136252DDCC6FC727D88F14738D0E5800D427A91` |
+
 # Icon*.ico, Keyboard*.png, Logo.png
 
 **Logo artwork, icons, and keyboard-layout diagram**

@@ -60,6 +60,72 @@ namespace StarMon.Hardware.Cpu {
             get { EnsureDetected(); return DetectedVendor != Vendor.Unknown; }
         }
 
+        // Whether the package power can be read, and why not.
+        //
+        // Both vendors publish a running energy counter — Intel calls it RAPL,
+        // AMD's is at a different address with the same shape — so this is one
+        // of the readings that is genuinely available on either.
+        public static string PowerStatus {
+            get {
+
+                EnsureDetected();
+
+                if(DetectedVendor == Vendor.Unknown)
+                    return "not available — the processor was not recognised";
+
+                return LowLevel.HasMsr
+                    ? "available (" + (DetectedVendor == Vendor.Intel
+                        ? "RAPL package energy" : "AMD package energy") + ")"
+                    : "not available — the processor registers are unreachable";
+
+            }
+        }
+
+        // Whether the sustained and burst power budgets can be read, and why
+        // not.
+        //
+        // Intel keeps PL1 and PL2 in a register, each with an enable flag.
+        // AMD's equivalents live in the system management unit's own power
+        // table, which is neither a register nor documented, and differs
+        // between parts — so on AMD this is absent rather than unimplemented,
+        // and saying so is better than a row that is quietly never filled in.
+        public static string PowerLimitStatus {
+            get {
+
+                EnsureDetected();
+
+                if(DetectedVendor == Vendor.Amd)
+                    return "not available — AMD does not publish PL1 and PL2 "
+                        + "in a register";
+
+                if(DetectedVendor != Vendor.Intel)
+                    return "not available — the processor was not recognised";
+
+                return LowLevel.HasMsr ? "available (PL1 and PL2)"
+                    : "not available — the processor registers are unreachable";
+
+            }
+        }
+
+        // Whether the effective clock can be read, and why not
+        public static string ClockStatus {
+            get {
+
+                EnsureDetected();
+
+                if(DetectedVendor == Vendor.Unknown)
+                    return "not available — the processor was not recognised";
+
+                if(BaseClockMhz <= 0)
+                    return "not available — the base clock is not recorded for "
+                        + "this processor";
+
+                return LowLevel.HasMsr ? "available (APERF/MPERF)"
+                    : "not available — the processor registers are unreachable";
+
+            }
+        }
+
         // Clears the delta baselines; call when the window becomes visible again
         // so that a long, stale interval is not used for the next sample
         public static void Reset() {
@@ -101,7 +167,9 @@ namespace StarMon.Hardware.Cpu {
                 // CPU power and clock metrics are (or are not) being shown
                 Logger.Info("CpuMetrics", "CPU detected: " + DetectedVendor
                     + ", base clock " + BaseClockMhz + " MHz"
-                    + ", MSR driver " + (Ring0.IsOpen ? "open" : "not open"));
+                    + ", processor registers "
+                    + (LowLevel.HasMsr ? "reachable" : "unreachable")
+                    + " (driver: " + LowLevel.Describe() + ")");
             }
         }
 
@@ -114,18 +182,18 @@ namespace StarMon.Hardware.Cpu {
             pl1Watts = -1; pl2Watts = -1;
 
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor != Vendor.Intel)
+            if(!LowLevel.HasMsr || DetectedVendor != Vendor.Intel)
                 return false;
 
             try {
 
-                if(!Ring0.ReadMsr(MSR_RAPL_POWER_UNIT, out uint unitEax, out _))
+                if(!LowLevel.ReadMsr(MSR_RAPL_POWER_UNIT, out uint unitEax, out _))
                     return false;
 
                 // Bits 3:0 carry the power unit as a divider exponent
                 double unit = 1.0 / (1u << (int)(unitEax & 0xF));
 
-                if(!Ring0.ReadMsr(MSR_PKG_POWER_LIMIT, out uint eax, out uint edx))
+                if(!LowLevel.ReadMsr(MSR_PKG_POWER_LIMIT, out uint eax, out uint edx))
                     return false;
 
                 // PL1 lives in bits 14:0 of the low word, PL2 in the same
@@ -156,7 +224,7 @@ namespace StarMon.Hardware.Cpu {
         // or -1 if unavailable or this is the first (baseline) sample
         public static double GetPowerWatts() {
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor == Vendor.Unknown)
+            if(!LowLevel.HasMsr || DetectedVendor == Vendor.Unknown)
                 return -1;
 
             uint unitMsr = DetectedVendor == Vendor.Intel ? MSR_RAPL_POWER_UNIT : MSR_AMD_RAPL_PWR_UNIT;
@@ -165,13 +233,13 @@ namespace StarMon.Hardware.Cpu {
             try {
                 // The energy unit is fixed for the lifetime of the system
                 if(EnergyUnitJoules <= 0) {
-                    if(!Ring0.ReadMsr(unitMsr, out uint unitEax, out _))
+                    if(!LowLevel.ReadMsr(unitMsr, out uint unitEax, out _))
                         return -1;
                     int esu = (int)((unitEax >> 8) & 0x1F);
                     EnergyUnitJoules = 1.0 / (1u << esu);
                 }
 
-                if(!Ring0.ReadMsr(energyMsr, out uint eax, out _))
+                if(!LowLevel.ReadMsr(energyMsr, out uint eax, out _))
                     return -1;
 
                 uint raw = eax;
@@ -204,7 +272,7 @@ namespace StarMon.Hardware.Cpu {
         // or -1 if unavailable or this is the first (baseline) sample
         public static int GetClockMhz() {
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor == Vendor.Unknown || BaseClockMhz <= 0)
+            if(!LowLevel.HasMsr || DetectedVendor == Vendor.Unknown || BaseClockMhz <= 0)
                 return -1;
 
             // APERF and MPERF are per-logical-processor, so pin to a single core
@@ -213,9 +281,9 @@ namespace StarMon.Hardware.Cpu {
             UIntPtr previous = Kernel32.SetThreadAffinityMask(
                 Kernel32.GetCurrentThread(), (UIntPtr)1);
             try {
-                if(!Ring0.ReadMsr(MSR_IA32_APERF, out uint aLo, out uint aHi))
+                if(!LowLevel.ReadMsr(MSR_IA32_APERF, out uint aLo, out uint aHi))
                     return -1;
-                if(!Ring0.ReadMsr(MSR_IA32_MPERF, out uint mLo, out uint mHi))
+                if(!LowLevel.ReadMsr(MSR_IA32_MPERF, out uint mLo, out uint mHi))
                     return -1;
 
                 ulong aperf = ((ulong)aHi << 32) | aLo;
@@ -254,7 +322,7 @@ namespace StarMon.Hardware.Cpu {
         // establishes the baselines and reports -1 for each core.
         public static int[] GetPerCoreClocks() {
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor == Vendor.Unknown || BaseClockMhz <= 0)
+            if(!LowLevel.HasMsr || DetectedVendor == Vendor.Unknown || BaseClockMhz <= 0)
                 return null;
 
             ulong[] masks = Topology.GetPhysicalCoreMasks();
@@ -279,8 +347,8 @@ namespace StarMon.Hardware.Cpu {
             try {
                 for(int i = 0; i < n; i++) {
                     Kernel32.SetThreadAffinityMask(thread, (UIntPtr)masks[i]);
-                    if(Ring0.ReadMsr(MSR_IA32_APERF, out uint aLo, out uint aHi)
-                        && Ring0.ReadMsr(MSR_IA32_MPERF, out uint mLo, out uint mHi)) {
+                    if(LowLevel.ReadMsr(MSR_IA32_APERF, out uint aLo, out uint aHi)
+                        && LowLevel.ReadMsr(MSR_IA32_MPERF, out uint mLo, out uint mHi)) {
                         aperf[i] = ((ulong)aHi << 32) | aLo;
                         mperf[i] = ((ulong)mHi << 32) | mLo;
                         ok[i] = true;

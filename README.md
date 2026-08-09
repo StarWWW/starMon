@@ -49,7 +49,11 @@ StarMon talks directly to two things the manufacturer's software also uses, and 
 
 Around those it adds NVIDIA readings through NVAPI and NVML, processor power and throttle status through Intel RAPL MSRs or the AMD SMU register, drive temperature from the NVMe health log, and the ordinary Windows facilities for battery, memory, disk, network and power plan.
 
-It runs in the notification area, uses a few megabytes, and does not phone home.
+It runs in the notification area and does not phone home.
+
+It is a WPF application, and it costs what one costs. On the machine this was developed on, with the window having been opened at least once, it settles at around 250 MB — the visual tree and the render surfaces staying resident afterwards. That is measured, not estimated, and it is stable rather than growing: two samples ninety minutes apart went down, not up. The System page reports the process's own footprint, so the figure on your machine is one you can read rather than take on trust.
+
+An earlier version of this paragraph said "a few megabytes". That was never measured and was not true.
 
 ## Requirements
 
@@ -61,6 +65,19 @@ It runs in the notification area, uses a few megabytes, and does not phone home.
 | **Hardware** | An HP Omen or Victus laptop. Most features need the HP BIOS interface; what your particular board offers is listed on the System page |
 
 > **Note** — Administrator rights are not optional and not a convenience. Reading an Embedded Controller port from user mode is refused by Windows, so an unelevated StarMon can show you almost nothing.
+
+### Which kernel driver
+
+Reaching the Embedded Controller means reading and writing two I/O ports, and nothing in user mode may do that. StarMon can use either of two drivers, and prefers the first:
+
+| | |
+|---|---|
+| **PawnIO** | Signed, not on Microsoft's blocklist, and loads with memory integrity left on. It is not given raw port access: it runs a small verified program — supplied by StarMon and carried inside the executable — which permits ports `0x62` and `0x66` and refuses everything else. Used automatically wherever [PawnIO](https://pawnio.eu) is installed. |
+| **WinRing0 1.2.0.5** | Carried inside `StarMon.exe`, so it needs nothing installed. It hands out raw access to ports, processor registers and PCI configuration space, which is why Microsoft lists it as a vulnerable driver — and why it does not load on a machine enforcing that list, which is the default on Windows 11. |
+
+If neither loads, StarMon still starts. Everything that does not need the controller keeps working, and the System page says what is in the way.
+
+`DriverBackend` in `StarMon.xml` pins one of them (`Auto`, `PawnIO`, `WinRing0`), which is worth doing when a machine misbehaves and the question is which half is at fault. The driver actually in use is named in the log, on the System page, and in `-Probe`.
 
 ## Getting started
 
@@ -242,7 +259,7 @@ Arguments are case-insensitive and each may appear any number of times.
 
 | Group | Keys |
 |---|---|
-| **Fans** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
+| **Fans** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanLevelVerifyDelayMs` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
 | **Thermal** | `ThermalProtectionEnabled` `ThermalProtectionHighC` `ThermalProtectionLowC` `ThrottleNotifyEnabled` `TemperatureCacheMs` |
 | **Graphics** | `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
 | **Keyboard** | `KbdZoneCount` `KbdColorByTemp` `KbdColorEffect` `KbdEffectSpeed` `KbdIdleOffMinutes` |
@@ -250,7 +267,7 @@ Arguments are case-insensitive and each may appear any number of times.
 | **Display** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
 | **Interface** | `Language` `GuiCloseWindowExit` `GuiStayOnTop` `GuiDynamicIcon` `GuiDynamicIconHasBackground` `GuiTipDuration` |
 | **Timing** | `UpdateMonitorInterval` `UpdateProgramInterval` `UpdateIconInterval` |
-| **Embedded Controller** | `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
+| **Embedded Controller** | `DriverBackend` `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
 | **Logging** | `LogVerbose` `LogToFile` `LogFileMaxBytes` `BiosErrorReporting` |
 | **Startup** | `AutoConfig` `AutoStartup` |
 
@@ -408,7 +425,11 @@ StarMon, üretici yazılımının da kullandığı iki şeyle doğrudan konuşur
 
 Bunların çevresine NVAPI ve NVML üzerinden NVIDIA ölçümlerini, Intel RAPL MSR'leri ya da AMD SMU yazmacı üzerinden işlemci gücü ve kısıtlama durumunu, NVMe sağlık günlüğünden sürücü sıcaklığını, pil/bellek/disk/ağ/güç planı için de olağan Windows olanaklarını ekler.
 
-Bildirim alanında çalışır, birkaç megabayt yer kaplar ve dışarıyla konuşmaz.
+Bildirim alanında çalışır ve dışarıyla konuşmaz.
+
+Bir WPF uygulamasıdır ve bir WPF uygulamasının bedelini öder. Geliştirildiği makinede, pencere en az bir kez açılmışken yaklaşık 250 MB'de oturuyor — görsel ağaç ve çizim yüzeyleri sonrasında bellekte kalıyor. Bu tahmin değil ölçüm, ve büyüyen değil kararlı bir rakam: doksan dakika arayla alınan iki örnek yükselmedi, düştü. Sistem sayfası sürecin kendi ayak izini bildiriyor; yani kendi makinenizdeki rakam, güvenmeniz gereken değil okuyabileceğiniz bir şey.
+
+Bu paragrafın eski hâli "birkaç megabayt" diyordu. Bu hiç ölçülmemişti ve doğru değildi.
 
 ## Gereksinimler
 
@@ -420,6 +441,19 @@ Bildirim alanında çalışır, birkaç megabayt yer kaplar ve dışarıyla konu
 | **Donanım** | HP Omen ya da Victus dizüstü. Özelliklerin çoğu HP BIOS arayüzünü gerektirir; sizin anakartınızın neyi sunduğu Sistem sayfasında yazar |
 
 > **Not** — Yönetici yetkisi bir tercih ya da kolaylık değil. Windows, kullanıcı kipinden Gömülü Denetleyici portu okunmasını reddeder; yükseltilmemiş bir StarMon size neredeyse hiçbir şey gösteremez.
+
+### Hangi çekirdek sürücüsü
+
+Gömülü Denetleyici'ye ulaşmak, iki G/Ç portunu okumak ve yazmak demek; kullanıcı kipinde hiçbir şeyin buna izni yok. StarMon iki sürücüden birini kullanabiliyor ve ilkini tercih ediyor:
+
+| | |
+|---|---|
+| **PawnIO** | İmzalı, Microsoft'un kara listesinde değil ve bellek bütünlüğü açıkken yükleniyor. Ham port erişimi verilmiyor: StarMon'un sağladığı ve çalıştırılabilir dosyanın içinde taşıdığı, doğrulanmış küçük bir program çalıştırıyor — bu program yalnızca `0x62` ve `0x66` portlarına izin verip geri kalan her şeyi reddediyor. [PawnIO](https://pawnio.eu) kurulu olan her yerde kendiliğinden kullanılıyor. |
+| **WinRing0 1.2.0.5** | `StarMon.exe` içinde taşınıyor, yani hiçbir şeyin kurulu olmasını gerektirmiyor. Portlara, işlemci yazmaçlarına ve PCI yapılandırma alanına ham erişim veriyor — Microsoft'un onu güvenlik açıklı sürücü olarak listelemesinin ve bu listeyi zorunlu kılan makinelerde (Windows 11'de varsayılan) yüklenmemesinin sebebi bu. |
+
+İkisi de yüklenmezse StarMon yine de başlıyor. Denetleyiciye ihtiyaç duymayan her şey çalışmaya devam ediyor ve Sistem sayfası neyin engellediğini söylüyor.
+
+`StarMon.xml` içindeki `DriverBackend` bunlardan birini sabitliyor (`Auto`, `PawnIO`, `WinRing0`). Bir makine tuhaf davrandığında ve soru "hangi yarısı hatalı" olduğunda bunu yapmaya değer. Fiilen kullanılan sürücü günlükte, Sistem sayfasında ve `-Probe` çıktısında adıyla yazıyor.
 
 ## Başlarken
 
@@ -601,7 +635,7 @@ Argümanlar büyük/küçük harfe duyarsızdır ve her biri istenildiği kadar 
 
 | Grup | Anahtarlar |
 |---|---|
-| **Fanlar** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
+| **Fanlar** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanLevelVerifyDelayMs` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
 | **Isıl** | `ThermalProtectionEnabled` `ThermalProtectionHighC` `ThermalProtectionLowC` `ThrottleNotifyEnabled` `TemperatureCacheMs` |
 | **Ekran kartı** | `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
 | **Klavye** | `KbdZoneCount` `KbdColorByTemp` `KbdColorEffect` `KbdEffectSpeed` `KbdIdleOffMinutes` |
@@ -609,7 +643,7 @@ Argümanlar büyük/küçük harfe duyarsızdır ve her biri istenildiği kadar 
 | **Ekran** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
 | **Arayüz** | `Language` `GuiCloseWindowExit` `GuiStayOnTop` `GuiDynamicIcon` `GuiDynamicIconHasBackground` `GuiTipDuration` |
 | **Zamanlama** | `UpdateMonitorInterval` `UpdateProgramInterval` `UpdateIconInterval` |
-| **Gömülü Denetleyici** | `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
+| **Gömülü Denetleyici** | `DriverBackend` `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
 | **Günlük** | `LogVerbose` `LogToFile` `LogFileMaxBytes` `BiosErrorReporting` |
 | **Açılış** | `AutoConfig` `AutoStartup` |
 

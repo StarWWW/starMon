@@ -132,36 +132,19 @@ namespace StarMon.Hardware {
         //
         // PawnIO is a signed, blocklist-clean input-output driver that loads
         // with memory integrity on — it is what LibreHardwareMonitor moved to
-        // for the same reason this application needs it. Whether it is there
-        // changes the advice completely: "install this" is useful, and telling
+        // for the same reason this application needs it, and since 1.2 it is
+        // what this application reaches for first. Whether it is there changes
+        // the advice completely: "install this" is useful, and telling
         // somebody to install what they already have is not.
         //
-        // Detected by the library the loader would use rather than by the
-        // service, since a registered service whose files have been removed is
-        // not something to point a user at.
+        // Asked of the loader rather than answered again here. There used to
+        // be a second search in this file, looking under Program Files while
+        // the loader consulted the installer's own record of where it put
+        // itself. Two searches for one thing is two answers waiting to
+        // disagree, and the one that would have been wrong is this one — the
+        // one the user is shown.
         public static bool PawnIoInstalled {
-            get {
-                try {
-
-                    foreach(string directory in new string[] {
-                        Environment.GetEnvironmentVariable("ProgramFiles"),
-                        Environment.GetEnvironmentVariable("ProgramW6432")
-                    }) {
-
-                        if(string.IsNullOrEmpty(directory))
-                            continue;
-
-                        if(System.IO.File.Exists(System.IO.Path.Combine(
-                            directory, "PawnIO", "PawnIOLib.dll")))
-                            return true;
-
-                    }
-
-                } catch { }
-
-                return false;
-
-            }
+            get { return StarMon.Driver.PawnIo.IsAvailable; }
         }
 
         public static bool SecureBootEnabled {
@@ -284,15 +267,23 @@ namespace StarMon.Hardware {
 
             return PawnIoInstalled
 
-                ? "PawnIO is already installed here — it is the signed driver "
-                    + "that works with these protections left on. StarMon does "
-                    + "not use it yet, so fan control is unavailable in this "
-                    + "build even though the means to have it is present."
+                // Reaching this text with PawnIO installed means StarMon tried
+                // it and PawnIO itself did not work — it is preferred over the
+                // blocklisted driver wherever it is present. Opening it is a
+                // privileged operation, so much the likeliest cause is that
+                // this process is not elevated; the driver log carries the
+                // exact refusal.
+                ? "PawnIO is installed here and StarMon prefers it, so "
+                    + "something stopped it from opening rather than it not "
+                    + "being tried. Opening it needs administrator rights — "
+                    + "start StarMon elevated. The log records the exact "
+                    + "refusal under \"Driver\"."
 
-                : "Installing PawnIO (pawnio.eu) gives StarMon a signed driver "
-                    + "it can use with these protections left on, which is the "
-                    + "option worth taking. Switching memory integrity off "
-                    + "would also work, and is not worth it.";
+                : "Installing PawnIO (pawnio.eu) is the option worth taking: "
+                    + "it is signed, it loads with these protections left on, "
+                    + "and StarMon uses it in preference to the driver Windows "
+                    + "is blocking. Switching memory integrity off would also "
+                    + "work, and is not worth it.";
 
         }
 

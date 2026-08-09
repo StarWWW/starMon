@@ -41,11 +41,6 @@ namespace StarMon.Hardware.Cpu {
         private const uint MSR_IA32_TEMPERATURE_TARGET   = 0x01A2; // Holds TjMax in bits 23:16
         private const uint MSR_IA32_PACKAGE_THERM_STATUS = 0x01B1; // Package-wide thermal status
 
-        // AMD host-bridge PCI configuration access (bus 0, device 0, function 0)
-        private const uint AMD_PCI_ADDRESS   = 0x00000000;
-        private const uint AMD_SMN_INDEX_REG = 0x60;
-        private const uint AMD_SMN_DATA_REG  = 0x64;
-
         // AMD family 17h (Zen) and later SMU thermal register (Tctl)
         private const uint AMD_F17H_THM_TCTL = 0x00059800;
 
@@ -72,21 +67,108 @@ namespace StarMon.Hardware.Cpu {
             }
         }
 
+        // What this processor is, for the hardware report.
+        //
+        // Several readings below exist on one vendor and not the other, and a
+        // report that showed them simply missing was indistinguishable from a
+        // report of them being broken. Naming the processor is what lets the
+        // absences be stated as facts about the silicon.
+        public static string VendorName {
+            get { EnsureDetected(); return DetectedVendor.ToString(); }
+        }
+
+        // Whether the per-core temperatures can be read, and why not.
+        //
+        // Intel publishes a thermal sensor per core and this reads each one by
+        // pinning to it. AMD does not: Zen reports one Tctl for the package
+        // and, on the desktop parts, one figure per core complex — neither of
+        // which is a per-core reading, and inventing one by repeating the
+        // package figure across the strip would be a picture of something that
+        // is not being measured.
+        public static string PerCoreStatus {
+            get {
+
+                EnsureDetected();
+
+                if(DetectedVendor == Vendor.Amd)
+                    return "not available — AMD reports one temperature for "
+                        + "the package rather than one per core";
+
+                if(DetectedVendor != Vendor.Intel)
+                    return "not available — the processor was not recognised";
+
+                return LowLevel.HasMsr ? "available"
+                    : "not available — the processor registers are unreachable";
+
+            }
+        }
+
+        // Whether the live throttling reasons can be read, and why not
+        public static string ThrottleStatus {
+            get {
+
+                EnsureDetected();
+
+                if(DetectedVendor == Vendor.Amd)
+                    return "not available — AMD has no equivalent of Intel's "
+                        + "package thermal status register";
+
+                if(DetectedVendor != Vendor.Intel)
+                    return "not available — the processor was not recognised";
+
+                return LowLevel.HasMsr ? "available"
+                    : "not available — the processor registers are unreachable";
+
+            }
+        }
+
+        // Whether the temperature itself can be read, and by what route
+        public static string TemperatureStatus {
+            get {
+
+                EnsureDetected();
+
+                switch(DetectedVendor) {
+
+                    case Vendor.Intel:
+                        return LowLevel.HasMsr
+                            ? "available (digital thermal sensor)"
+                            : "not available — the processor registers are "
+                                + "unreachable";
+
+                    case Vendor.Amd:
+                        if(Family < AMD_ZEN_FAMILY_MIN)
+                            return "not available — AMD family " + Family
+                                + " predates the Zen thermal register";
+                        return LowLevel.HasSmn
+                            ? "available (Tctl, via the System Management Network)"
+                            : "not available — the System Management Network is "
+                                + "unreachable through this driver";
+
+                    default:
+                        return "not available — the processor was not recognised";
+
+                }
+
+            }
+        }
+
         // Returns the current CPU temperature in degrees Celsius,
         // or -1 if it could not be determined for any reason
         public static int GetTemperature() {
             EnsureDetected();
 
-            // The kernel driver is required for register access
-            if(!Ring0.IsOpen)
-                return -1;
-
+            // A driver being open is not the same question as the registers
+            // this reading needs being reachable. Intel's sits in a
+            // model-specific register and AMD's on the System Management
+            // Network, and a PawnIO backend can have one, the other or
+            // neither depending on which processor module loaded.
             try {
                 switch(DetectedVendor) {
                     case Vendor.Intel:
-                        return GetIntelTemperature();
+                        return LowLevel.HasMsr ? GetIntelTemperature() : -1;
                     case Vendor.Amd:
-                        return GetAmdTemperature();
+                        return LowLevel.HasSmn ? GetAmdTemperature() : -1;
                     default:
                         return -1;
                 }
@@ -167,11 +249,11 @@ namespace StarMon.Hardware.Cpu {
         // anything else (AMD, no driver, read failure).
         public static ThrottleFlags GetThrottleStatus() {
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor != Vendor.Intel)
+            if(!LowLevel.HasMsr || DetectedVendor != Vendor.Intel)
                 return ThrottleFlags.None;
 
             try {
-                if(!Ring0.ReadMsr(MSR_IA32_PACKAGE_THERM_STATUS, out uint eax, out _))
+                if(!LowLevel.ReadMsr(MSR_IA32_PACKAGE_THERM_STATUS, out uint eax, out _))
                     return ThrottleFlags.None;
 
                 ThrottleFlags flags = ThrottleFlags.None;
@@ -191,7 +273,7 @@ namespace StarMon.Hardware.Cpu {
         // supported; individual entries are -1 when that core could not be read.
         public static int[] GetPerCoreTemperatures() {
             EnsureDetected();
-            if(!Ring0.IsOpen || DetectedVendor != Vendor.Intel)
+            if(!LowLevel.HasMsr || DetectedVendor != Vendor.Intel)
                 return null;
 
             ulong[] masks = Topology.GetPhysicalCoreMasks();
@@ -254,7 +336,7 @@ namespace StarMon.Hardware.Cpu {
 
         // Reads and decodes the per-core thermal status of the current core
         private static int ReadIntelCoreTemperature(int tjMax) {
-            if(!Ring0.ReadMsr(MSR_IA32_THERM_STATUS, out uint eax, out _))
+            if(!LowLevel.ReadMsr(MSR_IA32_THERM_STATUS, out uint eax, out _))
                 return -1;
             if((eax & 0x80000000) == 0)
                 return -1;
@@ -265,7 +347,7 @@ namespace StarMon.Hardware.Cpu {
 
         // Decodes an Intel thermal-status MSR into an absolute temperature
         private static int DecodeIntelThermal(uint msr, int tjMax) {
-            if(!Ring0.ReadMsr(msr, out uint eax, out _))
+            if(!LowLevel.ReadMsr(msr, out uint eax, out _))
                 return -1;
 
             // Bit 31 signals that the reading is valid
@@ -285,7 +367,7 @@ namespace StarMon.Hardware.Cpu {
                 return IntelTjMax;
 
             int tjMax = 100;
-            if(Ring0.ReadMsr(MSR_IA32_TEMPERATURE_TARGET, out uint eax, out _)) {
+            if(LowLevel.ReadMsr(MSR_IA32_TEMPERATURE_TARGET, out uint eax, out _)) {
                 int value = (int)((eax >> 16) & 0xFF);
                 if(value >= 60 && value <= 130)
                     tjMax = value;
@@ -305,6 +387,19 @@ namespace StarMon.Hardware.Cpu {
                 if(!ReadAmdSmn(AMD_F17H_THM_TCTL, out value))
                     return -1;
             }
+
+            return DecodeAmdTctl(value);
+        }
+
+        // Turns the raw Zen thermal register into degrees.
+        //
+        // Separated from the read so it can be tested: this is the one AMD
+        // path in the application, it cannot be exercised on the machine it
+        // was written on, and the bias below is exactly the kind of mistake
+        // that produces a believable wrong number rather than an obvious one.
+        //
+        // Internal, and reached only from here and from the tests.
+        internal static int DecodeAmdTctl(uint value) {
 
             // Bits 31:21 hold Tctl in steps of 0.125 °C
             double tctl = ((value >> 21) & 0x7FF) * 0.125;
@@ -328,16 +423,15 @@ namespace StarMon.Hardware.Cpu {
             return (temp >= TempMin && temp <= TempMax) ? temp : -1;
         }
 
-        // Reads an AMD SMN register through the host-bridge PCI index/data pair
+        // Reads an AMD SMN register.
+        //
+        // How that is done depends on the driver: WinRing0 has to be walked
+        // through the host bridge's index/data pair by hand, while PawnIO's
+        // AMD module does the pair itself and hands back the value. The lock
+        // above is held across the call either way, since the first of those
+        // is two accesses that must not interleave with another caller's.
         private static bool ReadAmdSmn(uint address, out uint value) {
-            value = 0;
-
-            // Point the index register at the target SMN address
-            if(!Ring0.WritePciConfig(AMD_PCI_ADDRESS, AMD_SMN_INDEX_REG, address))
-                return false;
-
-            // Read the corresponding value back from the data register
-            return Ring0.ReadPciConfig(AMD_PCI_ADDRESS, AMD_SMN_DATA_REG, out value);
+            return LowLevel.ReadSmn(address, out value);
         }
 
     }

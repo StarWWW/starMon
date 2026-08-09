@@ -85,6 +85,7 @@ namespace StarMon.Hardware {
                 + (Library.Hw.HasBios ? "available" : "NOT AVAILABLE"));
             sb.AppendLine("  Controller    : "
                 + (Library.Hw.HasEc ? "available" : "NOT REACHABLE"));
+            sb.AppendLine("  Driver        : " + Driver.LowLevel.Describe());
             sb.AppendLine("  Code integrity: " + CodeIntegrity.Summary());
 
             if(!Library.Hw.HasEc) {
@@ -92,6 +93,36 @@ namespace StarMon.Hardware {
                 foreach(string line in CodeIntegrity.Explain().Split('\n'))
                     sb.AppendLine("  " + line.Trim());
             }
+
+            sb.AppendLine();
+
+            // ── What this processor publishes ──────────────────────────────
+            //
+            // Several of these exist on one vendor and not the other. A report
+            // that showed the missing ones simply absent was indistinguishable
+            // from a report of them being broken — and the question that
+            // arrives with an AMD machine is always the same one: why is there
+            // no power limit shown. Because AMD does not publish it.
+            sb.AppendLine("PROCESSOR READINGS");
+            sb.AppendLine("  Processor     : " + Cpu.CpuTemperature.VendorName);
+            sb.AppendLine("  Temperature   : " + Cpu.CpuTemperature.TemperatureStatus);
+            sb.AppendLine("  Per-core temp : " + Cpu.CpuTemperature.PerCoreStatus);
+            sb.AppendLine("  Throttling    : " + Cpu.CpuTemperature.ThrottleStatus);
+            sb.AppendLine("  Package power : " + Cpu.CpuMetrics.PowerStatus);
+            sb.AppendLine("  Power limits  : " + Cpu.CpuMetrics.PowerLimitStatus);
+            sb.AppendLine("  Effective clock: " + Cpu.CpuMetrics.ClockStatus);
+
+            // What this application itself costs, so the claim about it is one
+            // anybody can check rather than one they have to take on trust
+            double resident, committed;
+            if(SystemMetrics.GetProcessMemory(out resident, out committed))
+                sb.AppendLine("  StarMon's own : "
+                    + resident.ToString("F0",
+                        System.Globalization.CultureInfo.InvariantCulture)
+                    + " MB resident · "
+                    + committed.ToString("F0",
+                        System.Globalization.CultureInfo.InvariantCulture)
+                    + " MB committed");
 
             sb.AppendLine();
 

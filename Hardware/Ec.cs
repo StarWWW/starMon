@@ -434,11 +434,17 @@ namespace StarMon.Hardware.Ec
         {
             if (!this.IsInitialized)
             {
-                Ring0.Open();
-                if (Ring0.IsOpen)
+                LowLevel.Open();
+                if (LowLevel.IsOpen)
                 {
                     this.IsInitialized = true;
                     EmbeddedControllerMutex.Open();
+
+                    // Which driver answered is worth one line. The two are not
+                    // equivalent — one of them can be open and still have no
+                    // processor registers — and on a machine where a reading
+                    // is missing this is the first thing to look at.
+                    Logger.Info("Driver", "Using " + LowLevel.Describe());
                 }
                 else
                 {
@@ -460,7 +466,7 @@ namespace StarMon.Hardware.Ec
                     // look at when a driver will not load. It belongs in the
                     // log, which the report carries.
                     Logger.Error("Driver", "Kernel driver would not open",
-                        Ring0.GetStatus());
+                        LowLevel.GetStatus());
                 }
             }
         }
@@ -480,7 +486,7 @@ namespace StarMon.Hardware.Ec
                 }
                 try
                 {
-                    Ring0.Close();
+                    LowLevel.Close();
                 }
                 catch
                 {
@@ -503,13 +509,13 @@ namespace StarMon.Hardware.Ec
         // Wrapper for the I/O port read routine in the kernel driver
         protected override byte ReadIoPort(Port port)
         {
-            return Ring0.ReadIoPort((uint)port);
+            return LowLevel.ReadIoPort((uint)port);
         }
 
         // Wrapper for the I/O port write routine in the kernel driver
         protected override void WriteIoPort(Port port, byte value)
         {
-            Ring0.WriteIoPort((uint)port, value);
+            LowLevel.WriteIoPort((uint)port, value);
         }
 
     }

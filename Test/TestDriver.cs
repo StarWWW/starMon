@@ -45,7 +45,384 @@ namespace StarMon.Test {
             TestPlatformStandsWithoutTheFirmware();
             TestWritesGoNowhereRatherThanSomewhereWrong();
 
+            SelfTest.Group("What this processor publishes");
+
+            TestAmdTemperatureDecodesCorrectly();
+            TestEveryProcessorReadingSaysWhyItIsAbsent();
+
+            SelfTest.Group("Which driver answers");
+
+            TestTheModulesAreInTheBuild();
+            TestTheFacadeIsSafeBeforeAnyDriverOpens();
+            TestAmdCountersUseTheReadOnlyAliases();
+            TestPinningABackendIsHonoured();
+            TestDetectionAgreesWithItself();
+
         }
+
+#region What this processor publishes
+        // The one AMD reading in the application, and it cannot be exercised
+        // on the machine it was written on.
+        //
+        // Zen keeps Tctl in the top eleven bits in eighths of a degree, and a
+        // separate bit says the reading is on the wide scale — where it
+        // carries a +49 °C bias that has to come back off. Getting that bit
+        // wrong does not produce an obviously broken number: an idle 42 °C
+        // arrives as 91 °C, which is a perfectly believable temperature, and
+        // it would reach the fan curve and the thermal guard as one.
+        //
+        // The raw values below are built from the temperature rather than
+        // copied from a machine, so each case says what it is testing.
+        private static void TestAmdTemperatureDecodesCorrectly() {
+
+            SelfTest.Equal(42,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(Tctl(42, true)),
+                "an idle mobile Ryzen on the wide scale reads as itself");
+
+            SelfTest.Equal(42,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(Tctl(42, false)),
+                "and so does one on the narrow scale, which carries no bias");
+
+            SelfTest.Equal(91,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(Tctl(91, true)),
+                "a processor genuinely at 91 °C is not talked down to 42");
+
+            // The failure this guards, stated as one pair of readings: the
+            // same eleven bits, differing only in the scale bit, are a
+            // processor at 91 °C and one at 42 °C. Drop the correction and a
+            // mobile Ryzen idling at 42 reports 91 — believable, unremarkable,
+            // and enough to hold the fans at maximum indefinitely.
+            uint bits = (uint) ((91 * 8) << 21);
+
+            SelfTest.Equal(91,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(bits),
+                "on the narrow scale those bits are 91 °C");
+
+            SelfTest.Equal(42,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(bits | 0x00080000),
+                "and on the wide scale the very same bits are 42 °C");
+
+            // Outside the believable band, a reading is discarded rather than
+            // clamped: a number nothing measured is worse than no number
+            SelfTest.Equal(-1,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(0),
+                "an all-zero register is not a processor at absolute cold");
+
+            SelfTest.Equal(-1,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(0xFFFFFFFF),
+                "and an all-ones one is not a processor at 255 °C");
+
+            // The eighth-of-a-degree steps, rounded rather than truncated
+            SelfTest.Equal(60,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(
+                    (uint) (((60 * 8) + 1) << 21)),
+                "an eighth above a whole degree rounds back to it");
+
+            SelfTest.Equal(61,
+                StarMon.Hardware.Cpu.CpuTemperature.DecodeAmdTctl(
+                    (uint) (((60 * 8) + 5) << 21)),
+                "and five eighths above it rounds up");
+
+        }
+
+        // Builds the raw register value for a temperature, the way the
+        // hardware would report it
+        private static uint Tctl(int celsius, bool wideScale) {
+
+            uint raw = (uint) ((celsius + (wideScale ? 49 : 0)) * 8) & 0x7FF;
+            uint value = raw << 21;
+
+            if(wideScale)
+                value |= 0x00080000;
+
+            return value;
+
+        }
+
+        // Every reading that is not available says why, in a sentence.
+        //
+        // Half of what this application reads from the processor exists on one
+        // vendor and not the other, and a report that showed the missing ones
+        // simply absent was indistinguishable from a report of them being
+        // broken. The question that arrives with an AMD machine is always the
+        // same: why is there no power limit. Because AMD does not publish one.
+        private static void TestEveryProcessorReadingSaysWhyItIsAbsent() {
+
+            string[] statuses = new string[] {
+                StarMon.Hardware.Cpu.CpuTemperature.TemperatureStatus,
+                StarMon.Hardware.Cpu.CpuTemperature.PerCoreStatus,
+                StarMon.Hardware.Cpu.CpuTemperature.ThrottleStatus,
+                StarMon.Hardware.Cpu.CpuMetrics.PowerStatus,
+                StarMon.Hardware.Cpu.CpuMetrics.PowerLimitStatus,
+                StarMon.Hardware.Cpu.CpuMetrics.ClockStatus
+            };
+
+            foreach(string status in statuses) {
+
+                SelfTest.Check(!string.IsNullOrEmpty(status),
+                    "the reading has something to say about itself");
+
+                // "not available" on its own is the thing this replaces
+                if(status.StartsWith("not available", StringComparison.Ordinal))
+                    SelfTest.Check(status.IndexOf(" — ",
+                            StringComparison.Ordinal) > 0,
+                        "and an absent one gives a reason (" + status + ")");
+
+            }
+
+            SelfTest.Check(!string.IsNullOrEmpty(
+                    StarMon.Hardware.Cpu.CpuTemperature.VendorName),
+                "the processor is named ("
+                    + StarMon.Hardware.Cpu.CpuTemperature.VendorName + ")");
+
+            Console.WriteLine("         this machine: "
+                + StarMon.Hardware.Cpu.CpuTemperature.VendorName
+                + " · temperature " + StarMon.Hardware.Cpu.CpuTemperature
+                    .TemperatureStatus
+                + " · power limits " + StarMon.Hardware.Cpu.CpuMetrics
+                    .PowerLimitStatus);
+
+        }
+#endregion
+
+#region Which driver answers
+        // The PawnIO modules, and what they must be.
+        //
+        // The driver verifies each module's signature and refuses one that has
+        // been altered, so a wrong byte here does not misbehave — it disables
+        // PawnIO on every machine, silently, in a way that reads as PawnIO not
+        // being installed. The sizes and digests are those published with
+        // release 0.2.10 of PawnIO_Modules; see Resources/README.md.
+        private static readonly string[][] Modules = new string[][] {
+            new string[] { "LpcACPIEC", "2612",
+                "C38FD116E7AFF4D1FDB0A494E296BE0A6708E5A22FC72F14587442FB7F8F7906" },
+            new string[] { "IntelMSR", "5324",
+                "D6ED85D65AB17A22F813EF98207D6D537155EE2DED5976A21CB48413C9B92E5F" },
+            new string[] { "AMDFamily17", "10652",
+                "DAE74615761B78BDF064DFB3E136252DDCC6FC727D88F14738D0E5800D427A91" }
+        };
+
+        // Every module is embedded, under the name the loader asks for, and is
+        // exactly what was published
+        private static void TestTheModulesAreInTheBuild() {
+
+            foreach(string[] module in Modules) {
+
+                byte[] blob = StarMon.Driver.PawnIo.Read(module[0]);
+
+                SelfTest.Check(blob != null,
+                    module[0] + " is embedded in this build");
+
+                if(blob == null)
+                    continue;
+
+                SelfTest.Equal(int.Parse(module[1],
+                        System.Globalization.CultureInfo.InvariantCulture),
+                    blob.Length,
+                    "and is the published size");
+
+                string digest;
+                using(System.Security.Cryptography.SHA256 sha
+                    = System.Security.Cryptography.SHA256.Create())
+                    digest = BitConverter.ToString(sha.ComputeHash(blob))
+                        .Replace("-", "");
+
+                SelfTest.Equal(module[2], digest,
+                    "and byte-for-byte what the driver will verify");
+
+            }
+
+            SelfTest.Check(StarMon.Driver.PawnIo.Read("NoSuchModule") == null,
+                "a module that is not in the build reads as absent rather than throwing");
+
+        }
+
+        // Nothing above this layer checks whether a driver opened before
+        // asking it for a reading — the guards are all on HasMsr and HasEc,
+        // which is a different question. So the facade has to be safe when
+        // there is no driver at all, which is the state a refused machine
+        // spends its whole run in.
+        private static void TestTheFacadeIsSafeBeforeAnyDriverOpens() {
+
+            StarMon.Driver.LowLevel.Reset();
+
+            SelfTest.Equal(StarMon.Driver.LowLevel.Backend.None,
+                StarMon.Driver.LowLevel.Active,
+                "with nothing open, no backend is claimed");
+
+            SelfTest.Check(!StarMon.Driver.LowLevel.IsOpen,
+                "and the facade says so");
+
+            SelfTest.Check(!StarMon.Driver.LowLevel.HasMsr,
+                "processor registers are not offered");
+
+            SelfTest.Check(!StarMon.Driver.LowLevel.HasSmn,
+                "nor the System Management Network");
+
+            SelfTest.Equal((byte) 0, StarMon.Driver.LowLevel.ReadIoPort(0x66),
+                "a port read hands back nothing");
+
+            bool threw = false;
+            try {
+                StarMon.Driver.LowLevel.WriteIoPort(0x66, 0x80);
+            } catch {
+                threw = true;
+            }
+
+            SelfTest.Check(!threw,
+                "a port write is dropped rather than throwing");
+
+            uint eax, edx;
+            SelfTest.Check(!StarMon.Driver.LowLevel.ReadMsr(0x19C, out eax, out edx),
+                "a register read reports that it did not happen");
+
+            SelfTest.Equal(0u, eax, "and hands back nothing rather than something");
+
+            uint value;
+            SelfTest.Check(!StarMon.Driver.LowLevel.ReadSmn(0x59800, out value),
+                "an SMN read likewise");
+
+            SelfTest.Check(StarMon.Driver.LowLevel.Describe().Length > 0,
+                "and there is still something to say about the driver ("
+                    + StarMon.Driver.LowLevel.Describe() + ")");
+
+        }
+
+        // AMD publishes MPERF and APERF twice, and the PawnIO module permits
+        // only the read-only copies — a module that let anything write MPERF
+        // would hand out the ability to lie to the scheduler about how fast
+        // the processor is going. Every other register passes through
+        // untouched, on both vendors.
+        private static void TestAmdCountersUseTheReadOnlyAliases() {
+
+            SelfTest.Equal(0xC00000E7u,
+                StarMon.Driver.LowLevel.Translate(0x0E7, true),
+                "on AMD, MPERF becomes its read-only alias");
+
+            SelfTest.Equal(0xC00000E8u,
+                StarMon.Driver.LowLevel.Translate(0x0E8, true),
+                "and so does APERF");
+
+            SelfTest.Equal(0x0E7u,
+                StarMon.Driver.LowLevel.Translate(0x0E7, false),
+                "on Intel they are left alone");
+
+            SelfTest.Equal(0xC0010299u,
+                StarMon.Driver.LowLevel.Translate(0xC0010299, true),
+                "and AMD's own registers are not translated twice");
+
+            SelfTest.Equal(0x611u,
+                StarMon.Driver.LowLevel.Translate(0x611, true),
+                "nor is anything else");
+
+        }
+
+        // Pinning a backend means pinning it.
+        //
+        // The setting exists for a machine that misbehaves, where the question
+        // is which of the two drivers is at fault; a pin that quietly fell
+        // back to the other one would answer the wrong question. Only PawnIO
+        // is pinned here: asking for WinRing0 would install a kernel service,
+        // which is not something a test run should leave behind.
+        private static void TestPinningABackendIsHonoured() {
+
+            string previous = Config.DriverBackend;
+
+            try {
+
+                StarMon.Driver.LowLevel.Reset();
+                Config.DriverBackend = "PawnIO";
+                StarMon.Driver.LowLevel.Open();
+
+                StarMon.Driver.LowLevel.Backend active =
+                    StarMon.Driver.LowLevel.Active;
+
+                SelfTest.Check(active != StarMon.Driver.LowLevel.Backend.WinRing0,
+                    "asking for PawnIO never yields the driver it was chosen over");
+
+                if(active == StarMon.Driver.LowLevel.Backend.PawnIo) {
+
+                    // Reached when the test host is started elevated, since
+                    // opening an executor is a privileged operation
+                    SelfTest.Check(StarMon.Driver.LowLevel.Describe()
+                            .IndexOf("PawnIO", StringComparison.Ordinal) >= 0,
+                        "and says which one it got");
+
+                    // Reading the controller's status port is the whole point
+                    // of the module. What it holds is the machine's business;
+                    // that the call completes is not.
+                    bool read = true;
+                    try {
+                        StarMon.Driver.LowLevel.ReadIoPort(0x66);
+                    } catch {
+                        read = false;
+                    }
+
+                    SelfTest.Check(read,
+                        "and the controller's status port can be read through it");
+
+                } else {
+
+                    SelfTest.Check(StarMon.Driver.LowLevel.GetStatus().Length > 0,
+                        "and a backend that would not open says why ("
+                            + StarMon.Driver.LowLevel.GetStatus()
+                                .Replace("\r", "").Replace("\n", " ").Trim() + ")");
+
+                }
+
+                Console.WriteLine("         pinned to PawnIO: "
+                    + StarMon.Driver.LowLevel.Describe());
+
+            } finally {
+                StarMon.Driver.LowLevel.Close();
+                StarMon.Driver.LowLevel.Reset();
+                Config.DriverBackend = previous;
+            }
+
+        }
+
+        // What the user is told about PawnIO is what the loader found, not a
+        // second search that might disagree with it
+        private static void TestDetectionAgreesWithItself() {
+
+            bool usable = StarMon.Driver.PawnIo.IsAvailable;
+
+            SelfTest.Equal(usable, CodeIntegrity.PawnIoInstalled,
+                "the advice reports what the loader actually found ("
+                    + (usable ? "installed" : "not installed") + ")");
+
+            SelfTest.Check(CodeIntegrity.Summary().IndexOf(
+                    usable ? "PawnIO: installed" : "PawnIO: not installed",
+                    StringComparison.Ordinal) >= 0,
+                "and the summary line says the same");
+
+            if(!usable) {
+                SelfTest.Skip("PawnIO is not installed on this machine, so "
+                    + "the loaded-library checks cannot run");
+                return;
+            }
+
+            SelfTest.Check(StarMon.Driver.PawnIo.LibraryPath != null
+                && System.IO.File.Exists(StarMon.Driver.PawnIo.LibraryPath),
+                "the library it loaded is where it said it was ("
+                    + StarMon.Driver.PawnIo.LibraryPath + ")");
+
+            // Version 0.0.0 would mean the call returned success without
+            // filling anything in, which is the kind of thing that goes
+            // unnoticed until a module refuses on a library too old for it
+            string[] parts = StarMon.Driver.PawnIo.Version.Split('.');
+
+            SelfTest.Equal(3, parts.Length,
+                "and reports a three-part version ("
+                    + StarMon.Driver.PawnIo.Version + ")");
+
+            int major;
+            SelfTest.Check(parts.Length == 3 && int.TryParse(parts[0],
+                    out major) && major > 0,
+                "whose major number is a real one");
+
+        }
+#endregion
 
 #region The hardware gate
         // A shorthand for the decision, so the cases read as machines

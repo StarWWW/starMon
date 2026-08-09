@@ -91,6 +91,8 @@
         <Compile Include="App\Gui\GuiFilter.cs"/>
         <Compile Include="App\Gui\GuiTray.cs"/>
         <Compile Include="Driver\Driver.cs"/>
+        <Compile Include="Driver\LowLevel.cs"/>
+        <Compile Include="Driver\PawnIo.cs"/>
         <Compile Include="Driver\Ring0.cs"/>
         <Compile Include="External\AdvApi.cs"/>
         <Compile Include="External\ColorMgmt.cs"/>
@@ -276,6 +278,21 @@
              window icon. Everything else the interface draws, it draws. -->
         <EmbeddedResource Include="Resources\Driver.sys.gz">
             <LogicalName>StarMon.Driver.sys.gz</LogicalName>
+        </EmbeddedResource>
+        <!-- The PawnIO modules: small verified programs handed to the signed
+             PawnIO driver, which will only run ones it can verify. Carried
+             here rather than fetched, so the application works on a machine
+             that is offline and cannot pick up a module it did not ship with.
+             Unmodified builds from the project's own signed release; see
+             Resources\README.md. -->
+        <EmbeddedResource Include="Resources\LpcACPIEC.bin">
+            <LogicalName>StarMon.LpcACPIEC.bin</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Resources\IntelMSR.bin">
+            <LogicalName>StarMon.IntelMSR.bin</LogicalName>
+        </EmbeddedResource>
+        <EmbeddedResource Include="Resources\AMDFamily17.bin">
+            <LogicalName>StarMon.AMDFamily17.bin</LogicalName>
         </EmbeddedResource>
     </ItemGroup>
     <!-- <ItemGroup>

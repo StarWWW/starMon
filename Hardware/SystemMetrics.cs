@@ -73,6 +73,47 @@ namespace StarMon.Hardware {
             }
         }
 
+        // What this application itself is costing, in megabytes.
+        //
+        // Reported because it was claimed and never measured: the README said
+        // StarMon "uses a few megabytes", which was an aspiration rather than
+        // a figure. It is a WPF application, and once its window has been
+        // opened the visual tree and the render surfaces stay resident — on
+        // the machine this was developed on that settles at around 250 MB.
+        //
+        // Two numbers, because they answer different questions. The working
+        // set is what the task manager calls memory: the pages actually
+        // resident, which Windows will trim under pressure. The private bytes
+        // are what has been committed and cannot be shared with another
+        // process — the figure that grows if something is genuinely leaking.
+        // Watching only the first is how a leak hides behind a trim.
+        public static bool GetProcessMemory(out double workingSetMB,
+            out double privateMB) {
+
+            workingSetMB = -1;
+            privateMB = -1;
+
+            try {
+
+                using(System.Diagnostics.Process self =
+                    System.Diagnostics.Process.GetCurrentProcess()) {
+
+                    self.Refresh();
+
+                    const double mega = 1024.0 * 1024.0;
+                    workingSetMB = self.WorkingSet64 / mega;
+                    privateMB = self.PrivateMemorySize64 / mega;
+
+                    return true;
+
+                }
+
+            } catch {
+                return false;
+            }
+
+        }
+
         // Modern power-mode overlay GUIDs set by the Windows power slider
         private static readonly Guid OverlayHighPerf  = new Guid("ded574b5-45a0-4f42-8737-46345c09c238");
         private static readonly Guid OverlayPowerSaver = new Guid("961cc777-2547-4f9d-8174-7d86181b8a7a");
