@@ -295,13 +295,29 @@ namespace StarMon.Test {
         // machine this was written on.
         private static void TestTheGraphicsCardIsNamedWhoeverMadeIt() {
 
-            // The machine this was developed on: integrated Intel graphics
-            // beside the discrete NVIDIA card
+            // The machine this was developed on, exactly as -Probe reported
+            // it. The integrated adapter is called "Intel(R) Graphics" —
+            // not UHD, not Iris, just that — which is why the rule for these
+            // is "Intel and not Arc" rather than a list of product names.
+            SelfTest.Equal("NVIDIA GeForce RTX 5050 Laptop GPU",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "NVIDIA GeForce RTX 5050 Laptop GPU",
+                    "Intel(R) Graphics" }),
+                "the discrete NVIDIA card is preferred over the integrated one");
+
+            // The same machine with the card removed from the list: the
+            // integrated adapter must still be recognised as one, or it gets
+            // named as though it were the discrete card
+            SelfTest.Equal("",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Intel(R) Graphics" }),
+                "and a bare \"Intel(R) Graphics\" is known to be integrated");
+
             SelfTest.Equal("NVIDIA GeForce RTX 5050 Laptop GPU",
                 StarMon.AppService.Poller.PickGraphicsName(new string[] {
                     "Intel(R) UHD Graphics",
                     "NVIDIA GeForce RTX 5050 Laptop GPU" }),
-                "the discrete NVIDIA card is preferred over the integrated one");
+                "the older Intel naming is handled the same way");
 
             // Order must not decide it
             SelfTest.Equal("NVIDIA GeForce RTX 4060 Laptop GPU",

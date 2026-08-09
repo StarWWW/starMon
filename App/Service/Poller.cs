@@ -712,9 +712,22 @@ namespace StarMon.AppService {
             if(string.IsNullOrEmpty(name))
                 return true;
 
+            // Anything Intel that is not an Arc card is the processor's own
+            // graphics. Named as a rule rather than by listing the product
+            // names, because the list was wrong: it had UHD, HD and Iris on
+            // it, and the machine this was written on reports its integrated
+            // adapter as plain "Intel(R) Graphics" — which is exactly the kind
+            // of name a list of known names does not have in it. Arc is
+            // claimed above this, so nothing discrete reaches here.
+            if(Has(name, "Intel") && !Has(name, "Arc"))
+                return true;
+
+            // And anything Radeon that reached this far is not an RX or a Pro,
+            // so it is the processor's own as well
+            if(Has(name, "Radeon"))
+                return true;
+
             foreach(string marker in new string[] {
-                "UHD Graphics", "HD Graphics", "Iris",
-                "Radeon(TM) Graphics", "Radeon Graphics", "Vega",
                 "Microsoft Basic Display", "Microsoft Remote Display",
                 "Virtual", "DisplayLink", "Parsec", "Meta ", "Citrix",
                 "VNC", "RDP", "Oray", "Sunshine" })

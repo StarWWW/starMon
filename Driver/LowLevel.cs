@@ -225,7 +225,11 @@ namespace StarMon.Driver {
             switch(Active) {
 
                 case Backend.PawnIo:
-                    return "PawnIO " + PawnIo.Version + " (signed, "
+                    // The library version, not the product's. PawnIO 2.2.0
+                    // ships a library that reports 2.0.0, and a line reading
+                    // "PawnIO 2.0.0" beside an installer that says 2.2.0 is
+                    // one more thing for somebody to have to work out.
+                    return "PawnIO (library " + PawnIo.Version + ", signed, "
                         + "Embedded Controller ports only)"
                         + (HasMsr
                             ? " · processor registers via "

@@ -54,7 +54,7 @@ namespace StarMon.Hardware {
             TryDo(() => {
                 if(SystemMetrics.GetMemory(out double used, out double total, out int pct))
                     sb.AppendLine("  Memory        : " + total.ToString("0.0", inv)
-                        + " GB (currently %" + pct + " used)");
+                        + " GB (currently " + pct + "% used)");
             });
 
             TryDo(() => {
@@ -66,9 +66,9 @@ namespace StarMon.Hardware {
             TryDo(() => {
                 Battery.Info b = Battery.Get();
                 if(b.Present)
-                    sb.AppendLine("  Battery       : %" + b.Percent
+                    sb.AppendLine("  Battery       : " + b.Percent + "%"
                         + (b.FullmWh > 0 ? " · " + (b.FullmWh / 1000.0).ToString("0.0", inv) + " Wh" : "")
-                        + (b.HealthPercent >= 0 ? " · health %" + b.HealthPercent : "")
+                        + (b.HealthPercent >= 0 ? " · health " + b.HealthPercent + "%" : "")
                         + (b.CycleCount > 0 ? " · " + b.CycleCount + " cycles" : ""));
             });
 
@@ -206,7 +206,7 @@ namespace StarMon.Hardware {
                     GpuNvidia.GpuInfo g = GpuNvidia.Get();
                     string line = "";
                     if(g.TempC >= 0) line += g.TempC + "°C";
-                    if(g.Load >= 0) line += (line.Length > 0 ? " · " : "") + "%" + g.Load + " load";
+                    if(g.Load >= 0) line += (line.Length > 0 ? " · " : "") + g.Load + "% load";
                     if(g.PowerW >= 0) line += (line.Length > 0 ? " · " : "") + g.PowerW + " W";
                     if(g.VramTotalMB > 0) line += (line.Length > 0 ? " · " : "")
                         + (g.VramUsedMB / 1024.0).ToString("0.0", inv) + "/"
@@ -259,18 +259,26 @@ namespace StarMon.Hardware {
 
             TryDo(() => {
                 int b = DisplayBrightness.Get();
-                if(b >= 0) sb.AppendLine("  Brightness    : %" + b);
+                if(b >= 0) sb.AppendLine("  Brightness    : " + b + "%");
             });
 
             TryDo(() => {
+                // The plan, which is the scheme. Labelled "Power mode" here,
+                // which is a different thing — the mode is the slider in the
+                // battery flyout, and the interface has kept them apart for
+                // some time while this report quietly conflated them.
                 string plan = SystemMetrics.GetPowerPlanName();
-                if(!string.IsNullOrEmpty(plan)) sb.AppendLine("  Power mode    : " + plan);
+                if(!string.IsNullOrEmpty(plan)) sb.AppendLine("  Power plan    : " + plan);
+
+                SystemMetrics.PowerMode mode = SystemMetrics.GetPowerMode();
+                if(mode != SystemMetrics.PowerMode.Unknown)
+                    sb.AppendLine("  Power mode    : " + mode);
             });
 
             TryDo(() => {
                 if(External.WlanApi.GetSignal(out int sig, out int rx, out int _, out string ssid))
                     sb.AppendLine("  Wi-Fi         : " + (ssid.Length > 0 ? ssid + " · " : "")
-                        + "%" + sig + " signal · " + rx + " Mbps");
+                        + sig + "% signal · " + rx + " Mbps");
             });
 
             sb.AppendLine();

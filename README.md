@@ -51,9 +51,11 @@ Around those it adds NVIDIA readings through NVAPI and NVML, processor power and
 
 It runs in the notification area and does not phone home.
 
-It is a WPF application, and it costs what one costs. On the machine this was developed on, with the window having been opened at least once, it settles at around 250 MB — the visual tree and the render surfaces staying resident afterwards. That is measured, not estimated, and it is stable rather than growing: two samples ninety minutes apart went down, not up. The System page reports the process's own footprint, so the figure on your machine is one you can read rather than take on trust.
+It is a WPF application, and it costs what one costs. Measured on the machine this was developed on: **around 45 MB** while it has only ever sat in the notification area, and **around 250 MB** once the window has been opened — the visual tree and the render surfaces stay resident afterwards. That second figure is stable rather than growing; two samples ninety minutes apart went down, not up.
 
-An earlier version of this paragraph said "a few megabytes". That was never measured and was not true.
+Both are readings, not estimates. The System page reports the process's own footprint and so does `-Probe`, so the figure on your machine is one you can look at rather than take on trust.
+
+An earlier version of this paragraph said "a few megabytes" for both cases. That was never measured, and for the second one it was not true.
 
 ## Requirements
 
@@ -427,9 +429,11 @@ Bunların çevresine NVAPI ve NVML üzerinden NVIDIA ölçümlerini, Intel RAPL 
 
 Bildirim alanında çalışır ve dışarıyla konuşmaz.
 
-Bir WPF uygulamasıdır ve bir WPF uygulamasının bedelini öder. Geliştirildiği makinede, pencere en az bir kez açılmışken yaklaşık 250 MB'de oturuyor — görsel ağaç ve çizim yüzeyleri sonrasında bellekte kalıyor. Bu tahmin değil ölçüm, ve büyüyen değil kararlı bir rakam: doksan dakika arayla alınan iki örnek yükselmedi, düştü. Sistem sayfası sürecin kendi ayak izini bildiriyor; yani kendi makinenizdeki rakam, güvenmeniz gereken değil okuyabileceğiniz bir şey.
+Bir WPF uygulamasıdır ve bir WPF uygulamasının bedelini öder. Geliştirildiği makinede ölçüldü: yalnızca bildirim alanında durduğu sürece **yaklaşık 45 MB**, pencere bir kez açıldıktan sonra ise **yaklaşık 250 MB** — görsel ağaç ve çizim yüzeyleri sonrasında bellekte kalıyor. İkinci rakam büyüyen değil kararlı; doksan dakika arayla alınan iki örnek yükselmedi, düştü.
 
-Bu paragrafın eski hâli "birkaç megabayt" diyordu. Bu hiç ölçülmemişti ve doğru değildi.
+İkisi de tahmin değil ölçüm. Sistem sayfası sürecin kendi ayak izini bildiriyor, `-Probe` de öyle; yani kendi makinenizdeki rakam güvenmeniz gereken değil bakabileceğiniz bir şey.
+
+Bu paragrafın eski hâli her iki durum için de "birkaç megabayt" diyordu. Bu hiç ölçülmemişti, ve ikincisi için doğru da değildi.
 
 ## Gereksinimler
 
