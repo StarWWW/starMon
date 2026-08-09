@@ -52,6 +52,19 @@ namespace StarMon.Library
         // Prefix for default color presets, name to be resolved through locale
         public const string ColorPresetDefaultPrefix = "Default";
 
+        // Which kernel driver the privileged reads go through.
+        //
+        // "Auto" prefers PawnIO wherever it is installed and falls back to the
+        // WinRing0 build carried in this executable. PawnIO is signed, loads
+        // with memory integrity left on, and is handed a verified program that
+        // permits two I/O ports rather than raw access to all of them; the
+        // fallback exists because most machines have nothing installed.
+        //
+        // "PawnIO" and "WinRing0" pin one of them, which is worth having when
+        // a machine misbehaves and the question is which half is at fault.
+        // Anything else reads as "Auto". See Driver/LowLevel.cs.
+        public static string DriverBackend = "Auto";
+
         // Embedded Controller operation parameters
         public static int EcMonInterval = 1000; // Embedded Controller monitoring interval
 
@@ -155,6 +168,20 @@ namespace StarMon.Library
         // Overwritten at startup by the probed value unless auto-detect is off.
         public static int FanLevelMax = 56;
         public static int FanLevelMin = 20;
+
+        // How long a board is given to act on a fan level before the reading
+        // taken afterwards is treated as its answer [ms].
+        //
+        // Some boards accept a level and ignore it, which used to be
+        // indistinguishable from the write having worked: the fan curve went
+        // on commanding a speed nothing was applying, and the only symptom was
+        // a machine running hot for no stated reason. The check costs no extra
+        // access to the hardware — it compares against the reading already
+        // taken every second — but it has to allow for the firmware not having
+        // acted yet, or it accuses every machine of ignoring every write.
+        //
+        // Negative switches the check off.
+        public static int FanLevelVerifyDelayMs = 2000;
 
         // Set manual fan mode first using the Embedded Controller before setting fan levels
         // (auto-detected: needed exactly when the BIOS level call is unavailable)

@@ -54,7 +54,8 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: writes that do not take");
             TestRefusedFanWriteIsNotRetriedForever();
-            TestIgnoredFanWriteIsIndistinguishable();
+            TestIgnoredFanWriteIsNoticed();
+            TestAWriteThatTookIsNotComplainedAbout();
 
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
@@ -133,6 +134,10 @@ namespace StarMon.Test {
                 // so without this one board would be handed the previous
                 // board's levels.
                 Fan.InvalidateLevels();
+
+                // Likewise the record of what the last write asked for, and
+                // the once-per-episode latch that goes with it
+                Fan.ResetLevelVerification();
 
                 // The once-per-episode latch on the lock-failure report is
                 // process-wide, so a scenario that expects to see one has to
@@ -679,30 +684,127 @@ namespace StarMon.Test {
         }
 
         // The quietest failure of the lot: the call succeeds, the firmware
-        // does nothing, and nothing anywhere can tell the difference. This is
-        // what "the software completely ignores commands" looks like from
-        // inside the software.
-        private static void TestIgnoredFanWriteIsIndistinguishable() {
+        // does nothing, and until now nothing anywhere could tell the
+        // difference. This is what "the software completely ignores commands"
+        // looks like from inside the software.
+        //
+        // It is noticed by comparing the next reading against what was asked
+        // for, which is the reading the application already takes every
+        // second — so no extra access to the hardware, and no asking a
+        // firmware what its fans are doing in the same instant it was told to
+        // change them.
+        private static void TestIgnoredFanWriteIsNoticed() {
 
             DeviceScenario board = DeviceCatalogue.FanLevelWriteIgnored();
 
             using(new Installed(board)) {
 
-                Platform platform = new Platform();
+                int previousDelay = Config.FanLevelVerifyDelayMs;
 
-                try { platform.Fans.SetLevels(new byte[] { 30, 30 }); } catch { }
+                try {
 
-                byte[] readBack = null;
-                try { readBack = platform.Fans.GetLevels(); } catch { }
+                    // The settle window is what stops a slow firmware being
+                    // accused; here there is nothing to wait for, and a test
+                    // that slept two seconds to prove a comparison would be
+                    // paying for the wrong thing
+                    Config.FanLevelVerifyDelayMs = 0;
+                    Fan.ResetLevelVerification();
 
-                bool took = readBack != null && readBack.Length > 0 && readBack[0] == 30;
+                    Platform platform = new Platform();
 
-                SelfTest.Check(!took,
-                    "the board did not take the level, as the scenario declares");
+                    try { platform.Fans.SetLevels(new byte[] { 30, 30 }); } catch { }
 
-                SelfTest.Gap(false,
-                    "a fan level write that does not take is detected by reading it back "
-                        + "- nothing checks this today");
+                    byte[] readBack = null;
+                    try { readBack = platform.Fans.GetLevels(); } catch { }
+
+                    bool took = readBack != null && readBack.Length > 0
+                        && readBack[0] == 30;
+
+                    SelfTest.Check(!took,
+                        "the board did not take the level, as the scenario declares");
+
+                    // The reading the application takes anyway, which is where
+                    // the comparison happens
+                    platform.Fans.Fan[0].GetLevel();
+
+                    SelfTest.Check(Fan.LevelWriteMismatches > 0,
+                        "and the next reading noticed that it had not ("
+                            + Fan.LevelWriteMismatches + " mismatch)");
+
+                    // Once per episode. A fan curve rewrites its level
+                    // whenever the temperature crosses a threshold, and a
+                    // board that ignores one write ignores every one of them.
+                    int afterFirst = Fan.LevelWriteMismatches;
+
+                    for(int i = 0; i < 5; i++) {
+                        try { platform.Fans.SetLevels(new byte[] { 30, 30 }); } catch { }
+                        platform.Fans.Fan[0].GetLevel();
+                    }
+
+                    SelfTest.Check(Fan.LevelWriteMismatches > afterFirst,
+                        "every ignored write is counted");
+
+                    // The settle window exists for the firmware that has not
+                    // acted yet, and this is the board that never will. With
+                    // the window open, even it must not be accused: what
+                    // separates "has not answered" from "will not answer" is
+                    // only how long has passed.
+                    Config.FanLevelVerifyDelayMs = 60000;
+                    Fan.ResetLevelVerification();
+
+                    try { platform.Fans.SetLevels(new byte[] { 44, 44 }); } catch { }
+
+                    for(int i = 0; i < 5; i++)
+                        platform.Fans.Fan[0].GetLevel();
+
+                    SelfTest.Equal(0, Fan.LevelWriteMismatches,
+                        "a board that has not had time to answer is not accused");
+
+                } finally {
+                    Config.FanLevelVerifyDelayMs = previousDelay;
+                }
+
+            }
+
+        }
+
+        // And the other half, which matters more: a check that fires on a
+        // board doing exactly what it was told is worse than no check at all,
+        // because the log then says every machine is broken.
+        private static void TestAWriteThatTookIsNotComplainedAbout() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                int previousDelay = Config.FanLevelVerifyDelayMs;
+
+                try {
+
+                    Config.FanLevelVerifyDelayMs = 0;
+                    Fan.ResetLevelVerification();
+
+                    Platform platform = new Platform();
+
+                    byte[] asked = new byte[] { 30, 30 };
+                    try { platform.Fans.SetLevels(asked); } catch { }
+
+                    byte[] readBack = null;
+                    try { readBack = platform.Fans.GetLevels(); } catch { }
+
+                    SelfTest.Check(readBack != null && readBack.Length >= 2
+                        && readBack[0] == 30 && readBack[1] == 30,
+                        "a board that takes the level reports it back");
+
+                    for(int i = 0; i < 5; i++)
+                        platform.Fans.Fan[0].GetLevel();
+
+                    SelfTest.Equal(0, Fan.LevelWriteMismatches,
+                        "and nothing is complained about");
+
+                } finally {
+                    Config.FanLevelVerifyDelayMs = previousDelay;
+                }
 
             }
 

@@ -26,6 +26,23 @@
             <Preset Name="DefaultWhite">FFFFFF</Preset>
         </ColorPresets>
 
+        <!-- Which kernel driver the privileged reads go through.
+
+             Auto      prefer PawnIO where it is installed, fall back to the
+                       WinRing0 build carried inside StarMon.exe
+             PawnIO    PawnIO only; StarMon runs without controller access
+                       if it is not installed or will not open
+             WinRing0  WinRing0 only, which is what StarMon did before 1.2
+
+             PawnIO is signed and loads with memory integrity left on, and it
+             is handed a verified program that permits I/O ports 0x62 and 0x66
+             rather than raw access to all of them. WinRing0 is on Microsoft's
+             vulnerable-driver list and does not load where that is enforced,
+             which is the default on Windows 11. Pinning one of the two is
+             worth doing when a machine misbehaves and the question is which
+             half is at fault. -->
+        <DriverBackend>Auto</DriverBackend>
+
         <!-- Embedded Controller -->
 
         <!-- Maximum number of failed attempts waiting to read -->
@@ -98,6 +115,18 @@
              and the curve silently never reaches full speed. -->
         <FanLevelMax>56</FanLevelMax>
         <FanLevelMin>20</FanLevelMin>
+
+        <!-- How long the board is given to act on a fan level before the
+             reading taken afterwards is treated as its answer [ms].
+
+             Some boards accept a level and ignore it, which is otherwise
+             indistinguishable from the write having worked: the fan curve
+             goes on commanding a speed nothing is applying, and the only
+             symptom is a machine running hot for no stated reason. The check
+             uses the reading already taken every second, so it costs no extra
+             access to the hardware. Set to 0 to check against the very next
+             reading, which will report boards that are merely slow. -->
+        <FanLevelVerifyDelayMs>2000</FanLevelVerifyDelayMs>
 
         <!-- Ask the firmware for the ceiling and the fan-level path at
              startup, rather than using the three values around this one.

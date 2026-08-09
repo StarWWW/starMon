@@ -173,6 +173,10 @@ namespace StarMon.Hardware.Platform {
             // otherwise be what the name resolves to here
             StarMon.Hardware.Platform.Fan.InvalidateLevels();
 
+            // And remember what was asked for, so the next reading can say
+            // whether the board took it
+            StarMon.Hardware.Platform.Fan.NoteLevelRequest(levels);
+
         }
 
         // Retrieves the manual fan speed toggle status

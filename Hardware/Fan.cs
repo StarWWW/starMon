@@ -122,6 +122,9 @@ namespace StarMon.Hardware.Platform {
 
         private static byte[] CachedLevels() {
 
+            string complaint = null;
+            byte[] levels;
+
             lock(LevelLock) {
 
                 int now = Environment.TickCount;
@@ -136,9 +139,20 @@ namespace StarMon.Hardware.Platform {
                 }
 
                 LevelCacheStamp = now;
-                return LevelCache;
+                levels = LevelCache;
+
+                if(levels != null)
+                    complaint = Verify(levels, now);
 
             }
+
+            // Logged outside the lock: every fan reading in the application
+            // goes through it, and writing to the log is not something to hold
+            // it for
+            if(complaint != null)
+                Logger.Warning("Fan", "Fan level write did not take", complaint);
+
+            return levels;
 
         }
 
@@ -149,6 +163,118 @@ namespace StarMon.Hardware.Platform {
         internal static void InvalidateLevels() {
             lock(LevelLock) { LevelCache = null; }
         }
+
+#region Verifying a Write
+        // What was last asked for, and when.
+        //
+        // Not every board takes a fan level. Some accept the write and ignore
+        // it, some clamp it to a ceiling that is not the one this build worked
+        // out, and one in the device matrix does the first of those — which
+        // until now was indistinguishable from the write having worked. The
+        // fan curve then went on commanding a speed nothing was applying, and
+        // the only symptom was a laptop that ran hot for no stated reason.
+        //
+        // Checked against the reading the application already takes rather
+        // than by reading back straight after the write. That costs no extra
+        // access to the hardware, and it avoids the trap of asking a firmware
+        // what its fans are doing in the same millisecond it was told to
+        // change them: the honest answer then is still the old one, and a
+        // check that treated it as a refusal would cry wolf on every machine.
+        private static byte[] Requested;
+        private static int RequestedStamp;
+        private static bool Reported;
+
+        // How many writes have been seen not to take. Counted so a test can
+        // assert the detection rather than assume it.
+        internal static int LevelWriteMismatches { get; private set; }
+
+        // Records what a write asked for, so the next reading can be compared
+        // against it
+        internal static void NoteLevelRequest(byte[] levels) {
+
+            if(levels == null)
+                return;
+
+            lock(LevelLock) {
+                Requested = (byte[]) levels.Clone();
+                RequestedStamp = Environment.TickCount;
+            }
+
+        }
+
+        // Compares a fresh reading against what was last asked for, and
+        // returns what to say about it, or null when there is nothing to say.
+        //
+        // Called with the level lock held.
+        private static string Verify(byte[] actual, int now) {
+
+            if(Requested == null || Config.FanLevelVerifyDelayMs < 0)
+                return null;
+
+            // Too soon to tell. The board is allowed a moment to act on the
+            // write before being accused of having ignored it.
+            if(unchecked(now - RequestedStamp) < Config.FanLevelVerifyDelayMs)
+                return null;
+
+            byte[] asked = Requested;
+            int count = Math.Min(asked.Length, actual.Length);
+
+            bool agrees = count > 0;
+            for(int i = 0; i < count; i++)
+                if(asked[i] != actual[i])
+                    agrees = false;
+
+            // Whether it took or not, this request has now been judged; the
+            // next write starts the question again
+            Requested = null;
+
+            if(agrees) {
+                Reported = false;
+                return null;
+            }
+
+            LevelWriteMismatches++;
+
+            // Said once per episode. A fan curve holding a steady level
+            // rewrites it whenever the temperature crosses a threshold, and a
+            // board that ignores one write ignores all of them — so the
+            // alternative is this line every few seconds for the life of the
+            // process.
+            if(Reported)
+                return null;
+
+            Reported = true;
+
+            return "asked for " + Describe(asked, count)
+                + ", the firmware reports " + Describe(actual, count)
+                + " — this board is not applying the level it is given, so the "
+                + "fan curve is not driving the fans";
+
+        }
+
+        private static string Describe(byte[] levels, int count) {
+
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+            for(int i = 0; i < count; i++) {
+                if(i > 0)
+                    sb.Append('/');
+                sb.Append(levels[i]);
+            }
+
+            return sb.ToString();
+
+        }
+
+        // Forgets what was asked for, so a test can start again
+        internal static void ResetLevelVerification() {
+            lock(LevelLock) {
+                Requested = null;
+                Reported = false;
+                LevelWriteMismatches = 0;
+            }
+        }
+#endregion
 
         // Retrieves the fan rate [%]
         public virtual int GetRate() {
