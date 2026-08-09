@@ -82,6 +82,7 @@
         <Compile Include="App\Service\Backlight.cs"/>
         <Compile Include="App\Service\FanControl.cs"/>
         <Compile Include="App\Service\HistoryBuffer.cs"/>
+        <Compile Include="App\Service\Maintainer.cs"/>
         <Compile Include="App\Service\Poller.cs"/>
         <Compile Include="App\Service\Reading.cs"/>
         <Compile Include="App\Service\ThermalGuard.cs"/>

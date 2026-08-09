@@ -25,6 +25,12 @@ namespace StarMon.Test {
             TestTickerSlotNotAskedStaysReady();
             TestTickerFollowsAChangedInterval();
 
+            SelfTest.Group("Hardware work off the interface thread");
+            TestWorkRunsSomewhereElse();
+            TestABeatArrivingTooSoonIsDroppedRatherThanQueued();
+            TestAFailingBeatDoesNotJamTheNextOne();
+            TestTheWayOutWaitsForTheBeatInFlight();
+
             SelfTest.Group("Thermal guard");
             TestGuardEngagesAndReleasesWithHysteresis();
             TestGuardPanicsOnceWhenStillClimbing();
@@ -54,6 +60,195 @@ namespace StarMon.Test {
             TestColourCycleCompletesALap();
 
         }
+
+#region Hardware work off the interface thread
+        // Waits for a condition rather than sleeping a guessed interval: a
+        // fixed sleep is either longer than the tests need or shorter than a
+        // loaded build runner takes, and usually both on different machines
+        private static bool WaitFor(Func<bool> condition, int timeoutMs = 5000) {
+
+            System.Diagnostics.Stopwatch clock =
+                System.Diagnostics.Stopwatch.StartNew();
+
+            while(clock.ElapsedMilliseconds < timeoutMs) {
+                if(condition())
+                    return true;
+                System.Threading.Thread.Sleep(5);
+            }
+
+            return condition();
+
+        }
+
+        // The point of the whole thing: the work does not run on the thread
+        // that asked for it
+        private static void TestWorkRunsSomewhereElse() {
+
+            Maintainer maintainer = new Maintainer();
+
+            int caller = System.Threading.Thread.CurrentThread.ManagedThreadId;
+            int worker = caller;
+            bool ran = false;
+
+            SelfTest.Check(maintainer.Request(delegate {
+                worker = System.Threading.Thread.CurrentThread.ManagedThreadId;
+                ran = true;
+            }), "a beat is taken up");
+
+            SelfTest.Check(WaitFor(() => ran), "and the work runs");
+
+            SelfTest.Check(worker != caller,
+                "on a thread other than the one that scheduled it");
+
+            SelfTest.Check(WaitFor(() => !maintainer.IsBusy),
+                "and the worker is free again afterwards");
+
+        }
+
+        // A beat arriving while the previous one is still working is dropped.
+        //
+        // Queueing them is what turns a slow machine into one that never
+        // catches up: the work is a live response to a live machine, so a
+        // backlog of it has nothing in it anybody wants — the fan level from
+        // four seconds ago is not worth writing now.
+        private static void TestABeatArrivingTooSoonIsDroppedRatherThanQueued() {
+
+            Maintainer maintainer = new Maintainer();
+
+            System.Threading.ManualResetEvent hold =
+                new System.Threading.ManualResetEvent(false);
+
+            int started = 0;
+
+            maintainer.Request(delegate {
+                System.Threading.Interlocked.Increment(ref started);
+                hold.WaitOne(5000);
+            });
+
+            SelfTest.Check(WaitFor(() => maintainer.IsBusy || started > 0),
+                "the first beat is under way");
+
+            SelfTest.Check(!maintainer.Request(delegate {
+                    System.Threading.Interlocked.Increment(ref started);
+                }),
+                "a beat arriving while it runs is refused");
+
+            SelfTest.Equal(1, maintainer.Dropped,
+                "and counted, since a machine dropping them steadily is one "
+                    + "whose hardware is slower than the heartbeat");
+
+            hold.Set();
+
+            SelfTest.Check(WaitFor(() => !maintainer.IsBusy),
+                "the first beat finishes");
+
+            SelfTest.Equal(1, started,
+                "and the refused one never ran, rather than running late");
+
+            SelfTest.Check(maintainer.Request(delegate { }),
+                "the next beat after that is taken up as usual");
+
+            WaitFor(() => !maintainer.IsBusy);
+
+        }
+
+        // An exception in one beat must not leave the worker looking busy
+        // forever, which would stop every beat after it silently
+        private static void TestAFailingBeatDoesNotJamTheNextOne() {
+
+            Maintainer maintainer = new Maintainer();
+
+            bool threw = false;
+
+            try {
+                maintainer.Request(delegate {
+                    throw new InvalidOperationException("the controller said no");
+                });
+            } catch {
+                threw = true;
+            }
+
+            SelfTest.Check(!threw,
+                "a beat that throws does not throw at whoever scheduled it");
+
+            SelfTest.Check(WaitFor(() => !maintainer.IsBusy),
+                "and the worker is released rather than left claimed");
+
+            bool ran = false;
+            SelfTest.Check(maintainer.Request(delegate { ran = true; }),
+                "the beat after a failure is taken up");
+
+            SelfTest.Check(WaitFor(() => ran), "and runs");
+
+        }
+
+        // Shutdown hands the fans back to the firmware. A beat still running
+        // while that happens re-asserts what is being cleared — one more level
+        // from a fan program, or the sticky fan mode put back — and the
+        // machine is left in the state the handback exists to prevent.
+        private static void TestTheWayOutWaitsForTheBeatInFlight() {
+
+            Maintainer maintainer = new Maintainer();
+
+            System.Threading.ManualResetEvent hold =
+                new System.Threading.ManualResetEvent(false);
+
+            bool finished = false;
+
+            maintainer.Request(delegate {
+                hold.WaitOne(5000);
+                finished = true;
+            });
+
+            SelfTest.Check(WaitFor(() => maintainer.IsBusy),
+                "a beat is under way");
+
+            // Released on another thread, so the wait below is a real wait
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate {
+                System.Threading.Thread.Sleep(120);
+                hold.Set();
+            });
+
+            SelfTest.Check(maintainer.Drain(),
+                "the way out waits for it rather than giving up");
+
+            SelfTest.Check(finished,
+                "and it had genuinely finished before the wait returned");
+
+            SelfTest.Check(maintainer.IsClosed,
+                "the worker is closed");
+
+            bool after = false;
+            SelfTest.Check(!maintainer.Request(delegate { after = true; }),
+                "nothing further is taken up");
+
+            SelfTest.Check(!WaitFor(() => after, 200),
+                "and nothing further runs");
+
+            // A worker that has stopped answering must not hold the process
+            // open. Drain reports the failure rather than waiting for it.
+            Maintainer stuck = new Maintainer();
+            System.Threading.ManualResetEvent never =
+                new System.Threading.ManualResetEvent(false);
+
+            stuck.Request(delegate { never.WaitOne(3000); });
+            WaitFor(() => stuck.IsBusy);
+
+            System.Diagnostics.Stopwatch clock =
+                System.Diagnostics.Stopwatch.StartNew();
+            bool drained = stuck.Drain(200);
+            clock.Stop();
+
+            SelfTest.Check(!drained,
+                "a beat that will not finish is reported rather than waited on");
+
+            SelfTest.Check(clock.ElapsedMilliseconds < 1500,
+                "and the wait is bounded (" + clock.ElapsedMilliseconds + " ms)");
+
+            never.Set();
+
+        }
+#endregion
 
 #region Tick scheduler
         // The work happens on the tick the counter is at zero, and then not

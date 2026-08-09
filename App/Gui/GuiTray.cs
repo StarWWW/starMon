@@ -38,6 +38,16 @@ namespace StarMon.AppGui
         internal readonly StarMon.Ui.Windows.WindowController Window;
         private readonly StarMon.AppService.Poller Poll;
 
+        // Carries out the periodic hardware work the heartbeat schedules.
+        //
+        // The reading and the maintenance are kept apart on purpose. They run
+        // at different cadences, a slow reading must not delay a fan program,
+        // and they were already concurrent before this: the reading has been
+        // taken off the dispatcher for some time, while everything that writes
+        // to the hardware stayed on it.
+        private readonly StarMon.AppService.Maintainer Maintain =
+            new StarMon.AppService.Maintainer();
+
         // The WPF tray menu, which has replaced the ToolStrip one
         private readonly StarMon.Ui.Shell.TrayMenu WpfMenu;
 
@@ -247,6 +257,12 @@ namespace StarMon.AppGui
 
             this.Timer.Stop();
 
+            // Stopping the timer stops new beats being scheduled; it says
+            // nothing about the one already running on a background thread.
+            // That one has to be waited for before the fans are handed back,
+            // or it re-asserts what the handback is about to clear.
+            this.Maintain.Drain();
+
             if (this.Tray != null)
                 this.Tray.Dispose();
 
@@ -415,10 +431,16 @@ namespace StarMon.AppGui
         public void SetNotifyText(string text = "")
         {
 
-            // The reflection trick that used to defeat NotifyIcon's
-            // 64-character limit is gone with it: the shell's version-4
-            // protocol allows 128, and the wrapper asks for that protocol
-            this.Tray.SetTooltip(text);
+            // Marshalled: the periodic hardware work that produces this text
+            // runs on a background thread now, and the notification icon
+            // belongs to the thread that draws
+            OnUiThread(delegate
+            {
+                // The reflection trick that used to defeat NotifyIcon's
+                // 64-character limit is gone with it: the shell's version-4
+                // protocol allows 128, and the wrapper asks for that protocol
+                this.Tray.SetTooltip(text);
+            });
 
         }
 
@@ -433,8 +455,13 @@ namespace StarMon.AppGui
             if (Config.GuiTipDuration <= 0)
                 return;
 
-            this.Tray.ShowBalloon(message, title ?? Config.AppName,
-                icon);
+            // Marshalled for the same reason as the tooltip: the thermal
+            // guard, which raises most of these, now runs off the dispatcher
+            OnUiThread(delegate
+            {
+                this.Tray.ShowBalloon(message, title ?? Config.AppName,
+                    icon);
+            });
 
         }
 
@@ -648,8 +675,62 @@ namespace StarMon.AppGui
             this.TickProgram.Rewind();
             this.TickGuard.Rewind();
 
+            // Ask each slot exactly once. Due() advances its counter, so a
+            // second call in the same tick is a different question — and the
+            // answers are needed both here and on the thread the work now runs
+            // on.
+            bool programDue = this.TickProgram.Due();
+            bool guardDue = this.TickGuard.Due();
+            bool iconDue = this.TickIcon.Due();
+
+            // Whether the window is on screen. Read here because it can only
+            // be read here: a window is a DependencyObject, and asking it from
+            // any other thread throws.
+            bool visible = IsWindowVisible;
+
+            // Take a reading for the window at the monitoring cadence while it
+            // is on screen, and at the much slower recording one while it is
+            // hidden in the tray — so the history carries on accumulating
+            // without paying for a full refresh nobody is looking at
+            if (visible && this.TickMonitor.Due())
+                this.Poll.Request();
+            else if (!visible && this.TickRecord.Due())
+                this.Poll.Request();
+
+            // Everything from here on talks to the hardware, and none of it
+            // belongs on the thread that draws. What is due has been decided;
+            // carrying it out is handed over.
+            //
+            // A beat arriving while the previous one is still working is
+            // dropped rather than queued. The slots have already been wound
+            // on, so that beat's work is simply skipped — which is the right
+            // answer for a live response to a live machine, and only happens
+            // when the hardware is already answering more slowly than the
+            // heartbeat.
+            this.Maintain.Request(delegate
+            {
+                UpdateHardware(programDue, guardDue, iconDue, visible);
+            });
+
+        }
+
+        // The periodic hardware work, off the interface thread.
+        //
+        // Every call below is a round trip: through the Embedded Controller's
+        // shared mutex, or through WMI, or — in the case of re-asserting the
+        // graphics power — through two firmware writes with a deliberate sleep
+        // between them, because the firmware needs one. On the dispatcher that
+        // was the interface not repainting until the hardware answered.
+        //
+        // Nothing here decides whether it should run. That was settled on the
+        // dispatcher, where the counters live, and arrives as these four
+        // answers.
+        private void UpdateHardware(bool programDue, bool guardDue,
+            bool iconDue, bool visible)
+        {
+
             // Update the fan program or extend the countdown
-            if (this.TickProgram.Due())
+            if (programDue)
             {
 
                 // Update the program, if active
@@ -667,7 +748,7 @@ namespace StarMon.AppGui
 
             // Automatic thermal protection and throttle notification, at the
             // monitoring cadence, regardless of whether the window is visible
-            if (this.TickGuard.Due())
+            if (guardDue)
             {
                 CheckThermalGuard();
 
@@ -705,25 +786,21 @@ namespace StarMon.AppGui
             // the EC when something actually changes
             UpdateKbdIdleAndEffects();
 
-            // Take a reading for the window at the monitoring cadence while it
-            // is on screen, and at the much slower recording one while it is
-            // hidden in the tray — so the history carries on accumulating
-            // without paying for a full refresh nobody is looking at
-            bool visible = IsWindowVisible;
-
-            if (visible && this.TickMonitor.Due())
-                this.Poll.Request();
-            else if (!visible && this.TickRecord.Due())
-                this.Poll.Request();
-
             // Update the notification icon, if dynamic
-            if (this.TickIcon.Due())
+            if (iconDue)
             {
 
                 // The hottest sensor, forced only if neither the window nor a
-                // running fan program has already refreshed it this tick
+                // running fan program has already refreshed it this tick.
+                //
+                // "The program refreshed it this tick" used to be read off the
+                // slot's counter as UpdateProgramTick != 1, which holds
+                // precisely when the slot was not due — Due() leaves the count
+                // at one exactly when it answered yes. Said directly now, since
+                // the counter is written from the interface thread and read
+                // here from another one.
                 byte hottest = this.Op.Platform.GetMaxTemperature(
-                    !visible && (!this.Op.Program.IsEnabled || this.UpdateProgramTick != 1));
+                    !visible && (!this.Op.Program.IsEnabled || !programDue));
 
                 // The icon carries the bare number: two digits fill sixteen
                 // pixels and can be read at a glance, where "78°C" shrinks to
@@ -731,24 +808,45 @@ namespace StarMon.AppGui
                 string number = Conv.GetString(hottest, 2, 10);
                 string temperature = number + this.TemperatureUnitText;
 
-                // Update the background depending on the fan mode
-                if (this.TrayPainter.IsDynamic)
-                    this.TrayPainter.Background =
-                        this.Op.Platform.Fans.GetMode() == BiosData.FanMode.Performance ?
+                // The fan mode, which decides the backdrop, is a reading and
+                // so belongs on this thread. Asked only when the icon is
+                // dynamic, exactly as before: on a static icon nothing would
+                // look at the answer.
+                bool performance = false;
+                bool dynamic = this.TrayPainter.IsDynamic;
+
+                if (dynamic)
+                    try
+                    {
+                        performance = this.Op.Platform.Fans.GetMode()
+                            == BiosData.FanMode.Performance;
+                    }
+                    catch { }
+
+                // Drawing is the dispatcher's. Everything above it is the
+                // machine's answer; this is what is done with it.
+                OnUiThread(delegate
+                {
+
+                    if (dynamic)
+                        this.TrayPainter.Background = performance ?
                             StarMon.Ui.Shell.DynamicIcon.Backdrop.Warm
                             : StarMon.Ui.Shell.DynamicIcon.Backdrop.Cool;
 
-                // Always drive the painter, whether or not the icon is dynamic:
-                // the painter itself draws the static mark when it is not, and
-                // gating this call behind the dynamic flag is what left the icon
-                // stuck showing the last temperature after it was switched off.
-                this.TrayPainter.Update(number);
+                    // Always drive the painter, whether or not the icon is
+                    // dynamic: the painter itself draws the static mark when it
+                    // is not, and gating this call behind the dynamic flag is
+                    // what left the icon stuck showing the last temperature
+                    // after it was switched off.
+                    this.TrayPainter.Update(number);
+
+                });
 
                 // Keep the tooltip saying something the number in the tray can
                 // be read against: the hottest reading and, when one is running,
                 // the fan program driving it. Left alone, the tooltip held the
                 // version string it was given at startup — which explained the
-                // icon beside it not at all.
+                // icon beside it not at all. (Marshals itself.)
                 UpdateTooltip(temperature);
 
             }
@@ -1210,9 +1308,12 @@ namespace StarMon.AppGui
             this.KbdBacklightOn = flag;
 
             // Keeps the window's switch in step with a change made from the
-            // tray menu or by the idle watch, without it having to poll
+            // tray menu or by the idle watch, without it having to poll.
+            // Marshalled: the idle watch runs with the rest of the periodic
+            // hardware work now, and a window is a DependencyObject that only
+            // the dispatcher thread may touch.
             if (this.Window != null)
-                this.Window.SetBacklightState(flag);
+                OnUiThread(delegate { this.Window.SetBacklightState(flag); });
 
         }
 
