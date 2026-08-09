@@ -278,7 +278,7 @@ namespace StarMon.AppService {
             reading.SystemModel = this.SystemModel ?? "";
             reading.BiosVersion = this.BiosVersion ?? "";
             reading.CpuName = this.CpuName ?? "";
-            reading.GpuNvidiaName = this.GpuName ?? "";
+            reading.GpuName = this.GpuName ?? "";
 
             if(slowTick)
                 try {
@@ -511,6 +511,18 @@ namespace StarMon.AppService {
                 reading.CpuLoadPercent = Hardware.SystemMetrics.GetCpuLoadPercent();
             } catch { }
 
+            // What the application itself costs, beside what the machine has.
+            // Cheap — it reads this process's own counters, no round trip
+            // anywhere — and it is the only way the claim in the README is
+            // checkable on a machine that is not the one it was written on.
+            try {
+                double self, selfPrivate;
+                if(Hardware.SystemMetrics.GetProcessMemory(out self, out selfPrivate)) {
+                    reading.SelfMemoryMB = self;
+                    reading.SelfPrivateMB = selfPrivate;
+                }
+            } catch { }
+
             try {
                 double used, total;
                 int percent;
@@ -609,17 +621,26 @@ namespace StarMon.AppService {
                             break;
                         }
 
-                    // The discrete card by name. Taken from WMI rather than
+                    // The graphics card by name. Taken from WMI rather than
                     // from NVAPI: the vendor interface reports it through yet
                     // another hand-bound entry point, and the display adapter
-                    // list already has it. The integrated adapter is skipped -
-                    // the block this names is the NVIDIA one.
+                    // list already has it.
+                    //
+                    // Every adapter is collected and the choice made once,
+                    // below. This used to take the first name containing
+                    // "NVIDIA" and nothing else — so a Victus with Radeon
+                    // graphics, which this application otherwise supports and
+                    // shows a temperature for, had an unnamed graphics card
+                    // for the life of the process.
+                    System.Collections.Generic.List<string> adapters =
+                        new System.Collections.Generic.List<string>();
+
                     foreach(var video in wmi.EnumerateInstances("Win32_VideoController"))
                         if(video.TryGetValue("Name", out string name)
-                            && name.IndexOf("NVIDIA", StringComparison.OrdinalIgnoreCase) >= 0) {
-                            this.GpuName = Tidy(name);
-                            break;
-                        }
+                            && !string.IsNullOrEmpty(name))
+                            adapters.Add(name);
+
+                    this.GpuName = Tidy(PickGraphicsName(adapters.ToArray()));
 
                 }
             } catch { }
@@ -631,6 +652,83 @@ namespace StarMon.AppService {
                         + " " + this.Platform.System.GetProduct()).Trim();
                 } catch { }
 
+        }
+
+        // Which of the machine's display adapters is the graphics card worth
+        // naming.
+        //
+        // A laptop reports several: the processor's own integrated graphics,
+        // the discrete card if it has one, and whatever a remote-desktop tool,
+        // a virtual machine or a capture device has installed. Only one of
+        // them is the answer to "what graphics does this machine have", and on
+        // an Omen or a Victus it is the discrete card.
+        //
+        // Preference, in order, and each rule is here because of what it
+        // prevents:
+        //
+        //   1. NVIDIA, because the application has a whole interface bound to
+        //      those cards and shows their own readings beside this name.
+        //   2. A product line that is only ever discrete — Radeon RX, Radeon
+        //      Pro, Intel Arc — which is what a Victus with AMD graphics has.
+        //   3. Failing both, the only adapter left once the ones known to be
+        //      integrated or virtual are set aside. "Only", not "first": two
+        //      unrecognised adapters means the guess would be a coin toss, and
+        //      an unnamed card is better than a wrongly named one.
+        //
+        // Internal so it can be tested against the adapter lists real machines
+        // report, none of which is the machine this was written on.
+        internal static string PickGraphicsName(string[] adapters) {
+
+            if(adapters == null)
+                return "";
+
+            foreach(string name in adapters)
+                if(Has(name, "NVIDIA"))
+                    return name;
+
+            foreach(string name in adapters)
+                if(Has(name, "Radeon RX") || Has(name, "Radeon Pro")
+                    || Has(name, "Arc"))
+                    return name;
+
+            string only = null;
+            int count = 0;
+
+            foreach(string name in adapters) {
+                if(IsIntegratedOrVirtual(name))
+                    continue;
+                only = name;
+                count++;
+            }
+
+            return count == 1 ? only : "";
+
+        }
+
+        // The adapters that are not the answer: the processor's own graphics,
+        // and the ones a piece of software installed
+        private static bool IsIntegratedOrVirtual(string name) {
+
+            if(string.IsNullOrEmpty(name))
+                return true;
+
+            foreach(string marker in new string[] {
+                "UHD Graphics", "HD Graphics", "Iris",
+                "Radeon(TM) Graphics", "Radeon Graphics", "Vega",
+                "Microsoft Basic Display", "Microsoft Remote Display",
+                "Virtual", "DisplayLink", "Parsec", "Meta ", "Citrix",
+                "VNC", "RDP", "Oray", "Sunshine" })
+
+                if(Has(name, marker))
+                    return true;
+
+            return false;
+
+        }
+
+        private static bool Has(string text, string part) {
+            return text != null && text.IndexOf(part,
+                StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         // A part name, without the decoration the vendors put in it.

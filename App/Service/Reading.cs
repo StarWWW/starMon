@@ -157,7 +157,15 @@ namespace StarMon.AppService {
         // What the parts are called. Read once per session like the machine
         // identity above, and for the same reason.
         public string CpuName = "";
-        public string GpuNvidiaName = "";
+        // The graphics card's name, whoever made it. Named for the vendor
+        // until now, and filled in only for that vendor — a machine with
+        // Radeon or Arc graphics showed a temperature beside a blank.
+        public string GpuName = "";
+
+        // What this application itself is costing [MB]. Shown because it was
+        // claimed and never measured; see Hardware/SystemMetrics.cs.
+        public double SelfMemoryMB = -1;
+        public double SelfPrivateMB = -1;
 
         // The card's memory clock [MHz]. Read from NVAPI alongside the core
         // clock all along and dropped on the floor here.

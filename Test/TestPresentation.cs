@@ -39,6 +39,7 @@ namespace StarMon.Test {
             TestPartNamesAreTidied();
             TestSensorLabels();
             TestThrottleDescriptions();
+            TestTheGraphicsCardIsNamedWhoeverMadeIt();
 
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
@@ -285,6 +286,87 @@ namespace StarMon.Test {
         // nothing to a reader. The mapping is what makes the sensors page
         // legible, and getting it wrong mislabels a temperature rather than
         // failing.
+        // Which display adapter is the graphics card worth naming.
+        //
+        // The picker used to be one line: the first name containing "NVIDIA".
+        // A Victus with Radeon graphics is a machine this application drives,
+        // shows a temperature for, and left the card unnamed on — and the
+        // adapter lists below are what real machines report, none of them the
+        // machine this was written on.
+        private static void TestTheGraphicsCardIsNamedWhoeverMadeIt() {
+
+            // The machine this was developed on: integrated Intel graphics
+            // beside the discrete NVIDIA card
+            SelfTest.Equal("NVIDIA GeForce RTX 5050 Laptop GPU",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Intel(R) UHD Graphics",
+                    "NVIDIA GeForce RTX 5050 Laptop GPU" }),
+                "the discrete NVIDIA card is preferred over the integrated one");
+
+            // Order must not decide it
+            SelfTest.Equal("NVIDIA GeForce RTX 4060 Laptop GPU",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "NVIDIA GeForce RTX 4060 Laptop GPU",
+                    "Intel(R) Iris(R) Xe Graphics" }),
+                "whichever way round the machine lists them");
+
+            // A Victus with AMD graphics: the integrated Radeon of the
+            // processor and the discrete Radeon RX card, which share a word
+            SelfTest.Equal("AMD Radeon RX 7600S",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "AMD Radeon(TM) Graphics",
+                    "AMD Radeon RX 7600S" }),
+                "a discrete Radeon is told apart from the processor's own");
+
+            SelfTest.Equal("Intel(R) Arc(TM) A730M Graphics",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Intel(R) UHD Graphics",
+                    "Intel(R) Arc(TM) A730M Graphics" }),
+                "and so is an Arc card from the integrated Intel graphics");
+
+            // A machine with no discrete card at all. Naming the integrated
+            // one would be honest, but the block this fills sits beside the
+            // discrete card's readings — so nothing is better than a name for
+            // something the readings are not about.
+            SelfTest.Equal("",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Intel(R) UHD Graphics" }),
+                "a machine with only integrated graphics names nothing");
+
+            // The software adapters, which are what makes "the first one that
+            // is not Intel" the wrong rule
+            SelfTest.Equal("NVIDIA GeForce RTX 3050 Laptop GPU",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Microsoft Basic Display Adapter",
+                    "Parsec Virtual Display Adapter",
+                    "Intel(R) UHD Graphics",
+                    "NVIDIA GeForce RTX 3050 Laptop GPU" }),
+                "a remote-desktop adapter is not mistaken for the card");
+
+            // Two unrecognised adapters is a coin toss, and an unnamed card is
+            // better than a wrongly named one
+            SelfTest.Equal("",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Some Unknown Accelerator", "Another Unknown Accelerator" }),
+                "two names it cannot tell apart produce none");
+
+            // One unrecognised adapter, on the other hand, is the answer: an
+            // unfamiliar card is exactly the machine a report comes from
+            SelfTest.Equal("Moore Threads MTT S80",
+                StarMon.AppService.Poller.PickGraphicsName(new string[] {
+                    "Intel(R) UHD Graphics", "Moore Threads MTT S80" }),
+                "a single unfamiliar card is named rather than discarded");
+
+            SelfTest.Equal("",
+                StarMon.AppService.Poller.PickGraphicsName(null),
+                "a machine that lists nothing produces nothing");
+
+            SelfTest.Equal("",
+                StarMon.AppService.Poller.PickGraphicsName(new string[0]),
+                "and so does one whose list is empty");
+
+        }
+
         private static void TestSensorLabels() {
 
             // The four named probes resolve to something other than their

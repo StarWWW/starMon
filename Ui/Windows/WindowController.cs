@@ -2078,7 +2078,12 @@ namespace StarMon.Ui.Windows {
                     // languages since the panel was first laid out, the field
                     // behind it has existed in Reading, and no one had ever
                     // assigned either.
-                    .Add(Name("GuiMainDetUptime"), "", Name("GuiTipUptime")));
+                    .Add(Name("GuiMainDetUptime"), "", Name("GuiTipUptime"))
+                    // What this application costs, said out loud. The README
+                    // used to claim "a few megabytes", which was an aspiration
+                    // rather than a measurement — and nothing anywhere let a
+                    // reader check it.
+                    .Add(Name("GuiWpfRowFootprint"), "", Name("GuiTipFootprint")));
 
                 // 1 — processor. Temperature first, then load, power, clock:
                 // the same order as the card.
@@ -2173,6 +2178,7 @@ namespace StarMon.Ui.Windows {
             Set(model, 0, 2, reading.PowerPlan);
             Set(model, 0, 3, PowerModeName(reading.PowerMode));
             Set(model, 0, 4, reading.Uptime);
+            Set(model, 0, 5, Footprint(reading));
 
             Set(model, 1, 0, reading.CpuTemperature > 0
                 ? reading.CpuTemperature + " °C" : "-");
@@ -2578,7 +2584,7 @@ namespace StarMon.Ui.Windows {
         private void ApplyBlocks(DashboardViewModel model, Reading reading, int gpuTemperature) {
 
             model.CpuName = reading.CpuName ?? "";
-            model.GpuName = reading.GpuNvidiaName ?? "";
+            model.GpuName = reading.GpuName ?? "";
             model.CoreClocks = reading.CpuCoreClocks ?? new int[0];
 
             Set(model.CpuBlock, 0, Percent(reading.CpuLoadPercent));
@@ -2693,6 +2699,29 @@ namespace StarMon.Ui.Windows {
                 return Name("GuiWpfCountdownOff");
 
             return reading.FanCountdown + " s";
+
+        }
+
+        // What this application itself is costing.
+        //
+        // Both figures, because they answer different questions: the resident
+        // one is what the task manager shows and what Windows will trim under
+        // pressure, the committed one is what grows if something is genuinely
+        // leaking. Watching only the first is how a leak hides behind a trim.
+        private static string Footprint(Reading reading) {
+
+            if(reading.SelfMemoryMB <= 0)
+                return "";
+
+            string resident = reading.SelfMemoryMB.ToString("F0",
+                System.Globalization.CultureInfo.InvariantCulture) + " MB";
+
+            if(reading.SelfPrivateMB <= 0)
+                return resident;
+
+            return resident + " · " + reading.SelfPrivateMB.ToString("F0",
+                System.Globalization.CultureInfo.InvariantCulture)
+                + " MB " + Name("GuiWpfFootprintCommitted");
 
         }
 
