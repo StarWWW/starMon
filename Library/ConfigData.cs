@@ -65,6 +65,22 @@ namespace StarMon.Library
         // Anything else reads as "Auto". See Driver/LowLevel.cs.
         public static string DriverBackend = "Auto";
 
+        // Whether the NVIDIA card is asked anything at all.
+        //
+        // NVAPI is a hand-bound entry point into the display driver, reached
+        // through function ids and struct layouts this application declares
+        // for itself. Everything it is used for here is a reading — nothing is
+        // written to the card — but it is the one part of this application
+        // that calls into a driver's user-mode half on a timer, and a display
+        // driver that mishandles a request is a machine that stops.
+        //
+        // Off means the graphics card's own temperature, load, clocks, power
+        // and video memory are not shown. The Embedded Controller's GPU
+        // temperature still is, and everything else in the application is
+        // unaffected — which makes this the thing to try on a machine that
+        // misbehaves, rather than uninstalling to find out.
+        public static bool GpuNvidiaEnabled = true;
+
         // Embedded Controller operation parameters
         public static int EcMonInterval = 1000; // Embedded Controller monitoring interval
 

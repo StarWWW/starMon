@@ -393,6 +393,9 @@ namespace StarMon.Library {
                     GpuPowerDefault =
                         GetString(xml, XmlPrefix + "GpuPowerDefault");
 
+                    if(GetBool(xml, XmlPrefix + "GpuNvidiaEnabled", out flag))
+                        GpuNvidiaEnabled = flag;
+
                     if(GetWord(xml, XmlPrefix + "GpuPowerSetInterval", out value))
                         GpuPowerSetInterval = value;
 
@@ -785,6 +788,7 @@ namespace StarMon.Library {
                     }
 
                     // Continue with the configuration values
+                    SetBool(xml, XmlPrefix + "GpuNvidiaEnabled", GpuNvidiaEnabled);
                     SetString(xml, XmlPrefix + "GpuPowerDefault", GpuPowerDefault);
                     SetUInt(xml, XmlPrefix + "GpuPowerSetInterval", (uint) GpuPowerSetInterval);
                     SetBool(xml, XmlPrefix + "GuiCloseWindowExit", GuiCloseWindowExit);

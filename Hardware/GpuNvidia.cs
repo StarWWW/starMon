@@ -126,6 +126,13 @@ namespace StarMon.Hardware {
         private static GetClockFrequenciesDelegate FnClocks;
         private static GetMemoryInfoDelegate FnMemory;
 
+        // How many readings apart the video-memory figures are refreshed, and
+        // what they held in between. See the comment where they are asked for.
+        private const int MemoryEvery = 5;
+        private static int MemoryCallsSince = int.MaxValue;
+        private static int CachedVramTotalMB;
+        private static int CachedVramUsedMB;
+
         // Whether an NVIDIA GPU was found and NVAPI is usable
         public static bool IsAvailable {
             get { EnsureInitialized(); return Available; }
@@ -151,6 +158,28 @@ namespace StarMon.Hardware {
             lock(Lock) {
                 if(Initialized)
                     return;
+
+                // Switched off by hand, and then not asked again.
+                //
+                // NVAPI is a hand-bound entry point into the display driver,
+                // reached through function ids and structs whose layouts this
+                // file declares for itself. Everything it is used for here is
+                // a reading — nothing is written to the card — but it is still
+                // the one part of this application that calls into a kernel
+                // driver's user-mode half on a timer, and a display driver
+                // that mishandles a request is a machine that stops.
+                //
+                // So there is a switch. Anyone whose machine misbehaves can
+                // take this out of the picture and keep the rest of the
+                // application, which is a far better answer than uninstalling
+                // it to find out.
+                if(!Config.GpuNvidiaEnabled) {
+                    Available = false;
+                    Initialized = true;
+                    Logger.Info("GpuNvidia",
+                        "Not asked: GpuNvidiaEnabled is off in the configuration");
+                    return;
+                }
 
                 // Note: the flag is only raised once everything below is done
                 // (in the finally block), so that a caller passing the
@@ -353,20 +382,47 @@ namespace StarMon.Hardware {
                 }
             } catch { }
 
-            // Dedicated video memory
-            try {
-                if(FnMemory != null) {
-                    NvMemoryInfo m = new NvMemoryInfo {
-                        Version = Version(4 + 5 * 4, 2)
-                    };
-                    if(FnMemory(Gpu, ref m) == 0 && m.DedicatedVideoMemory > 0) {
-                        info.VramTotalMB = (int)(m.DedicatedVideoMemory / 1024);
-                        long used = (long)m.DedicatedVideoMemory - m.CurrentAvailableDedicatedVideoMemory;
-                        if(used < 0) used = 0;
-                        info.VramUsedMB = (int)(used / 1024);
+            // Dedicated video memory.
+            //
+            // Asked for a fraction as often as the rest, and held in between.
+            //
+            // Temperature and load are why anyone watches a graphics card and
+            // they are worth a reading a second. How much video memory is in
+            // use is a figure on a details row; asking for it five times as
+            // often as anybody reads it buys nothing.
+            //
+            // What it costs is not nothing. This is a call into the display
+            // driver, through a function id and a struct layout declared by
+            // hand in this file, on a timer, for the life of the process — and
+            // the deprecated form of it at that, since newer drivers publish
+            // GetMemoryInfoEx instead. A machine here stopped with a black
+            // screen naming video memory, with crash dumps switched off and so
+            // nothing kept to say what did it. That is not evidence against
+            // this call. It is a reason not to make it eight hundred times an
+            // hour for a number nobody is looking at.
+            if(MemoryCallsSince++ >= MemoryEvery) {
+
+                MemoryCallsSince = 0;
+
+                try {
+                    if(FnMemory != null) {
+                        NvMemoryInfo m = new NvMemoryInfo {
+                            Version = Version(4 + 5 * 4, 2)
+                        };
+                        if(FnMemory(Gpu, ref m) == 0 && m.DedicatedVideoMemory > 0) {
+                            CachedVramTotalMB = (int)(m.DedicatedVideoMemory / 1024);
+                            long used = (long)m.DedicatedVideoMemory
+                                - m.CurrentAvailableDedicatedVideoMemory;
+                            if(used < 0) used = 0;
+                            CachedVramUsedMB = (int)(used / 1024);
+                        }
                     }
-                }
-            } catch { }
+                } catch { }
+
+            }
+
+            info.VramTotalMB = CachedVramTotalMB;
+            info.VramUsedMB = CachedVramUsedMB;
 
             // Board power draw and the enforced limit (NVML)
             info.PowerW = GetNvmlPowerWatts();

@@ -225,6 +225,22 @@
              the specified period has passed) -->
         <GpuPowerSetInterval>200</GpuPowerSetInterval>
 
+        <!-- Whether the NVIDIA card is asked anything at all.
+
+             NVAPI is a hand-bound entry point into the display driver,
+             reached through function ids and struct layouts StarMon declares
+             for itself. Everything it is used for is a reading — nothing is
+             written to the card — but it is the one part of StarMon that
+             calls into a driver's user-mode half on a timer, and a display
+             driver that mishandles a request is a machine that stops.
+
+             Off means the card's own temperature, load, clocks, power and
+             video memory are not shown. The Embedded Controller's GPU
+             temperature still is, and nothing else is affected — which makes
+             this the thing to try on a machine that misbehaves, rather than
+             uninstalling StarMon to find out. -->
+        <GpuNvidiaEnabled>true</GpuNvidiaEnabled>
+
         <!-- Whether to keep polling the NVIDIA discrete GPU while on battery.
              Off by default: polling wakes it out of its idle power state, so
              leaving it alone costs less battery and produces less heat. The
