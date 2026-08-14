@@ -323,17 +323,35 @@ namespace StarMon.AppGui {
         // Responds to power-mode status change events
         public void PowerChange() {
 
-            // Only if a fan program is active, if configured to do so,
-            // and if the power state actually changed from the last-recorded
-            if(Config.AutoConfig && this.Program.IsEnabled
-                && this.FullPower != this.Platform.System.IsFullPower()) {
+            bool onAc = this.Platform.System.IsFullPower();
+            bool changed = this.FullPower != onAc;
 
-                // Toggle the power state
-                this.FullPower = !this.FullPower;
+            // Recorded whether or not anything is done about it.
+            //
+            // This used to be inside the branch below, which also required
+            // automatic configuration to be on and a fan program to be
+            // running — so a charger moved while neither held left the record
+            // saying the opposite of the truth, permanently. The next genuine
+            // change then compared against a stale value and was read as no
+            // change at all:
+            //
+            //   started on battery, so the record says battery
+            //   charger goes in with no program running — nothing recorded
+            //   a program is started by hand
+            //   charger comes out: the record already said battery, so this
+            //     is not a change, and the alternate program never runs
+            //
+            // The feature worked or did not depending on what had happened
+            // hours earlier, which is the hardest kind of thing to report.
+            this.FullPower = onAc;
+
+            // Only if the state actually changed, a fan program is active, and
+            // the application was asked to manage it
+            if(changed && Config.AutoConfig && this.Program.IsEnabled) {
 
                 // Apply the default fan program,
                 // or the alternative program if no AC
-                if(this.FullPower)
+                if(onAc)
                     this.Program.Run(Config.FanProgramDefault);
                 else
                     this.Program.Run(Config.FanProgramDefaultAlt, true);
