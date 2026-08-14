@@ -59,11 +59,20 @@ namespace StarMon.Hardware {
             return false;
         }
 
-        // Returns the user-facing names of everything this machine does not support
+        // Returns the user-facing names of everything this machine does not
+        // support.
+        //
+        // The ones this build never asks about are left out. NotQueried exists
+        // precisely to keep those apart — three capability calls are stubbed
+        // out for every machine because one board returned an error for them,
+        // and listing their results as "this machine does not support it" tells
+        // the reader something about their hardware that is not true of it.
+        // The hardware report has separated them since the flag was added;
+        // this had not.
         public static List<string> GetUnsupportedNames() {
             List<string> result = new List<string>();
             foreach(Feature f in GetAll())
-                if(!f.Supported)
+                if(!f.Supported && !f.NotQueried)
                     result.Add(f.Name);
             return result;
         }

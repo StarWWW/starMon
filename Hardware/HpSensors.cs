@@ -249,11 +249,28 @@ namespace StarMon.Hardware {
         private static int Scale(int reading, int modifier) {
 
             // Guard the exponent as well as apply it: a firmware that reports
-            // something absurd must not turn into a multiply that overflows
+            // something absurd must not turn into a multiply that overflows.
+            //
+            // Bounding the exponent alone did not do that, which the comment
+            // here used to claim it did. Six is still a million, and a reading
+            // of five thousand times a million is past what an int holds — it
+            // wraps, silently, to a negative number. Nothing downstream would
+            // have shown it (the temperature bound refuses it and the fan
+            // filter refuses it), but "the guard prevents an overflow" and "the
+            // overflow is filtered out afterwards" are different statements and
+            // only one of them was written down.
             if(modifier > 6) modifier = 6;
             if(modifier < -6) modifier = -6;
 
-            while(modifier > 0) { reading *= 10; modifier--; }
+            while(modifier > 0) {
+
+                if(reading > int.MaxValue / 10 || reading < int.MinValue / 10)
+                    return reading > 0 ? int.MaxValue : int.MinValue;
+
+                reading *= 10;
+                modifier--;
+
+            }
 
             while(modifier < 0) {
                 // Rounded rather than truncated, so 4250 with -2 is 43 and not
