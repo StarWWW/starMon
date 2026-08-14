@@ -572,7 +572,7 @@ namespace StarMon.AppGui
         void StarMon.Ui.Shell.ITrayHost.SetKbdColor(int colour)
         {
             DisableKbdColorByTemp();
-            ApplyKbdColor(colour, true);
+            ApplyKbdColor(colour);
         }
 
         void StarMon.Ui.Shell.ITrayHost.SetKbdZoneColors(int[] colours)
@@ -1072,7 +1072,7 @@ namespace StarMon.AppGui
 
             try
             {
-                ApplyKbdColor(color, true);
+                ApplyKbdColor(color);
                 this.KbdTempColorLast = color;
             }
             catch (Exception ex)
@@ -1087,9 +1087,11 @@ namespace StarMon.AppGui
         // Straight to the hardware. The Windows Forms build went through a
         // keyboard class that also held the picture it drew, so the two could
         // not get out of step; the window keeps its own view model and is told
-        // separately, which is why the parameter that used to ask for a
-        // repaint is gone.
-        private void ApplyKbdColor(int color, bool refreshForm)
+        // separately, which is why the parameter that used to ask for a repaint
+        // is gone — it is gone now, at any rate. It was still in the signature,
+        // ignored by the body, and passed true by three callers and false by a
+        // fourth, which reads as a decision somebody made.
+        private void ApplyKbdColor(int color)
         {
 
             this.KbdLastColors = new int[] { color, color, color, color };
@@ -1159,7 +1161,7 @@ namespace StarMon.AppGui
                 this.KbdFx.BaseColor = -1;
 
             if (restore >= 0)
-                try { ApplyKbdColor(restore, true); } catch { }
+                try { ApplyKbdColor(restore); } catch { }
 
             Config.Save();
 
@@ -1253,7 +1255,7 @@ namespace StarMon.AppGui
 
             try
             {
-                ApplyKbdColor(color, false);
+                ApplyKbdColor(color);
                 this.KbdFx.LastColor = color;
             }
             catch { }
