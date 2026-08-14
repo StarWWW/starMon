@@ -460,6 +460,72 @@ namespace StarMon.Library {
             return Os.HasTask(Config.TaskFolder, Config.Task[task][0]);
         }
 
+        // How many tasks the last repair pass rewrote. Counted so a test can
+        // assert the pass ran rather than assume it.
+        internal static int TasksRepaired { get; private set; }
+
+        // Points every task this application registered back at itself.
+        //
+        // The Omen key going quiet after the folder is moved or renamed. The
+        // path is written into the task when it is registered and nothing
+        // revalidates it, so the key press still reaches Windows, Windows
+        // still starts the task, and the task launches a file that is no
+        // longer there. Nothing fails loudly enough to notice: no window, no
+        // error, nothing in any log. The key simply stops working, and the
+        // settings switch reads "off" — truthfully, and unhelpfully, because
+        // what the user wants to know is that it is broken rather than
+        // disabled.
+        //
+        // Rewritten only where the file the task names has genuinely gone.
+        // See Os.ShouldRepairTask for why the other cases are left alone.
+        //
+        // Runs at startup, before anything reads a task's state.
+        public static void TaskRepair() {
+
+            TasksRepaired = 0;
+
+            foreach(Config.TaskId task in Enum.GetValues(typeof(Config.TaskId))) {
+
+                string name = Config.Task[task][0];
+                string registered;
+
+                try {
+                    registered = Os.TaskTarget(Config.TaskFolder, name);
+                } catch {
+                    continue;
+                }
+
+                bool exists;
+                try {
+                    exists = registered.Length > 0
+                        && System.IO.File.Exists(registered);
+                } catch {
+                    continue;
+                }
+
+                if(!Os.ShouldRepairTask(registered, Config.AppFile, exists))
+                    continue;
+
+                Logger.Warning("Task", "Repairing a task that pointed at a "
+                    + "file that is gone",
+                    name + ": " + registered + " → " + Config.AppFile);
+
+                try {
+
+                    // Registered again from scratch rather than edited: the
+                    // WMI event subscription behind the Omen key is created
+                    // alongside the task and has to be rebuilt with it
+                    TaskSet(task, true);
+                    TasksRepaired++;
+
+                } catch(Exception e) {
+                    Logger.Error("Task", "Could not repair " + name, e.Message);
+                }
+
+            }
+
+        }
+
         // Installs or removes a specific task
         public static void TaskSet(Config.TaskId task, bool flag) {
             using WmiEvent wmiEvent = new WmiEvent();

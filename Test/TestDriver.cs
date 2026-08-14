@@ -45,6 +45,10 @@ namespace StarMon.Test {
             TestPlatformStandsWithoutTheFirmware();
             TestWritesGoNowhereRatherThanSomewhereWrong();
 
+            SelfTest.Group("Tasks that point at nothing");
+
+            TestAMovedApplicationRepairsItsOwnTasks();
+
             SelfTest.Group("What this processor publishes");
 
             TestAmdTemperatureDecodesCorrectly();
@@ -59,6 +63,56 @@ namespace StarMon.Test {
             TestDetectionAgreesWithItself();
 
         }
+
+#region Tasks that point at nothing
+        // The Omen key going quiet.
+        //
+        // The path is written into the scheduled task when it is registered
+        // and nothing revalidates it. Move the folder, or rename it, and the
+        // key press still reaches Windows, Windows still starts the task, and
+        // the task launches a file that is no longer there. Nothing fails
+        // loudly enough to notice: no window, no error, nothing in any log —
+        // and the settings switch reads "off", truthfully and unhelpfully,
+        // because what the user needs to know is that it is broken rather
+        // than disabled.
+        //
+        // Found on the development machine, where the task had been left
+        // pointing into a folder from before the project was renamed.
+        private static void TestAMovedApplicationRepairsItsOwnTasks() {
+
+            const string here = @"C:\Apps\StarMon\StarMon.exe";
+
+            // The case this exists for, in the shape it was actually found in
+            SelfTest.Check(Os.ShouldRepairTask(
+                    @"C:\Users\star\Desktop\Code\OmenMon-Star\Bin\StarMon.exe",
+                    here, false),
+                "a task pointing into a folder that is gone is repaired");
+
+            // Already right: rewriting it every start would be churn for
+            // nothing, and would fight anybody who set it deliberately
+            SelfTest.Check(!Os.ShouldRepairTask(here, here, true),
+                "a task already pointing here is left alone");
+
+            SelfTest.Check(!Os.ShouldRepairTask(
+                    here.ToUpperInvariant(), here, true),
+                "and so is one that differs only in case");
+
+            // Another copy that really is installed is somebody's deliberate
+            // arrangement. Two copies rewriting each other's tasks on every
+            // start would be worse than either of them being wrong.
+            SelfTest.Check(!Os.ShouldRepairTask(
+                    @"C:\Program Files\StarMon\StarMon.exe", here, true),
+                "a task pointing at another copy that exists is not touched");
+
+            // Nothing known is nothing done
+            SelfTest.Check(!Os.ShouldRepairTask("", here, false),
+                "a task whose definition could not be read is left alone");
+
+            SelfTest.Check(!Os.ShouldRepairTask(@"C:\gone\StarMon.exe", "", false),
+                "and so is one when this application's own path is unknown");
+
+        }
+#endregion
 
 #region What this processor publishes
         // The one AMD reading in the application, and it cannot be exercised

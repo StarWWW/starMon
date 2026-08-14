@@ -548,6 +548,66 @@ namespace StarMon.Library {
 
         }
 
+        // What a registered task actually runs, or an empty string when there
+        // is no such task or its definition could not be read
+        public static string TaskTarget(string folderName, string taskName) {
+
+            TaskSchd.ITaskService service =
+                (TaskSchd.ITaskService) new TaskSchd.TaskSchedulerClass();
+            service.Connect();
+
+            TaskSchd.ITaskFolder folder = service.GetFolder(folderName);
+
+            try {
+                return TaskCommand(folder.GetTask(taskName));
+            } catch {
+                return "";
+            } finally {
+                Marshal.ReleaseComObject(folder);
+                Marshal.ReleaseComObject(service);
+            }
+
+        }
+
+        // Whether a registered task is pointing at something that is no longer
+        // there, and should be rewritten.
+        //
+        // This is the Omen key going quiet. The path is written into the task
+        // when it is registered and nothing revalidates it, so moving or
+        // renaming the folder leaves a task that fires perfectly — the key
+        // press reaches Windows, Windows starts the task, and the task launches
+        // a file that does not exist. Nothing fails loudly enough to notice:
+        // no window, no error, no log line. The key simply stops working.
+        //
+        // Repaired only when the file it names is genuinely gone. A task
+        // pointing at another copy of this application that does exist is
+        // somebody's deliberate arrangement, and two copies rewriting each
+        // other's tasks on every start would be worse than either of them
+        // being wrong.
+        //
+        // Pure and takes the answer about the filesystem, so the decision can
+        // be tested without registering anything.
+        internal static bool ShouldRepairTask(string registeredPath,
+            string currentPath, bool registeredFileExists) {
+
+            // No task, or a definition that could not be read: nothing known,
+            // so nothing done
+            if(string.IsNullOrEmpty(registeredPath))
+                return false;
+
+            if(string.IsNullOrEmpty(currentPath))
+                return false;
+
+            // Already pointing here
+            if(string.Equals(registeredPath, currentPath,
+                StringComparison.OrdinalIgnoreCase))
+                return false;
+
+            // Points at another copy that is really there: left alone
+            return !registeredFileExists;
+
+        }
+
         public static bool HasTask(string folderName, string taskName) {
 
             // Set up a Task Service instance and connect to it

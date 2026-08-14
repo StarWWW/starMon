@@ -238,6 +238,25 @@ namespace StarMon.AppGui
             // it does not propagate to child processes
             Environment.SetEnvironmentVariable(Config.EnvVarSelfName, null);
 
+            // Point the scheduled tasks back at this executable where they
+            // have been left pointing at one that is gone.
+            //
+            // This is the Omen key going quiet after the folder is moved or
+            // renamed: the key press still reaches Windows, Windows still
+            // starts the task, and the task launches a file that no longer
+            // exists. Nothing fails loudly enough to notice.
+            //
+            // On a background thread, because it talks to the Task Scheduler
+            // and to WMI and neither belongs on the thread that draws.
+            System.Threading.ThreadPool.QueueUserWorkItem(delegate {
+                try {
+                    Hw.TaskRepair();
+                } catch (Exception ex) {
+                    Logger.Error("Task", "Repairing the scheduled tasks failed",
+                        ex.Message);
+                }
+            });
+
             // Automatically apply settings, if enabled
             if (Config.AutoConfig)
                 this.Op.AutoConfigRun();
