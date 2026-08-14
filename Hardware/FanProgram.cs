@@ -275,16 +275,16 @@ namespace StarMon.Hardware.Platform {
             // nothing in the log could answer before.
             Logger.Deduplicated("Program", "Curve step",
                 temperature + " C · level " + level
-                    + " · fans " + fans[0] + ", " + fans[1]);
+                    + " · fans " + Describe(fans));
 
             // Note: the above could all be accomplished with
             // a single nested call, except we also want to report
             Status(Severity.Notice,
-                Config.Locale.Get(Config.L_PROG + "T") + Config.Locale.Get(Config.L_PROG + "SubMax") + " " 
+                Config.Locale.Get(Config.L_PROG + "T") + Config.Locale.Get(Config.L_PROG + "SubMax") + " "
                 + Conv.GetString(temperature, 2, 10) + Config.Locale.Get(Config.L_UNIT + "Temperature") + " "
                 + Config.Locale.Get(Config.L_PROG + "Lvl") + " " + Conv.GetString(level, 2, 10) + " "
                 + Config.Locale.Get(Config.L_PROG + "Fans") + " "
-                + Conv.GetString(fans[0], 2, 10) + ", " + Conv.GetString(fans[1], 2, 10));
+                + Describe(fans, 2));
 
             // Set fan levels
             SetFanLevel(fans);
@@ -312,6 +312,48 @@ namespace StarMon.Hardware.Platform {
 
             // Retrieve the value from the configuration data
             return this.ProgramData.Level[level];
+
+        }
+
+        // The levels a step asks for, however many of them there are.
+        //
+        // Written out rather than indexed, because the second entry was read
+        // without asking whether it existed. The array comes from the
+        // configuration file — one entry per fan, as the person who wrote the
+        // program saw fit — and this application supports single-fan boards
+        // deliberately enough to keep one in its device matrix. A program with
+        // one level per step threw IndexOutOfRange here, before the write, on
+        // every update.
+        //
+        // Which does not crash: the periodic work is caught and logged. It is
+        // worse than a crash. The fan program goes on reporting itself as
+        // running while every update dies before SetFanLevel, so no level is
+        // ever written and the failsafe countdown is never extended — the fans
+        // revert to the firmware a few minutes later and stay there, on a
+        // machine whose owner can see a fan program running.
+        //
+        // FanArray.SetLevels has bounded itself against the same array for
+        // some time. Only the two lines describing it had not.
+        private static string Describe(byte[] levels, int padding = 0) {
+
+            if(levels == null || levels.Length == 0)
+                return "-";
+
+            System.Text.StringBuilder sb = new System.Text.StringBuilder();
+
+            for(int i = 0; i < levels.Length; i++) {
+
+                if(i > 0)
+                    sb.Append(", ");
+
+                sb.Append(padding > 0
+                    ? Conv.GetString(levels[i], padding, 10)
+                    : levels[i].ToString(
+                        System.Globalization.CultureInfo.InvariantCulture));
+
+            }
+
+            return sb.ToString();
 
         }
 

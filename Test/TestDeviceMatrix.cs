@@ -58,6 +58,9 @@ namespace StarMon.Test {
             TestAWriteThatTookIsNotComplainedAbout();
             TestTheTwoFalseAlarmsRealHardwareProduced();
 
+            SelfTest.Group("Device matrix: a fan program on one fan");
+            TestAOneFanProgramActuallyWritesALevel();
+
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
 
@@ -886,6 +889,99 @@ namespace StarMon.Test {
 
                 } finally {
                     Config.FanLevelVerifyDelayMs = previousDelay;
+                }
+
+            }
+
+        }
+
+        // A fan program whose steps carry one level, on a board with one fan.
+        //
+        // The levels come from the configuration file, one per fan as whoever
+        // wrote the program saw fit, and this application supports single-fan
+        // boards deliberately enough to keep one in this matrix. Two lines in
+        // FanProgram.Update read the second entry without asking whether it was
+        // there, so such a program threw IndexOutOfRange on every update —
+        // before the write, every time.
+        //
+        // Which does not crash, and is worse than crashing: the periodic work
+        // is caught and logged, so the program goes on reporting itself as
+        // running while no level is ever written and the failsafe countdown is
+        // never extended. The fans revert to the firmware a few minutes later
+        // and stay there, on a machine whose owner can see a fan program
+        // running.
+        private static void TestAOneFanProgramActuallyWritesALevel() {
+
+            DeviceScenario board = DeviceCatalogue.SingleFanBoard();
+
+            using(new Installed(board)) {
+
+                System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                    new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+
+                // One level per step, because this board has one fan
+                steps[0] = new byte[] { 20 };
+                steps[60] = new byte[] { 40 };
+
+                FanProgramData program = new FanProgramData("OneFan",
+                    BiosData.FanMode.Default,
+                    BiosData.GpuPowerLevel.Minimum, steps);
+
+                var previous = Config.FanProgram;
+
+                try {
+
+                    Config.FanProgram =
+                        new System.Collections.Generic.SortedList<string, FanProgramData> {
+                            ["OneFan"] = program };
+
+                    Platform platform = new Platform();
+
+                    SelfTest.Equal(1, platform.Fans.Fan.Length,
+                        "the board has one fan");
+
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    string failure = null;
+                    bool started = false;
+
+                    try {
+                        started = runner.Run("OneFan");
+                    } catch(Exception e) {
+                        failure = e.GetType().Name + ": " + e.Message;
+                    }
+
+                    SelfTest.Check(failure == null,
+                        "starting a one-level program does not throw"
+                            + (failure == null ? "" : " - " + failure));
+
+                    SelfTest.Check(started, "and the program reports itself running");
+
+                    board.Bios.ResetCounts();
+
+                    try {
+                        runner.Update();
+                    } catch(Exception e) {
+                        failure = e.GetType().Name + ": " + e.Message;
+                    }
+
+                    SelfTest.Check(failure == null,
+                        "and an update does not throw"
+                            + (failure == null ? "" : " - " + failure));
+
+                    // The point of all of it: a level actually reached the
+                    // hardware. An update that throws before SetFanLevel leaves
+                    // the fans wherever they were, with the countdown running
+                    // out underneath them.
+                    SelfTest.Check(board.Bios.CallCount("SetFanLevel") > 0,
+                        "and a level was actually written ("
+                            + board.Bios.CallCount("SetFanLevel") + " writes)");
+
+                    try { runner.Terminate(); } catch { }
+
+                } finally {
+                    Config.FanProgram = previous;
                 }
 
             }
