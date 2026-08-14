@@ -61,6 +61,7 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: a fan program on one fan");
             TestAOneFanProgramActuallyWritesALevel();
             TestAFirmwareThatAnswersWithNothing();
+            TestAShortAnswerIsParsedRatherThanThrownOn();
 
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
@@ -1026,6 +1027,53 @@ namespace StarMon.Test {
             SelfTest.Check(ReferenceEquals(longer,
                     StarMon.Hardware.Bios.Bios.Fit(longer, 4)),
                 "an answer longer than asked for is left exactly as it came");
+
+        }
+
+        // The structures the firmware's answers are parsed into, given an
+        // answer shorter than they expect.
+        //
+        // Bios.Fit guarantees the size at the Send boundary now, so no shipping
+        // caller reaches these with a short buffer. The constructors are public
+        // and should not depend on that staying true of every future caller —
+        // and one of them did something worse than throwing on the way in:
+        // SystemData computed its copy length as data.Length - 9, which is
+        // negative for anything shorter than nine bytes.
+        private static void TestAShortAnswerIsParsedRatherThanThrownOn() {
+
+            foreach(int length in new int[] { 0, 1, 2, 5, 8, 9, 17 }) {
+
+                byte[] data = new byte[length];
+                string failure = null;
+
+                try {
+
+                    BiosData.SystemData system = new BiosData.SystemData(data);
+                    SelfTest.Check(system.RawBlock != null
+                        && system.RawBlock.Length == 119,
+                        "a " + length + "-byte answer still yields a full raw block");
+
+                    BiosData.ColorTable colours = new BiosData.ColorTable(data);
+                    SelfTest.Check(colours.Zone != null,
+                        "and a colour table with zones");
+
+                    BiosData.FanTable fans = new BiosData.FanTable(data);
+                    SelfTest.Check(fans.Level != null,
+                        "and a fan table with levels");
+
+                } catch(Exception e) {
+                    failure = e.GetType().Name + ": " + e.Message;
+                }
+
+                SelfTest.Check(failure == null,
+                    "a " + length + "-byte firmware answer is parsed rather "
+                        + "than thrown on"
+                        + (failure == null ? "" : " - " + failure));
+
+            }
+
+            SelfTest.Check(new BiosData.FanTable(null).Level != null,
+                "and no answer at all is a table with no levels");
 
         }
 

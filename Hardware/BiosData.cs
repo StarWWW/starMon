@@ -243,21 +243,37 @@ namespace StarMon.Hardware.Bios
             public ColorTable(byte[] data)
             {
 
-                // The zone count comes from the firmware, so it is clamped to
-                // what the buffer can actually hold before it is used as a
-                // loop bound. A device reporting a count larger than its own
-                // response would otherwise index past the end of the array.
-                int fits = data == null ? 0
-                    : (data.Length - COLOR_TABLE_PAD - 1) / 3 - 1;
-                if (fits < 0)
-                    fits = 0;
+                // How many zones the response can actually hold, counting from
+                // zero: each is three bytes after the count byte and the
+                // padding, so a buffer with fewer than that holds none at all.
+                //
+                // Clamping the count alone was not enough, and the loop below
+                // is why: it runs from zero to ZoneCount inclusive, so a count
+                // of zero still reads one zone's three bytes. Anything shorter
+                // than the padding plus four therefore indexed past the end
+                // whatever the clamp said — which is every answer a firmware
+                // gives when it does not implement the call.
+                int length = data == null ? 0 : data.Length;
+                int holds = (length - COLOR_TABLE_PAD - 1) / 3;
+                if (holds < 0)
+                    holds = 0;
 
-                // Retrieve the zone count and set up the zones
-                ZoneCount = (byte)Math.Min(data == null ? 0 : data[0], fits);
+                // Retrieve the zone count and set up the zones. The length is
+                // asked about as well as the null, because Math.Min evaluates
+                // both of its arguments — a non-null response with nothing in
+                // it indexed byte zero before the clamp could refuse it.
+                int reported = length == 0 ? 0 : data[0];
+
+                // Zones are stored as "one less than the number of them", so a
+                // response holding n of them supports a count of n - 1
+                ZoneCount = (byte)Math.Min(reported, holds > 0 ? holds - 1 : 0);
                 Zone = new RgbColor[ZoneCount + 1];
 
-                // Populate the RGB values for each zone
-                for (int i = 0; i <= ZoneCount; i++)
+                // Populate the RGB values for each zone, where the response
+                // has them. A buffer too short to carry even the first zone
+                // leaves them black rather than throwing: the caller reads a
+                // table of unset colours, which is what it would conclude.
+                for (int i = 0; i <= ZoneCount && i < holds; i++)
                 {
                     Zone[i] = new RgbColor(
                         data[COLOR_TABLE_PAD + 3 * i + 1],   // Red
@@ -364,8 +380,11 @@ namespace StarMon.Hardware.Bios
                 if (fits < 0)
                     fits = 0;
 
-                FanCount = data == null ? (byte)0 : data[0];
-                LevelCount = (byte)Math.Min(data == null ? 0 : data[1], fits);
+                // As above: a non-null response shorter than the two header
+                // bytes was indexed before anything could refuse it
+                FanCount = data == null || data.Length < 1 ? (byte)0 : data[0];
+                LevelCount = (byte)Math.Min(
+                    data == null || data.Length < 2 ? 0 : data[1], fits);
                 Level = new FanLevel[LevelCount];
 
                 // Populate the fan speed level and temperature values for each level
@@ -585,21 +604,47 @@ namespace StarMon.Hardware.Bios
             public byte[] RawBlock;
 
             // Initializes the system design data structure from a data array
+            // Initializes the data from a firmware response.
+            //
+            // Defensive about the length, as the colour and fan tables above
+            // already are. Nine fixed bytes are read out of it and then the
+            // remainder is copied, and the copy length was
+            //
+            //     data.Length < 128 ? data.Length - 9 : 119
+            //
+            // which is negative for anything shorter than nine bytes — an
+            // ArgumentOutOfRangeException out of a struct constructor, from a
+            // firmware that answered with less than was asked for. Bios.Fit
+            // now guarantees the size at the Send boundary, so no shipping
+            // caller reaches this; the constructor is public and should not
+            // depend on that being true of every future one.
             public SystemData(byte[] data)
             {
-                StatusFlags = (SysStatusFlags)(ushort)(data[1] << 8 | data[0]);
-                Unknown2 = data[2];
-                ThermalPolicy = (ThermalPolicyVersion)data[3];
-                SupportFlags = (SysSupportFlags)data[4];
-                DefaultCpuPowerLimit4 = data[5];
-                BiosOc = (SysBiosOc)data[6];
-                GpuModeSwitch = (SysGpuModeSwitch)data[7];
-                DefaultCpuPowerLimitWithGpu = data[8];
+                int length = data == null ? 0 : data.Length;
+
+                StatusFlags = (SysStatusFlags)(ushort)(At(data, length, 1) << 8 | At(data, length, 0));
+                Unknown2 = At(data, length, 2);
+                ThermalPolicy = (ThermalPolicyVersion)At(data, length, 3);
+                SupportFlags = (SysSupportFlags)At(data, length, 4);
+                DefaultCpuPowerLimit4 = At(data, length, 5);
+                BiosOc = (SysBiosOc)At(data, length, 6);
+                GpuModeSwitch = (SysGpuModeSwitch)At(data, length, 7);
+                DefaultCpuPowerLimitWithGpu = At(data, length, 8);
                 RawBlock = new byte[119];
 
                 // Copy over the rest of the array, in case
                 // it ends up being populated too in future versions
-                Array.Copy(data, 9, RawBlock, 0, data.Length < 128 ? data.Length - 9 : 119);
+                int rest = length - 9;
+                if (rest > 119)
+                    rest = 119;
+                if (rest > 0)
+                    Array.Copy(data, 9, RawBlock, 0, rest);
+            }
+
+            // One byte of a response that may be shorter than expected
+            private static byte At(byte[] data, int length, int index)
+            {
+                return index < length ? data[index] : (byte)0;
             }
 
         }
