@@ -6,6 +6,8 @@ This document is for whoever changes it next. It explains the layers, the rules 
 
 If you are looking for what StarMon *does*, that is the [README](../README.md).
 
+> **What this rests on.** The layers below the interface — `Driver`, `Hardware`, `App/Service`, `App/Cli`, `Library` — are described from having read them. The `Ui` layer, about eleven thousand lines across views, view models and theme, is described from its seams rather than in full: `WindowController` is read, the rest is summarised from structure. Where this document states a number, a rule or a failure, it is from the code; where it describes the interface layer's internals, treat it as a map rather than a transcript.
+
 ---
 
 ## 1. The four things it talks to
@@ -69,7 +71,31 @@ The largest layer, and the one with the most rules.
 - The wait budget is a **span of time**, not a count of iterations. `Thread.Sleep(1)` sleeps until the next scheduler tick — about 15 ms — so counting iterations and sleeping between them produces a real limit fifteen times longer than it reads as. The loop escalates from spinning to yielding and never sleeps.
 - Failed waits are counted **per register**, not per controller. A shared counter let one register's failures vouch for another's: six absent probes fail three reads each in a single pass, eighteen in a row, and from that point a fail-open bypass is open for every other register in the application. A fan tachometer then reports whatever byte happens to be in the port.
 
+**`PlatformComponent.cs`** is the abstraction everything else rests on, and the reason a sensor can be read without knowing where it comes from:
+
+```
+  IPlatformComponent          access type, data size, link type, name
+    IPlatformReadComponent    GetValue, GetValueTrend, Update, a constraint
+    IPlatformWriteComponent   SetValue
+      PlatformComponentAbstract  holds last/previous, enforces access
+```
+
+Four concrete links: `EcComponent` (a register), `WmiBiosTemperatureComponent`, `MsrCpuTemperatureComponent` (the processor's own sensor) and `NvapiGpuTemperatureComponent` (the card's own).
+
+Two things in the base class are load-bearing:
+
+- **`TryRead` exists apart from `Read`** because a failed controller read hands back zero, which is indistinguishable from a register that genuinely holds zero. Links that cannot tell the two apart keep reporting success; the ones that can, do not.
+- **A reading above the component's `Constraint` is discarded, not clamped.** The previous value stands. This is what stops an implausible number reaching the fan curve, and it is why a *frozen* sensor is a separate problem from an absent one (below).
+
 **`Platform.cs`** is the assembled machine — sensors, fans, the system component — built from what the board actually reports rather than from constants.
+
+Three things it does that are not obvious:
+
+- **It substitutes better sources for two sensors.** Where the processor's own thermal sensor is readable, `CPUT` becomes an MSR component rather than a register; where an NVIDIA card is present, `GPTM` becomes an NVAPI one. The names are kept, so nothing above has to know. The second substitution is not only about accuracy: the board's GPU register cannot answer while an Optimus card is asleep, so polling it fills the log with failures for a reading that was redundant.
+- **The hottest reading spans three sources**, not one. The component array, *plus* the firmware's own published sensors, *plus* the ACPI thermal zones. Both of the latter had a maximum of their own since they were written and neither had a caller — so on a board whose hottest point is published only through one of them, the thermal guard was protecting the machine with a figure that could not see it.
+- **Sensors go dormant and come back.** A register the board does not carry fails every read forever; after 30 fruitless updates it is stood down to one retry in 60, and returns the moment it answers. Dormancy is a reduced rate, not a verdict, because a probe can be quiet from a part being powered down rather than absent.
+
+**Sticky settings.** `SetFanModeSticky` and `SetGpuPowerSticky` record what the user asked for and re-assert it on a keep-alive, because this firmware resets both on its own schedule. The graphics power is written blind rather than compared first — the board that most needs it refuses the *read* while accepting the write.
 
 **`DeviceProfile.cs`** is what was worked out about this board at startup: how many fans, the fan-level ceiling and where it came from, which fan modes exist, how many keyboard zones. Every value carries its provenance as text, because "56" and "56, because the firmware's fan table said so" are different claims and only one of them can be argued with.
 
@@ -87,7 +113,9 @@ Deliberately given no reference back to the application, so it cannot start doin
 - **`Maintainer.cs`** carries out the periodic hardware *work* — the fan program, the guard, the sticky settings — on a worker of its own.
 - **`Ticker.cs`** is one periodic slot. `Rewind()` and `Due()` are two passes on purpose; folding them together loses the property that a slot nobody asked stays ready.
 - **`ThermalGuard.cs`** decides engage / release / panic with hysteresis. It decides; carrying it out belongs to the caller.
-- **`FanControl.cs`** turns a request (Automatic, Constant, Maximum, Off, Program) into an ordered sequence of hardware operations. Order matters as much as content.
+- **`FanControl.cs`** turns a request (Automatic, Constant, Maximum, Off, Program) into an ordered sequence of hardware operations. Order matters as much as content. It also holds `FanCurve`, which converts between a drawn curve and a stored program. Note that **`0xFF` is not a fan level**: it is the sentinel that clears a custom level and hands the speeds back to the firmware, which is what Automatic does.
+- **`Backlight.cs`** holds `BacklightColor` — temperature to colour, the hue circle, brightness scaling — and `IdleWatch`, the state machine that switches the backlight off after a period without input and back on at the first keystroke.
+- **`HistoryBuffer.cs`** is a rolling window of named series, each with its own range and palette slot, behind one wrap-around buffer.
 - **`Reading.cs`** is the snapshot, and it carries **when it was taken** (§5).
 
 ### `Ui/` — WPF
@@ -267,7 +295,7 @@ The order matters. A fix written before the scenario is a fix for a board nobody
 | `App/App.cs` | Entry point: GUI, `-Run`, `-SelfTest`, `-RenderUi`, or the console |
 | `App/Cli/` | Command line, including `-Probe` |
 | `App/Gui/` | Tray context, the heartbeat, the Omen key handler |
-| `App/Service/` | Poller, Maintainer, Ticker, ThermalGuard, FanControl, HistoryBuffer, Reading |
+| `App/Service/` | Poller, Maintainer, Ticker, ThermalGuard, FanControl, Backlight, HistoryBuffer, Reading |
 | `Driver/` | WinRing0, PawnIO, and the facade over both |
 | `External/` | P/Invoke declarations |
 | `Hardware/` | Controller, firmware, sensors, fans, profile, identity, capabilities |
