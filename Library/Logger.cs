@@ -536,6 +536,18 @@ namespace StarMon.Library
             lock (_lock)
             {
                 _entries.Clear();
+
+                // And what has been said before, which is the whole point of
+                // clearing it.
+                //
+                // The deduplication cache holds the last value seen for every
+                // register and every call, and suppresses an entry whose value
+                // has not changed. Left standing across a clear, a reading that
+                // is steady — which most of them are — is suppressed against a
+                // value from before the list was emptied, so it never appears
+                // again. Somebody clears the log to watch something happen and
+                // is shown nothing happening.
+                _dedupCache.Clear();
             }
             LogsCleared?.Invoke(null, EventArgs.Empty);
         }

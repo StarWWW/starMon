@@ -53,11 +53,29 @@ namespace StarMon.Hardware.Platform {
 #endregion
 
 #region Retrieval
-        // Retrieves an instance of an arbitrary class in a namespace given some criteria
+        // Retrieves an instance of an arbitrary class in a namespace given some
+        // criteria, or null where there is no session to ask.
+        //
+        // The session is created in the constructor and the constructor
+        // swallows the failure, so on a machine whose WMI will not start there
+        // is an instance of this class with nothing behind it. Every
+        // enumeration below already caught that; this one dereferenced the null
+        // session and threw.
+        //
+        // Which mattered more than it sounds. Settings' constructor asks for
+        // the baseboard here, Platform's constructor builds Settings, and the
+        // interface builds Platform — so a machine with broken WMI did not get
+        // a reduced application, it got no application, from a
+        // NullReferenceException three constructors deep. Everything else in
+        // this codebase is built so that a source which cannot be reached is
+        // absent rather than fatal; this was the one place that was not.
         public CimInstance GetInstance(
             string className,
             Dictionary<string, object> args,
             string scope = WMI_INFO_NAMESPACE) {
+
+            if(this.session == null)
+                return null;
 
             // Create a new instance from a class
             CimInstance instance = new CimInstance(className, scope);
@@ -84,11 +102,15 @@ namespace StarMon.Hardware.Platform {
 
         }
 
-        // Retrieves all properties from an instance into a dictionary given an instance
+        // Retrieves all properties from an instance into a dictionary given an
+        // instance. An absent instance has no properties rather than throwing.
         public Dictionary<string, string> GetProperties(CimInstance instance) {
 
             Dictionary<string, string> properties =
                 new Dictionary<string, string>();
+
+            if(instance == null)
+                return properties;
 
             foreach(CimProperty prop in instance.CimInstanceProperties)
                 properties[prop.Name] = prop.Value == null ? "" : prop.Value.ToString();
@@ -97,14 +119,25 @@ namespace StarMon.Hardware.Platform {
 
         }
 
-        // Retrieves all properties from an instance into a dictionary given instance data
+        // Retrieves all properties from an instance into a dictionary given
+        // instance data. A class this machine does not publish, or a WMI that
+        // will not answer at all, yields an empty dictionary — which every
+        // caller already copes with, since a property can be missing anyway.
         public Dictionary<string, string> GetProperties(
             string className,
             string tag,
             string scope = WMI_INFO_NAMESPACE) {
 
-            using(CimInstance instance = GetInstance(className, tag, scope))
-                return GetProperties(instance);
+            try {
+
+                using(CimInstance instance = GetInstance(className, tag, scope))
+                    return GetProperties(instance);
+
+            } catch {
+
+                return new Dictionary<string, string>();
+
+            }
 
         }
 
