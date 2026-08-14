@@ -163,8 +163,13 @@ namespace StarMon.AppCli {
             // Save the console color to be restored later
             ConsoleColor originalColor = Console.ForegroundColor;
 
-            // Set up the data array
-            var data = new EcMonData[byte.MaxValue];
+            // Set up the data array.
+            //
+            // 256 entries, not byte.MaxValue. There are 256 registers and the
+            // last one is 0xFF, so sizing this to 255 monitored every register
+            // except that one — silently, in the tool whose entire job is to
+            // miss nothing. The register dump a few lines above walks all 256.
+            var data = new EcMonData[256];
 
             // Create an event handler to break out of the perpetual loop
             Console.CancelKeyPress += (sender, eventArgs) => {
@@ -237,10 +242,35 @@ namespace StarMon.AppCli {
                 report.Remove(report.Length - 1, 1);
                 report.AppendLine();
 
+                // How many rows every shown register actually has.
+                //
+                // Not data[0]'s count. The monitoring loop checks IsStop before
+                // each register, so a run stopped part-way through a pass
+                // leaves the registers before that point with one more reading
+                // than the ones after it — and IsStop is set by the Ctrl+C
+                // handler, which then calls this. That is the ordinary way to
+                // end a monitoring session, not an edge case.
+                //
+                // Indexing every register to data[0]'s count then threw, the
+                // throw was caught as "the file could not be saved", and the
+                // whole session's data went with it.
+                int rows = int.MaxValue;
+                for(int register = 0; register < data.Length; register++) {
+                    if(!data[register].Show)
+                        continue;
+                    int count = data[register].Values == null
+                        ? 0 : data[register].Values.Count;
+                    if(count < rows)
+                        rows = count;
+                }
+
+                if(rows == int.MaxValue)
+                    rows = 0;
+
                 // Output the values: iterate through data rows
-                for(int row = 0; row < data[0].Values.Count; row++) {
+                for(int row = 0; row < rows; row++) {
                     // Print out sequential number
-                    report.Append(Conv.GetString((ushort) row, 5, 10));
+                    report.Append(Conv.GetString((uint) row, 5, 10));
                     report.Append("  ");
                     // Iterate through the registers
                     for(int register = 0; register < data.Length; register++) {
