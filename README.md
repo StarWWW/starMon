@@ -263,7 +263,7 @@ Arguments are case-insensitive and each may appear any number of times.
 |---|---|
 | **Fans** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanLevelVerifyDelayMs` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
 | **Thermal** | `ThermalProtectionEnabled` `ThermalProtectionHighC` `ThermalProtectionLowC` `ThrottleNotifyEnabled` `TemperatureCacheMs` |
-| **Graphics** | `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
+| **Graphics** | `GpuNvidiaEnabled` `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
 | **Keyboard** | `KbdZoneCount` `KbdColorByTemp` `KbdColorEffect` `KbdEffectSpeed` `KbdIdleOffMinutes` |
 | **Omen key** | `KeyToggleFanProgram` `KeyToggleFanProgramCycleAll` `KeyToggleFanProgramShowGuiFirst` `KeyToggleFanProgramSilent` |
 | **Display** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
@@ -348,19 +348,30 @@ No markup in this project may name a type declared in the same assembly — no l
 
 ## Project layout
 
+About 43,000 lines of C#, one project, no package references at all.
+
 | Path | What lives there |
 |---|---|
-| `App/Cli` | Command-line parsing and output |
-| `App/Gui` | Tray host, poller wiring, notifications |
-| `App/Service` | Readings, polling, fan control, history buffer, thermal guard |
-| `Hardware` | Embedded Controller, BIOS calls, NVIDIA, battery, device profile |
-| `Library` | Configuration, localisation, logging, WMI, conversions |
+| `All` | Assembly metadata and the version stamped at build time |
+| `App` | The entry point: interface, `-Run`, `-SelfTest`, `-RenderUi`, or the console |
+| `App/Cli` | Command-line parsing and output, including `-Probe` |
+| `App/Gui` | Tray host, the once-a-second heartbeat, the Omen key handler |
+| `App/Service` | Readings, polling, maintenance, fan control, history, thermal guard |
+| `Driver` | WinRing0, PawnIO, and the facade that hides which one answered |
+| `External` | P/Invoke declarations, and nothing else |
+| `Hardware` | Embedded Controller, BIOS calls, sensors, fans, device profile, the hardware gate |
+| `Library` | Configuration, localisation, logging, WMI, the OS, conversions |
+| `Resources` | Driver and PawnIO binaries, icons, the typeface |
 | `Ui/Theme` | Palette, typography, control styles |
 | `Ui/Views` | Pages and drawn controls |
 | `Ui/ViewModels` | The models behind them |
 | `Ui/Windows` | Window controller — the bridge between readings and the interface |
+| `Ui/Shell` | Tray icon, tray menu, the dynamic temperature icon |
 | `Ui/Design` | The headless render surfaces and their sample data |
-| `Test` | The self-test suite |
+| `Test` | The self-test runner, its suites and the device matrix |
+| `docs` | [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) — how it is built, and why |
+
+> **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** is the document to read before changing anything. It covers the layers and their rules, the life of a reading and of a command, the safety invariants and what each of them exists because of, the threading model, and how to add support for a board that misbehaves.
 
 ## Troubleshooting
 
@@ -379,8 +390,20 @@ The firmware does not offer it on this board. The System page lists what was fou
 **The window shows dashes everywhere.**
 StarMon is not elevated. Nothing below the operating system is reachable from user mode.
 
+**The Omen key stopped working.**
+Almost always because the folder was moved or renamed. The path is written into the scheduled task when it is registered, so the key press still reaches Windows and Windows still starts the task — which then launches a file that is no longer there, silently. Since 1.2.1 StarMon repairs this at startup: run it once from its new location and the key works again. To check by hand, `StarMon.exe -Task` prints the state of all three tasks.
+
+**Fan control and the keyboard backlight do nothing, but everything else works.**
+The kernel driver did not load. The System page says what is in the way. On Windows 11 it is nearly always memory integrity enforcing Microsoft's vulnerable-driver list, and installing [PawnIO](https://pawnio.eu) is the fix — StarMon prefers it automatically once it is there.
+
+**The machine shut itself down at a full battery.**
+Not StarMon, but StarMon can now show you what happened. Windows acts on the ACPI fuel gauge itself, and a momentarily poisoned gauge reads as a critical charge — on most machines the power plan answers that by shutting down at once. Look in the log for `Windows has been told this battery is critically low`. The mitigation is a Windows setting: set the critical battery *action* to Sleep or Hibernate rather than Shut down.
+
+**The machine crashed and the screen mentioned video memory.**
+Set `GpuNvidiaEnabled` to `false` in `StarMon.xml` and restart. That takes NVAPI and NVML out of the picture entirely while everything else keeps working, including the Embedded Controller's own GPU temperature — which makes it a one-line experiment rather than an uninstall. Also worth enabling crash dumps (`wmic recoveros set DebugInfoType = 3`) so the next one is diagnosable at all.
+
 **Something is wrong and I want to report it.**
-System page → *Full hardware report* → **Copy**. Add the log with *Log verbose* turned on if the problem is reproducible.
+`StarMon.exe -Probe report.md`. Read-only, works without elevation, and produces everything needed to diagnose a board nobody else owns. From the interface: System page → *Full hardware report* → **Copy**. Add the log with *Log verbose* turned on if the problem is reproducible.
 
 ## License
 
@@ -641,7 +664,7 @@ Argümanlar büyük/küçük harfe duyarsızdır ve her biri istenildiği kadar 
 |---|---|
 | **Fanlar** | `FanLevelMax` `FanLevelMin` `FanLevelAutoDetect` `FanLevelUseEc` `FanLevelNeedManual` `FanLevelVerifyDelayMs` `FanProgramDefault` `FanProgramHysteresisC` `FanProgramSuspend` `FanCountdownExtend*` `FanModeKeepAliveMs` |
 | **Isıl** | `ThermalProtectionEnabled` `ThermalProtectionHighC` `ThermalProtectionLowC` `ThrottleNotifyEnabled` `TemperatureCacheMs` |
-| **Ekran kartı** | `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
+| **Ekran kartı** | `GpuNvidiaEnabled` `GpuPowerDefault` `GpuPowerSetInterval` `GpuPollOnBattery` |
 | **Klavye** | `KbdZoneCount` `KbdColorByTemp` `KbdColorEffect` `KbdEffectSpeed` `KbdIdleOffMinutes` |
 | **Omen tuşu** | `KeyToggleFanProgram` `KeyToggleFanProgramCycleAll` `KeyToggleFanProgramShowGuiFirst` `KeyToggleFanProgramSilent` |
 | **Ekran** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
@@ -699,19 +722,30 @@ Bu projede hiçbir markup, aynı derlemede tanımlı bir tipi adlandıramaz — 
 
 ## Proje düzeni
 
+Yaklaşık 43.000 satır C#, tek proje, hiç paket referansı yok.
+
 | Yol | Ne bulunur |
 |---|---|
-| `App/Cli` | Komut satırı ayrıştırma ve çıktı |
-| `App/Gui` | Tepsi barındırıcısı, yoklayıcı bağlantıları, bildirimler |
-| `App/Service` | Ölçümler, yoklama, fan denetimi, geçmiş tamponu, ısıl koruma |
-| `Hardware` | Gömülü Denetleyici, BIOS çağrıları, NVIDIA, pil, cihaz profili |
-| `Library` | Yapılandırma, yerelleştirme, günlük, WMI, dönüşümler |
+| `All` | Derleme üstverisi ve derleme sırasında basılan sürüm |
+| `App` | Giriş noktası: arayüz, `-Run`, `-SelfTest`, `-RenderUi` ya da konsol |
+| `App/Cli` | Komut satırı ayrıştırma ve çıktı, `-Probe` dahil |
+| `App/Gui` | Tepsi barındırıcısı, saniyede bir atan kalp atışı, Omen tuşu işleyicisi |
+| `App/Service` | Ölçümler, yoklama, bakım, fan denetimi, geçmiş, ısıl koruma |
+| `Driver` | WinRing0, PawnIO, ve hangisinin cevap verdiğini gizleyen cephe |
+| `External` | P/Invoke bildirimleri, başka hiçbir şey |
+| `Hardware` | Gömülü Denetleyici, BIOS çağrıları, sensörler, fanlar, cihaz profili, donanım kapısı |
+| `Library` | Yapılandırma, yerelleştirme, günlük, WMI, işletim sistemi, dönüşümler |
+| `Resources` | Sürücü ve PawnIO ikilileri, ikonlar, yazı tipi |
 | `Ui/Theme` | Palet, tipografi, denetim stilleri |
 | `Ui/Views` | Sayfalar ve çizilen denetimler |
 | `Ui/ViewModels` | Arkalarındaki modeller |
 | `Ui/Windows` | Pencere denetleyicisi — ölçümlerle arayüz arasındaki köprü |
+| `Ui/Shell` | Tepsi ikonu, tepsi menüsü, dinamik sıcaklık ikonu |
 | `Ui/Design` | Konsolsuz render yüzeyleri ve örnek verileri |
-| `Test` | Öz test paketi |
+| `Test` | Öz test koşucusu, paketleri ve cihaz matrisi |
+| `docs` | [**ARCHITECTURE.md**](docs/ARCHITECTURE.md) — nasıl kurulduğu ve nedeni |
+
+> Herhangi bir şeyi değiştirmeden önce okunacak belge **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**. Katmanları ve kurallarını, bir ölçümün ve bir komutun yaşam döngüsünü, güvenlik değişmezlerini ve her birinin hangi hatadan doğduğunu, iş parçacığı modelini, ve tuhaf davranan bir anakart için nasıl destek ekleneceğini anlatıyor. (İngilizce — kod yorumlarının tamamı gibi.)
 
 ## Sorun giderme
 
@@ -730,8 +764,20 @@ Sistem sayfasındaki *Fanlar hep açık* satırına bakın. Bu bir BIOS kurulum 
 **Pencerede her yer tire dolu.**
 StarMon yükseltilmemiş. İşletim sisteminin altındaki hiçbir şeye kullanıcı kipinden erişilemez.
 
+**Omen tuşu çalışmayı bıraktı.**
+Neredeyse her zaman klasör taşındığı ya da yeniden adlandırıldığı için. Yol, zamanlanmış göreve kaydedildiği anda yazılır; yani tuşa basınca olay yine Windows'a ulaşır ve Windows yine görevi başlatır — ama görev artık var olmayan bir dosyayı sessizce çalıştırmaya çalışır. 1.2.1'den beri StarMon bunu açılışta onarıyor: uygulamayı yeni konumundan bir kez çalıştırın, tuş yine çalışır. Elle bakmak için `StarMon.exe -Task` üç görevin de durumunu yazar.
+
+**Fan denetimi ve klavye ışığı hiçbir şey yapmıyor, gerisi çalışıyor.**
+Çekirdek sürücüsü yüklenmemiş. Sistem sayfası neyin engellediğini söylüyor. Windows 11'de bu neredeyse her zaman bellek bütünlüğünün Microsoft'un güvenlik açıklı sürücü listesini zorunlu kılmasıdır; çözüm [PawnIO](https://pawnio.eu) kurmaktır — kurulduğunda StarMon onu kendiliğinden tercih eder.
+
+**Makine pil doluyken kendini kapattı.**
+StarMon değil, ama StarMon artık ne olduğunu gösterebiliyor. Windows ACPI yakıt göstergesini kendisi okuyor ve bir anlığına bozulan gösterge kritik şarj gibi görünüyor — çoğu makinede güç planı buna hemen kapanarak cevap veriyor. Günlükte `Windows has been told this battery is critically low` satırını arayın. Çözüm bir Windows ayarı: kritik pil **eylemini** Kapat yerine Uyku ya da Hazırda Beklet yapın.
+
+**Makine çöktü ve ekranda video belleğinden söz ediliyordu.**
+`StarMon.xml` içinde `GpuNvidiaEnabled` değerini `false` yapıp yeniden başlatın. Bu, NVAPI ve NVML'i tamamen devre dışı bırakır; geri kalan her şey çalışmaya devam eder, Gömülü Denetleyici'nin kendi GPU sıcaklığı dahil — yani kaldırmak yerine tek satırlık bir deney. Ayrıca çökme dökümlerini açmakta fayda var (`wmic recoveros set DebugInfoType = 3`), yoksa bir sonrakini de teşhis edemeyiz.
+
 **Bir şey ters gitti, bildirmek istiyorum.**
-Sistem sayfası → *Tam donanım raporu* → **Kopyala**. Sorun yinelenebiliyorsa *Ayrıntılı günlük* açıkken alınan günlüğü de ekleyin.
+`StarMon.exe -Probe rapor.md`. Salt okunur, yükseltme gerektirmez, ve kimsenin sahip olmadığı bir anakartı teşhis etmek için gereken her şeyi üretir. Arayüzden: Sistem sayfası → *Tam donanım raporu* → **Kopyala**. Sorun yinelenebiliyorsa *Ayrıntılı günlük* açıkken alınan günlüğü de ekleyin.
 
 ## Lisans
 
