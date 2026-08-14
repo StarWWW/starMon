@@ -51,6 +51,70 @@ namespace StarMon.Test {
             SelfTest.Group("Presentation: following the machine");
             TestTheSelectorSeedsItselfBeforeAnyClick();
             TestAnAnswerFetchedBeforeTheClickNeverWins();
+            TestRelaunchingBringsTheWindowUp();
+
+        }
+
+        // Double-clicking StarMon.exe while it is already running.
+        //
+        // Only one copy may run, so the second one broadcasts and the first
+        // answers by showing itself. Unless the first was started by a
+        // scheduled task a moment ago, in which case it is meant to come up
+        // quietly — and that suppression had no bound on it. The last message
+        // received is remembered for the life of the process, so on any
+        // machine with Start with Windows turned on the startup broadcast set
+        // that state and nothing ever cleared it: relaunching did nothing.
+        //
+        // The second attempt worked, because the first one's own message had
+        // by then replaced the state. "Click it twice" is the kind of thing
+        // people work around rather than report.
+        private static void TestRelaunchingBringsTheWindowUp() {
+
+            const int Quiet = 5000;
+            const StarMon.AppGui.Gui.MessageParam Started =
+                StarMon.AppGui.Gui.MessageParam.Gui;
+            const StarMon.AppGui.Gui.MessageParam Key =
+                StarMon.AppGui.Gui.MessageParam.Key;
+            const StarMon.AppGui.Gui.MessageParam None =
+                StarMon.AppGui.Gui.MessageParam.Default;
+
+            // Nothing automatic has happened: the window is asked for and shown
+            SelfTest.Check(StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    None, 0, 100000, Quiet),
+                "with no automatic start behind it, relaunching shows the window");
+
+            // The sequence the suppression exists for: the task starts this
+            // copy and a copy it launched broadcasts immediately afterwards
+            SelfTest.Check(!StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Started, 100000, 100200, Quiet),
+                "a broadcast moments after an automatic start stays quiet");
+
+            SelfTest.Check(!StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Key, 100000, 100200, Quiet),
+                "and so does one moments after an Omen key start");
+
+            // The case that was broken: somebody double-clicks the executable
+            // later in the day
+            SelfTest.Check(StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Started, 100000, 106000, Quiet),
+                "but relaunching six seconds later shows the window");
+
+            SelfTest.Check(StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Started, 100000, 100000 + 3600 * 1000, Quiet),
+                "and so does relaunching an hour later, which is the case that "
+                    + "did nothing at all");
+
+            // On the boundary itself
+            SelfTest.Check(StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Started, 100000, 100000 + Quiet, Quiet),
+                "the boundary counts as late enough");
+
+            // The tick counter wraps every twenty-five days
+            SelfTest.Check(StarMon.AppGui.GuiFilter.ShouldRaiseWindow(
+                    Started, int.MaxValue - 1000,
+                    unchecked(int.MaxValue + 20000), Quiet),
+                "and a relaunch either side of the tick counter wrapping is "
+                    + "still recognised as later");
 
         }
 
