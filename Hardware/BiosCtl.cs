@@ -396,11 +396,30 @@ namespace StarMon.Hardware.Bios
             return new byte[2] { outData[0], outData[1] };
         }
 
-        // Updates the current speed level for each fan
+        // Updates the current speed level for each fan.
+        //
+        // The firmware call takes both fans whatever the caller had in mind, so
+        // an array naming fewer is filled out rather than indexed past. The
+        // levels come from the configuration file — one per fan, as whoever
+        // wrote the fan program saw fit — and this application supports
+        // single-fan boards deliberately enough to keep one in its device
+        // matrix, so a one-level array reaches here in ordinary use.
+        //
+        // Filled with 0xFF, which is the firmware's own "no custom level": a
+        // caller that said nothing about the second fan is saying nothing about
+        // it, not asking for it to stop. Zero would ask for it to stop.
+        //
+        // It threw IndexOutOfRange here, inside FanArray.SetLevels' catch —
+        // so the write silently did not happen, the fan program went on
+        // reporting itself as running, and the failsafe countdown ran out
+        // underneath it.
         public void SetFanLevel(byte[] data)
         {
+            byte first = data != null && data.Length > 0 ? data[0] : Byte.MaxValue;
+            byte second = data != null && data.Length > 1 ? data[1] : Byte.MaxValue;
+
             // Note: this call will always check for BIOS error and throw an exception if it occurred
-            Check(Send(Cmd.Default, 0x2E, new byte[4] { (byte)data[0], (byte)data[1], 0x00, 0x00 }), true);
+            Check(Send(Cmd.Default, 0x2E, new byte[4] { first, second, 0x00, 0x00 }), true);
         }
 
         // Sets the active fan performance mode

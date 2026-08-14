@@ -180,9 +180,32 @@ namespace StarMon.Hardware.Bios
                     using (CimInstance resultData = result.OutParameters["OutData"].Value as CimInstance)
                     {
 
-                        // Populate the output data variable
+                        // Populate the output data variable.
+                        //
+                        // Never with less than was asked for. The cast is
+                        // "as byte[]", which yields null where the firmware
+                        // answered without a data payload — and that is not a
+                        // rare path, it is what an unsupported call does on a
+                        // board that does not implement it. The buffer
+                        // allocated at the top of this method was then thrown
+                        // away and every caller indexed into nothing.
+                        //
+                        // Which mattered because the callers that index without
+                        // checking are precisely the ones documented as
+                        // reaching an unsupported board: GetGpuMode says in its
+                        // own comment that this returns an error on devices
+                        // without it and then reads byte zero; GetKbdType and
+                        // HasMemoryOverclock deliberately skip the status check
+                        // and do the same. On the reference board they all
+                        // answer, so none of it ever showed here.
+                        //
+                        // Short is the same problem as null. A firmware that
+                        // answers with fewer bytes than the call asked for is
+                        // not a reason to fault three frames up.
                         if (outDataSize != 0)
-                            outData = resultData.CimInstanceProperties["Data"].Value as byte[];
+                            outData = Fit(
+                                resultData.CimInstanceProperties["Data"].Value as byte[],
+                                outDataSize);
 
                         // Get the status code
                         int resultCode = Convert.ToInt32(resultData.CimInstanceProperties[BIOS_RETURN_CODE_FIELD].Value);
@@ -210,6 +233,33 @@ namespace StarMon.Hardware.Bios
                 // for client-side exceptions
                 return -1;
             }
+
+        }
+
+        // The firmware's answer, at the size the call asked for.
+        //
+        // Absent or short is padded with zeroes rather than handed on as it
+        // came. Zero is what every caller here already reads as "this board
+        // does not do that" — GetFanCount, GetTemperature, GetMaxFan and the
+        // rest all treat it that way — so the padding says the same thing they
+        // would have concluded, instead of faulting before they can conclude
+        // anything. A longer answer than asked for is left alone: it is the
+        // firmware being generous, not wrong.
+        //
+        // Internal so the shape of this can be checked without a machine that
+        // refuses a call.
+        internal static byte[] Fit(byte[] data, int size)
+        {
+
+            if (data != null && data.Length >= size)
+                return data;
+
+            byte[] result = new byte[size];
+
+            if (data != null)
+                Array.Copy(data, result, data.Length);
+
+            return result;
 
         }
 

@@ -60,6 +60,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: a fan program on one fan");
             TestAOneFanProgramActuallyWritesALevel();
+            TestAFirmwareThatAnswersWithNothing();
 
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
@@ -985,6 +986,46 @@ namespace StarMon.Test {
                 }
 
             }
+
+        }
+
+        // The firmware answering with nothing, which is what an unsupported
+        // call does.
+        //
+        // Bios.Send allocates the buffer the call asked for and then replaces
+        // it with what came back, cast with "as byte[]" — which is null where
+        // the firmware answered without a payload. Every caller that indexes
+        // byte zero without checking then faults, and the ones that do that are
+        // exactly the ones documented as reaching an unsupported board:
+        // GetGpuMode says so in its own comment and reads byte zero anyway,
+        // GetKbdType and HasMemoryOverclock skip the status check and do the
+        // same.
+        //
+        // On the reference board every one of them answers, so none of it could
+        // be seen here.
+        private static void TestAFirmwareThatAnswersWithNothing() {
+
+            SelfTest.Equal(4, StarMon.Hardware.Bios.Bios.Fit(null, 4).Length,
+                "no answer at all is filled out to the size the call asked for");
+
+            SelfTest.Equal((byte) 0, StarMon.Hardware.Bios.Bios.Fit(null, 4)[0],
+                "and reads as zero, which every caller already treats as "
+                    + "\"this board does not do that\"");
+
+            SelfTest.Equal(128, StarMon.Hardware.Bios.Bios.Fit(new byte[] { 7 }, 128).Length,
+                "a short answer is filled out too");
+
+            SelfTest.Equal((byte) 7, StarMon.Hardware.Bios.Bios.Fit(new byte[] { 7 }, 128)[0],
+                "keeping what the firmware did say");
+
+            SelfTest.Equal((byte) 0, StarMon.Hardware.Bios.Bios.Fit(new byte[] { 7 }, 128)[1],
+                "and zero for what it did not");
+
+            // A generous firmware is not a wrong one
+            byte[] longer = new byte[] { 1, 2, 3, 4, 5, 6 };
+            SelfTest.Check(ReferenceEquals(longer,
+                    StarMon.Hardware.Bios.Bios.Fit(longer, 4)),
+                "an answer longer than asked for is left exactly as it came");
 
         }
 
