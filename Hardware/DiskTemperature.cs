@@ -37,12 +37,29 @@ namespace StarMon.Hardware {
         // Cached index of the drive that answered, to avoid re-probing every time
         private static int KnownDrive = -2; // -2 = not probed yet, -1 = none
 
+        // How many probes in a row have to come back with nothing before this
+        // machine is taken to have no NVMe drive to ask.
+        //
+        // One was enough, and one is the wrong number. A drive momentarily
+        // busy — which is a thing drives are — failed the probe, and a single
+        // failure wrote the feature off for the life of the process: the
+        // reading vanished from the interface and the log said "disk
+        // temperature disabled" with no way back short of restarting.
+        //
+        // Three runs is the same rule the published sensors and the thermal
+        // zones already use for the same question, and for the same reason.
+        private const int GiveUpAfter = 3;
+        private static int EmptyRuns;
+
         // Returns the NVMe drive temperature in °C, or -1 if unavailable
         public static int GetTemperature() {
             try {
                 if(KnownDrive >= 0) {
                     int t = Read(KnownDrive);
-                    if(t > 0) return t;
+                    if(t > 0) {
+                        EmptyRuns = 0;
+                        return t;
+                    }
                     KnownDrive = -2; // Lost it; re-probe next time
                 }
 
@@ -54,13 +71,19 @@ namespace StarMon.Hardware {
                     int t = Read(i);
                     if(t > 0) {
                         KnownDrive = i;
+                        EmptyRuns = 0;
                         Logger.Info("DiskTemp", "NVMe health log found on physical drive " + i);
                         return t;
                     }
                 }
 
-                KnownDrive = -1;
-                Logger.Info("DiskTemp", "No NVMe drive answered the health-log query, disk temperature disabled");
+                if(++EmptyRuns >= GiveUpAfter) {
+                    KnownDrive = -1;
+                    Logger.Info("DiskTemp",
+                        "No NVMe drive answered the health-log query, disk temperature disabled",
+                        "after " + EmptyRuns + " attempts");
+                }
+
                 return -1;
             } catch {
                 return -1;

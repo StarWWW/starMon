@@ -84,9 +84,17 @@ namespace StarMon.Hardware {
                 "the BIOS interface is not available on this machine");
         }
 
+        // A buffer of the size asked for, and a failed status.
+        //
+        // Null was what this returned, and the real interface no longer does:
+        // Bios.Fit guarantees the caller gets what it asked for however the
+        // firmware answers, because the callers index into it without looking.
+        // A stand-in that hands back null where the thing it stands in for
+        // hands back a buffer is a stand-in that faults differently from the
+        // real one, which is the one thing it must not do.
         public int Send(BiosData.Cmd command, uint commandType,
             byte[] inData, byte outDataSize, out byte[] outData) {
-            outData = null;
+            outData = new byte[outDataSize];
             return -1;
         }
 
