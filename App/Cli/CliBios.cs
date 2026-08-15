@@ -110,17 +110,42 @@ namespace StarMon.AppCli {
             foreach(string key in Config.ColorPreset.Keys) {
 
                 // Compare each to the current colors
-                if(data.Zone[0].Value == Config.ColorPreset[key].Zone[0].Value
-                    && data.Zone[1].Value == Config.ColorPreset[key].Zone[1].Value
-                    && data.Zone[2].Value == Config.ColorPreset[key].Zone[2].Value
-                    && data.Zone[3].Value == Config.ColorPreset[key].Zone[3].Value)
+                if(SameColours(data, Config.ColorPreset[key]))
 
                     // Output the preset name if matches
-                    PrintExplanation(key); 
+                    PrintExplanation(key);
 
             }
 
             Console.WriteLine();
+
+        }
+
+        // Whether two colour tables hold the same colours.
+        //
+        // The four zones were compared by index, without asking how many
+        // either table had. A colour table carries ZoneCount + 1 of them and
+        // the loop a few lines above knows that — it iterates to ZoneCount —
+        // but this did not, so on a single-zone deck, which has exactly one,
+        // reading the second threw straight out of the print routine.
+        //
+        // Single-zone decks are not an edge case here: Settings has a method
+        // whose entire purpose is telling them from four-zone ones, because
+        // the firmware reports four on both. "StarMon.exe -Bios Color" on one
+        // of them ended in an unhandled IndexOutOfRange.
+        private static bool SameColours(BiosData.ColorTable a, BiosData.ColorTable b) {
+
+            if(a.Zone == null || b.Zone == null)
+                return false;
+
+            if(a.Zone.Length != b.Zone.Length)
+                return false;
+
+            for(int i = 0; i < a.Zone.Length; i++)
+                if(a.Zone[i].Value != b.Zone[i].Value)
+                    return false;
+
+            return a.Zone.Length > 0;
 
         }
 
