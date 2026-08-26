@@ -1,4 +1,4 @@
-﻿// StarMon: hardware monitoring and control
+// StarMon: hardware monitoring and control
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
 using System;
@@ -298,7 +298,8 @@ namespace StarMon.Hardware.Ec
                     if (WaitWrite())
                     {
                         WriteIoPort(Port.Data, value);
-                        return true;
+                        if (WaitWrite())
+                            return true;
                     }
                 }
             }

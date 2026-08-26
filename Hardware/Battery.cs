@@ -28,6 +28,11 @@ namespace StarMon.Hardware {
         private static int LastGoodPercent = -1;
         private static int RejectedRunning;
 
+        internal static void ResetLastGoodPercent() {
+            LastGoodPercent = -1;
+            RejectedRunning = 0;
+        }
+
         // The charge/discharge rate is a WMI query, which is not free; it
         // moves slowly enough that refreshing it every few seconds is
         // indistinguishable from every tick and costs a fraction as much.
@@ -93,6 +98,21 @@ namespace StarMon.Hardware {
                         info.OnAc);
                 }
             } catch { }
+
+            // If the Windows power status API reports 0% or an invalid charge (e.g. due to
+            // an ACPI fuel-gauge desync), try reading the battery charge level directly from
+            // EC register XBCH (0x96)
+            if((info.Percent <= 2 || info.Percent == 255) && Hw.HasEc) {
+                try {
+                    if(Hw.EcTryGetByte((byte)StarMon.Hardware.Ec.EmbeddedControllerData.Register.XBCH, out byte ecPercent)) {
+                        if(ecPercent > 0 && ecPercent <= 100) {
+                            info.Percent = ecPercent;
+                            if(!info.Present)
+                                info.Present = true;
+                        }
+                    }
+                } catch { }
+            }
 
             info.Percent = Sanitise(info.Percent, info.OnAc, info.Charging);
 
@@ -237,15 +257,15 @@ namespace StarMon.Hardware {
             // Empty while plugged in, or a cliff-drop of more than half the
             // charge in one tick, is not something a real cell does
             bool impossible =
-                (percent <= 2 && (onAc || charging) && LastGoodPercent > 20)
+                (percent <= 2 && (onAc || charging) && (LastGoodPercent > 20 || LastGoodPercent == -1))
                 || (LastGoodPercent >= 0 && LastGoodPercent - percent > 50);
 
             if(impossible && RejectedRunning < RejectRunLimit) {
                 RejectedRunning++;
                 Logger.Warning("Battery",
                     "Ignoring an impossible charge reading of " + percent
-                    + " % (holding " + LastGoodPercent + " %)");
-                return LastGoodPercent;
+                    + " % (holding " + (LastGoodPercent >= 0 ? LastGoodPercent : percent) + " %)");
+                return LastGoodPercent >= 0 ? LastGoodPercent : percent;
             }
 
             RejectedRunning = 0;
