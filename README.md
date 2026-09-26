@@ -94,9 +94,13 @@ Everything is stored beside the executable. There is no installer, no registry f
 
 Eight sections, reached from the tabs in the title bar. A **live summary strip** sits under the tabs on every page: CPU and GPU temperature with a one-minute sparkline, both fans, the battery, and status chips for thermal protection, throttling and a running fan program.
 
+The window can be resized and maximised, and the pages use the room: the history plot, the fan curve and the sensor columns grow with it. Below 1000 × 760 the whole interface is scaled down evenly rather than cropped.
+
+If the driver StarMon needs cannot load — memory integrity or the vulnerable-driver list on a new Windows 11 machine, or a missing elevation — a **notice across the top of every page** says so and why, and a notification says it once at startup. Temperatures and readings keep working; fan and keyboard control do not.
+
 ### Dashboard
 
-Four blocks — **CPU**, **GPU**, **Fans**, **System** — each with a headline temperature, a sparkline and a table of readings underneath. Below them a **history plot** of six series with a 2 / 5 / 10 minute window, hover crosshair, and CSV export. Below that the fan and performance controls.
+Four blocks — **CPU**, **GPU**, **Fans**, **System** — each with a headline temperature, a sparkline and a table of readings underneath. Below them a **history plot** of six series with a 2 / 5 / 10 minute window, a hover crosshair that reads every series and the time at one moment, and **CSV export** with a timestamp on every row. Below that the fan and performance controls.
 
 The CPU block carries two bars per logical core: temperature, in health bands, and clock, in one flat colour — a slow core is not a core in trouble.
 
@@ -106,11 +110,11 @@ Everything the machine publishes, grouped and updated live: the board's own prob
 
 ### Cooling
 
-The **fan curve editor** — drag the points, set hysteresis — plus the **fan program manager**: run, stop, save and delete the programs kept in the configuration file. Alongside it, *what this machine allows*: the fan ceiling and how it was worked out, whether the firmware admits to software fan control, whether levels go through the BIOS or straight to the EC, the failsafe countdown and the thermal protection state.
+The **fan curve editor** — drag the points, set hysteresis — plus the **fan program manager**: run, stop, save and delete the programs kept in the configuration file. The curve is drawn as the steps the fan program actually follows — each level holds from its own column to the next — and a dot on it marks the level in force at the current temperature. Alongside it, *what this machine allows*: the fan ceiling and how it was worked out, whether the firmware admits to software fan control, whether levels go through the BIOS or straight to the EC, the failsafe countdown and the thermal protection state.
 
 ### Keyboard
 
-The keyboard is drawn as your machine's own — with or without the numeric pad, in the ISO or ANSI body, with the legends of the layout being typed on. Click anywhere on it to set a colour. Backlight switch, up to four colour zones, four modes and an idle switch-off.
+The keyboard is drawn as your machine's own — with or without the numeric pad, in the ISO or ANSI body, with the legends of the layout being typed on. Click anywhere on it to set a colour. Backlight switch, up to four colour zones, four modes and an idle switch-off. **Saved colours** apply with one click; the colours on show can be saved under a name of your own, and a saved one is deleted from its right-click menu.
 
 ### System
 
@@ -126,7 +130,7 @@ Every preference, in two columns. See [Settings reference](#settings-reference).
 
 ### About
 
-Version, licence, credits.
+Version, the machine it is running on, the configuration file and log shown in Explorer, the project page, and the licence.
 
 > Every control and every reading in the interface carries a tooltip explaining not just what it is but what it costs or what it is for.
 
@@ -184,7 +188,7 @@ Zones are however many the firmware addresses — one or four. Per-key RGB decks
 
 | Setting | Notes |
 |---|---|
-| **Graphics mode** | `Optimus` routes the display through the integrated graphics; `Discrete` wires it to the NVIDIA chip. More performance, less battery, needs a restart. |
+| **Graphics mode** | `Optimus` routes the display through the integrated graphics; `Discrete` wires it to the NVIDIA chip. More performance, less battery, needs a restart — which StarMon offers to do. |
 | **CPU Turbo Boost** | `Off` holds the base clock; `On` is normal; `Aggressive` boosts harder and longer. |
 | **Display brightness** | The same control as the function keys. |
 | **Thermal protection** | On/off and the threshold, 80–99 °C. |
@@ -203,6 +207,7 @@ Zones are however many the firmware addresses — one or four. Per-key RGB decks
 
 | Setting | Notes |
 |---|---|
+| **Language** | Automatic, English or Türkçe. The window changes at once. Automatic follows the language Windows is set to. |
 | **Start with Windows** | Registers an elevated scheduled task at logon. |
 | **Apply saved settings on start** | Re-applies fan, graphics and keyboard settings instead of accepting whatever the firmware came up with. |
 | **Close button exits** | Off means close hides to the tray. |
@@ -210,7 +215,7 @@ Zones are however many the firmware addresses — one or four. Per-key RGB decks
 | **Notify when the processor is throttling** | At most one notification every five minutes. |
 | **Keep reading the graphics card on battery** | Reading the NVIDIA chip wakes it; on battery that costs power for figures nothing is watching. |
 | **This keyboard has four colour zones** | Off by default, and correct that way on every deck: the whole keyboard takes one colour. The firmware cannot be asked — its colour table is four entries wide whatever the board is, so a single-zone Victus reports four exactly as a four-zone Omen does. Turn it on only if yours really lights in four separate regions. |
-| **Refresh rate follows the power source** | Plus the two rates, typed or taken from what the panel reports. |
+| **Refresh rate follows the power source** | Plus the two rates, typed (30–500 Hz) or taken from what the panel reports. |
 | **Switch the display off** | A global hotkey, captured by pressing the combination. A bare key is refused. |
 | **Log verbose / to file / BIOS errors** | Plus the size at which the log file starts again. |
 | **How often** | The polling cadence with the window open, with it hidden, and for a running fan program. |
@@ -338,13 +343,13 @@ Three things are checked against the source before anything compiles, because no
 
 The interface cannot be checked by running the application — it needs elevation. `-Render <surface>` draws any part of it to a PNG instead:
 
-`gallery` `dashboard` `window` `window-en` `window-tr` `window-one` `curve` `keyboard` `keyboard-off` `keyboard-tkl` `log` `system` `sensors` `settings` `picker` `menu` `trayicon`
+`gallery` `dashboard` `window` `window-en` `window-tr` `window-one` `window-large` `notice` `curve` `curve-large` `keyboard` `keyboard-large` `keyboard-off` `keyboard-tkl` `log` `system` `sensors` `sensors-large` `settings` `about` `picker` `menu` `trayicon`
 
 `window-en` and `window-tr` pin their language, because the plain `window` surface renders in whatever language the machine building it happens to use — which is how an English layout can go unchecked for months on a Turkish machine.
 
 ### A constraint worth knowing
 
-No markup in this project may name a type declared in the same assembly — no local converter instance, no `{x:Type local:…}`, no custom control in XAML. Markup that does cannot be compiled in one pass, and this project builds in one. Drawn controls are therefore placed into named `ContentControl` hosts from code-behind, and converters are registered into the application resources by string key. The only exception is the `{loc:Str}` markup extension.
+Markup that names a type declared in the same assembly is compiled in two passes, through a generated project. That once could not work here, because the generated project re-ran resource generation on a `.resx` the SDK could not serialise; the `.resx` is gone and the `{loc:Str}` extension now names a local type in every view. The older pattern is kept anyway: drawn controls are placed into named `ContentControl` hosts from code-behind, and converters are registered into the application resources by string key.
 
 ## Project layout
 
@@ -495,9 +500,13 @@ Her şey çalıştırılabilir dosyanın yanında durur. Kurulum yok, istediğin
 
 Başlık çubuğundaki sekmelerden erişilen sekiz bölüm. Sekmelerin altında her sayfada duran bir **canlı özet şeridi** var: bir dakikalık minik grafiğiyle CPU ve GPU sıcaklığı, iki fan, pil, bir de ısıl koruma, kısıtlama ve çalışan fan programı için durum rozetleri.
 
+Pencere yeniden boyutlandırılabilir ve ekranı kaplayacak şekilde büyütülebilir; sayfalar verilen alanı kullanır: geçmiş grafiği, fan eğrisi ve sensör sütunları onunla birlikte büyür. 1000 × 760'ın altında arayüzün tamamı kırpılmak yerine orantılı olarak küçültülür.
+
+StarMon'un ihtiyaç duyduğu sürücü yüklenemezse — yeni bir Windows 11 makinesinde bellek bütünlüğü ya da zararlı sürücü listesi, veya eksik yönetici yetkisi — **her sayfanın üstündeki bir uyarı** bunu ve nedenini söyler, açılışta da bir bildirim bir kez haber verir. Sıcaklıklar ve ölçümler çalışmaya devam eder; fan ve klavye denetimi çalışmaz.
+
 ### Panel
 
-Dört blok — **İşlemci**, **Ekran kartı**, **Fanlar**, **Sistem** — her birinde öne çıkan bir sıcaklık, bir minik grafik ve altında ölçüm tablosu. Altlarında altı serilik **geçmiş grafiği**: 2 / 5 / 10 dakikalık pencere, üzerine gelince artı imleç ve CSV dışa aktarımı. Onun da altında fan ve performans denetimleri.
+Dört blok — **İşlemci**, **Ekran kartı**, **Fanlar**, **Sistem** — her birinde öne çıkan bir sıcaklık, bir minik grafik ve altında ölçüm tablosu. Altlarında altı serilik **geçmiş grafiği**: 2 / 5 / 10 dakikalık pencere, bir andaki bütün serileri ve saati okuyan artı imleç, her satırında zaman damgası bulunan **CSV dışa aktarımı**. Onun da altında fan ve performans denetimleri.
 
 İşlemci bloğunda her mantıksal çekirdek için iki çubuk var: sağlık bantlarıyla sıcaklık, tek düz renkle frekans — yavaş çalışan bir çekirdek sorunlu bir çekirdek değildir.
 
@@ -507,11 +516,11 @@ Makinenin yayımladığı her şey, gruplanmış ve canlı: anakartın kendi pro
 
 ### Soğutma
 
-**Fan eğrisi düzenleyicisi** — noktaları sürükleyin, histerezisi ayarlayın — ve **fan programı yöneticisi**: yapılandırma dosyasındaki programları çalıştırın, durdurun, kaydedin, silin. Yanında *bu makinenin izin verdikleri*: fan tavanı ve nasıl belirlendiği, ürün yazılımının yazılımla fan denetimini kabul edip etmediği, seviyelerin BIOS'tan mı doğrudan EC'ye mi yazıldığı, emniyet geri sayımı ve ısıl koruma durumu.
+**Fan eğrisi düzenleyicisi** — noktaları sürükleyin, histerezisi ayarlayın — ve **fan programı yöneticisi**: yapılandırma dosyasındaki programları çalıştırın, durdurun, kaydedin, silin. Eğri, fan programının gerçekte izlediği basamaklar olarak çizilir — her seviye kendi sütunundan bir sonrakine kadar geçerlidir — ve üzerindeki bir nokta o anki sıcaklıkta geçerli seviyeyi gösterir. Yanında *bu makinenin izin verdikleri*: fan tavanı ve nasıl belirlendiği, ürün yazılımının yazılımla fan denetimini kabul edip etmediği, seviyelerin BIOS'tan mı doğrudan EC'ye mi yazıldığı, emniyet geri sayımı ve ısıl koruma durumu.
 
 ### Klavye
 
-Klavye sizin makinenizin kendi klavyesi olarak çizilir — sayısal tuş takımıyla ya da onsuz, ISO ya da ANSI gövdede, yazdığınız düzenin tuş yazılarıyla. Renk vermek için üzerinde herhangi bir yere tıklayın. Arka ışık anahtarı, en çok dört renk bölgesi, dört kip ve boştayken kapanma.
+Klavye sizin makinenizin kendi klavyesi olarak çizilir — sayısal tuş takımıyla ya da onsuz, ISO ya da ANSI gövdede, yazdığınız düzenin tuş yazılarıyla. Renk vermek için üzerinde herhangi bir yere tıklayın. Arka ışık anahtarı, en çok dört renk bölgesi, dört kip ve boştayken kapanma. **Kayıtlı renkler** tek tıkla uygulanır; ekrandaki renkler size ait bir adla kaydedilebilir, kayıtlı biri de sağ tık menüsünden silinir.
 
 ### Sistem
 
@@ -527,7 +536,7 @@ Bütün tercihler, iki sütunda. Bkz. [Ayarlar başvurusu](#ayarlar-başvurusu).
 
 ### Hakkında
 
-Sürüm, lisans, katkılar.
+Sürüm, üzerinde çalıştığı makine, Gezgin'de gösterilen yapılandırma dosyası ve günlük, proje sayfası ve lisans.
 
 > Arayüzdeki her denetimin ve her ölçümün, yalnızca ne olduğunu değil neye mal olduğunu ya da ne işe yaradığını da anlatan bir ipucu vardır.
 
@@ -585,7 +594,7 @@ Bölge sayısı, ürün yazılımının kaç bölgeyi adresliyorsa o kadardır �
 
 | Ayar | Notlar |
 |---|---|
-| **Ekran kartı modu** | `Optimus` görüntüyü tümleşik ekran biriminden geçirir; `Ayrık` doğrudan NVIDIA çipine bağlar. Daha fazla performans, daha az pil, yeniden başlatma gerekir. |
+| **Ekran kartı modu** | `Optimus` görüntüyü tümleşik ekran biriminden geçirir; `Ayrık` doğrudan NVIDIA çipine bağlar. Daha fazla performans, daha az pil, yeniden başlatma gerekir — StarMon bunu yapmayı önerir. |
 | **CPU Turbo Boost** | `Kapalı` temel frekansta tutar; `Açık` olağandır; `Agresif` daha sert ve daha uzun yükselir. |
 | **Ekran parlaklığı** | İşlev tuşlarındaki denetimin aynısı. |
 | **Isıl koruma** | Açık/kapalı ve eşik, 80–99 °C. |
@@ -604,6 +613,7 @@ Bölge sayısı, ürün yazılımının kaç bölgeyi adresliyorsa o kadardır �
 
 | Ayar | Notlar |
 |---|---|
+| **Dil** | Otomatik, English ya da Türkçe. Pencere hemen değişir. Otomatik, Windows'un dilini izler. |
 | **Windows ile birlikte başlat** | Oturum açılışında yükseltilmiş bir zamanlanmış görev kaydeder. |
 | **Kayıtlı ayarları açılışta uygula** | Ürün yazılımının bıraktığı duruma razı olmak yerine fan, ekran kartı ve klavye ayarlarını yeniden uygular. |
 | **Kapat düğmesi uygulamadan çıksın** | Kapalıyken kapat düğmesi tepsiye gizler. |
@@ -611,7 +621,7 @@ Bölge sayısı, ürün yazılımının kaç bölgeyi adresliyorsa o kadardır �
 | **İşlemci kısıtlandığında bildir** | Beş dakikada en çok bir bildirim. |
 | **Pilde ekran kartını okumayı sürdür** | NVIDIA çipini okumak onu uyandırır; pildeyken bu, kimsenin bakmadığı değerler için güç harcamaktır. |
 | **Bu klavyenin dört renk bölgesi var** | Varsayılan olarak kapalı ve her klavyede böyle doğru: tüm klavye tek renk alır. Donanım yazılımına sorulamaz — renk tablosu kart ne olursa olsun dört girdiliktir, bu yüzden tek bölgeli bir Victus da dört bölgeli bir Omen gibi dört bildirir. Yalnızca klavyeniz gerçekten dört ayrı bölge hâlinde yanıyorsa açın. |
-| **Yenileme hızı güç kaynağını izlesin** | İki hızla birlikte; elle yazılır ya da ekranın bildirdiğinden alınır. |
+| **Yenileme hızı güç kaynağını izlesin** | İki hızla birlikte; elle yazılır (30–500 Hz) ya da ekranın bildirdiğinden alınır. |
 | **Ekranı kapat** | Genel bir kısayol; kombinasyona basılarak yakalanır. Tek başına bir tuş kabul edilmez. |
 | **Ayrıntılı günlük / dosyaya yaz / BIOS hataları** | Günlük dosyasının baştan başlayacağı boyutla birlikte. |
 | **Ne sıklıkta** | Pencere açıkken, gizliyken ve çalışan bir fan programı için yoklama sıklığı. |
@@ -712,13 +722,13 @@ Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcı
 
 Arayüz, uygulamayı çalıştırarak denetlenemez — yükseltme ister. `-Render <yüzey>` bunun yerine herhangi bir parçasını PNG'ye çizer:
 
-`gallery` `dashboard` `window` `window-en` `window-tr` `window-one` `curve` `keyboard` `keyboard-off` `keyboard-tkl` `log` `system` `sensors` `settings` `picker` `menu` `trayicon`
+`gallery` `dashboard` `window` `window-en` `window-tr` `window-one` `window-large` `notice` `curve` `curve-large` `keyboard` `keyboard-large` `keyboard-off` `keyboard-tkl` `log` `system` `sensors` `sensors-large` `settings` `about` `picker` `menu` `trayicon`
 
 `window-en` ve `window-tr` dillerini sabitler; çünkü düz `window` yüzeyi, kendisini derleyen makine hangi dildeyse onunla render edilir — Türkçe bir makinede İngilizce yerleşimin aylarca denetlenmeden kalması tam da böyle olur.
 
 ### Bilinmesi gereken bir kısıt
 
-Bu projede hiçbir markup, aynı derlemede tanımlı bir tipi adlandıramaz — yerel dönüştürücü örneği, `{x:Type local:…}`, XAML'de özel denetim, hiçbiri. Bunu yapan markup tek geçişte derlenemez; bu proje ise tek geçişte derlenir. Bu yüzden çizilen denetimler code-behind'dan adlandırılmış `ContentControl` yuvalarına yerleştirilir, dönüştürücüler ise uygulama kaynaklarına dize anahtarıyla kaydedilir. Tek istisna `{loc:Str}` markup uzantısıdır.
+Aynı derlemede tanımlı bir tipi adlandıran markup, üretilen bir proje üzerinden iki geçişte derlenir. Bu bir zamanlar burada çalışamıyordu, çünkü üretilen proje SDK'nın serileştiremediği bir `.resx` dosyası için kaynak üretimini yeniden çalıştırıyordu; `.resx` artık yok ve `{loc:Str}` uzantısı her görünümde yerel bir tipi adlandırıyor. Eski düzen yine de korunuyor: çizilen denetimler code-behind'dan adlandırılmış `ContentControl` yuvalarına yerleştirilir, dönüştürücüler ise uygulama kaynaklarına dize anahtarıyla kaydedilir.
 
 ## Proje düzeni
 
