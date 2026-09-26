@@ -1,6 +1,8 @@
 // StarMon: hardware monitoring and control
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
+using System;
+
 namespace StarMon.Ui.ViewModels {
 
     // The hardware controls this machine exposes, and their current state.
@@ -11,6 +13,59 @@ namespace StarMon.Ui.ViewModels {
     // view shows it disabled rather than hiding it, so the panel is the same
     // shape on every machine and the absence is itself an answer.
     public sealed class SettingsViewModel : Observable {
+
+        // Asks every binding on the page to read its value again.
+        //
+        // Most of these properties read the configuration directly, which is
+        // what keeps them honest — but nothing told the page when the
+        // configuration moved under it. "Stay on top", "Start with Windows",
+        // thermal protection and several more can be switched from the tray
+        // menu as well, and the page went on showing what it had last shown
+        // until it was rebuilt. Called when the page is put on show and after
+        // a language change; an empty name is WPF's "everything changed".
+        public void Refresh() {
+            Raise(string.Empty);
+        }
+
+#region Language
+        // The interface language.
+        //
+        // The dictionaries for both languages ship in the executable and the
+        // window redraws itself in place when the language moves — and the
+        // only way to choose was a branch three levels down the tray menu.
+        // The three segments bind to these, for the reason the fan modes do:
+        // a converter on a two-way toggle flickers the row through a state
+        // where nothing is selected.
+        public bool IsLanguageAuto {
+            get { return Library.Config.LanguageChoice == "Auto"; }
+            set { if(value) ChangeLanguage("Auto"); }
+        }
+
+        public bool IsLanguageEnglish {
+            get { return Library.Config.LanguageChoice == "English"; }
+            set { if(value) ChangeLanguage("English"); }
+        }
+
+        public bool IsLanguageTurkish {
+            get { return Library.Config.LanguageChoice == "Turkish"; }
+            set { if(value) ChangeLanguage("Turkish"); }
+        }
+
+        private void ChangeLanguage(string name) {
+
+            if(Library.Config.LanguageChoice == name)
+                return;
+
+            // Saves, and tells every binding in the interface; the page itself
+            // is asked to read everything again as part of that
+            Library.Config.SetLanguage(name);
+
+            Raise("IsLanguageAuto");
+            Raise("IsLanguageEnglish");
+            Raise("IsLanguageTurkish");
+
+        }
+#endregion
 
 #region Graphics mode (MUX)
         private bool IsGpuModeSupportedValue;
@@ -359,11 +414,25 @@ namespace StarMon.Ui.ViewModels {
         // follows the power source. That switch is in this same panel and has
         // been since it was written; the rates it switches between were only
         // in the file, so the toggle depended on values the user could not see.
+        //
+        // Held to a range a laptop panel can actually run at. These are typed
+        // rather than slid, and a rate of nought or of ten thousand was taken
+        // as given and handed to the display on the next power change.
+        public const int RefreshRateMin = 30, RefreshRateMax = 500;
+
+        private static int RefreshRate(double value) {
+            int hz = (int) Math.Round(value);
+            return hz < RefreshRateMin ? RefreshRateMin
+                : hz > RefreshRateMax ? RefreshRateMax : hz;
+        }
+
         public double RefreshRateHigh {
             get { return Library.Config.PresetRefreshRateHigh; }
             set {
-                int hz = (int) value;
-                if(Library.Config.PresetRefreshRateHigh == hz) return;
+                int hz = RefreshRate(value);
+                // Said again even when unchanged, so a value that was held
+                // to the range goes back into the box rather than the typing
+                if(Library.Config.PresetRefreshRateHigh == hz) { Raise("RefreshRateHigh"); return; }
                 Library.Config.PresetRefreshRateHigh = hz;
                 Change("RefreshRateHigh");
             }
@@ -372,8 +441,10 @@ namespace StarMon.Ui.ViewModels {
         public double RefreshRateLow {
             get { return Library.Config.PresetRefreshRateLow; }
             set {
-                int hz = (int) value;
-                if(Library.Config.PresetRefreshRateLow == hz) return;
+                int hz = RefreshRate(value);
+                // Said again even when unchanged, so a value that was held
+                // to the range goes back into the box rather than the typing
+                if(Library.Config.PresetRefreshRateLow == hz) { Raise("RefreshRateLow"); return; }
                 Library.Config.PresetRefreshRateLow = hz;
                 Change("RefreshRateLow");
             }
@@ -487,10 +558,44 @@ namespace StarMon.Ui.ViewModels {
                 if((mods & ModShift) != 0) text += "Shift + ";
                 if((mods & ModWindows) != 0) text += "Win + ";
 
-                return text + System.Windows.Input.KeyInterop
-                    .KeyFromVirtualKey(key).ToString();
+                return text + KeyName(key);
 
             }
+        }
+
+        // A key as it is printed on the keyboard rather than as the framework
+        // names it: WPF calls the digit row D0 to D9 and the punctuation
+        // OemPlus, OemComma and so on, which is what "Ctrl + Alt + D1" on the
+        // button used to say.
+        internal static string KeyName(int virtualKey) {
+
+            System.Windows.Input.Key key =
+                System.Windows.Input.KeyInterop.KeyFromVirtualKey(virtualKey);
+
+            if(key >= System.Windows.Input.Key.D0 && key <= System.Windows.Input.Key.D9)
+                return ((int) (key - System.Windows.Input.Key.D0)).ToString();
+
+            if(key >= System.Windows.Input.Key.NumPad0 && key <= System.Windows.Input.Key.NumPad9)
+                return "Num " + (int) (key - System.Windows.Input.Key.NumPad0);
+
+            switch(key) {
+                case System.Windows.Input.Key.OemPlus: return "+";
+                case System.Windows.Input.Key.OemMinus: return "-";
+                case System.Windows.Input.Key.OemComma: return ",";
+                case System.Windows.Input.Key.OemPeriod: return ".";
+                case System.Windows.Input.Key.Add: return "Num +";
+                case System.Windows.Input.Key.Subtract: return "Num -";
+                case System.Windows.Input.Key.Multiply: return "Num *";
+                case System.Windows.Input.Key.Divide: return "Num /";
+                case System.Windows.Input.Key.Next: return "PgDn";
+                case System.Windows.Input.Key.Prior: return "PgUp";
+                case System.Windows.Input.Key.Snapshot: return "PrtSc";
+                case System.Windows.Input.Key.Back: return "Backspace";
+                case System.Windows.Input.Key.Return: return "Enter";
+                case System.Windows.Input.Key.Capital: return "Caps Lock";
+                default: return key.ToString();
+            }
+
         }
 
         public bool HasHotkey {

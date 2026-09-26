@@ -101,7 +101,8 @@ namespace StarMon.Ui.Views {
             if(button == null || model == null)
                 return;
 
-            string name = button.DataContext as string;
+            PresetViewModel preset = button.DataContext as PresetViewModel;
+            string name = preset != null ? preset.Key : null;
 
             if(string.IsNullOrEmpty(name)
                 || !Library.Config.ColorPreset.ContainsKey(name))
@@ -130,6 +131,19 @@ namespace StarMon.Ui.Views {
                     (byte) (packed & 0xFF));
 
             }
+
+        }
+
+        // Delete, from the preset's own context menu. The menu inherits the
+        // button's data context, which is the preset it was opened on.
+        private void OnPresetDelete(object sender, RoutedEventArgs e) {
+
+            FrameworkElement item = sender as FrameworkElement;
+            KeyboardViewModel model = this.DataContext as KeyboardViewModel;
+            PresetViewModel preset = item != null ? item.DataContext as PresetViewModel : null;
+
+            if(model != null && preset != null)
+                model.RequestDeletePreset(preset.Key);
 
         }
 

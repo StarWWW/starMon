@@ -48,7 +48,13 @@ namespace StarMon.Ui.Design {
                 { "menu",      Menu },
                 { "trayicon",  TrayIcon },
                 { "window-tr", WindowTurkish },
-                { "window-en", WindowEnglish }
+                { "window-en", WindowEnglish },
+                { "window-large", WindowLarge },
+                { "sensors-large", SensorsLarge },
+                { "curve-large", CurveLarge },
+                { "keyboard-large", KeyboardLarge },
+                { "notice", WindowNotice },
+                { "about", AboutSection }
             };
 
         // A section inside the window frame.
@@ -62,8 +68,20 @@ namespace StarMon.Ui.Design {
         private static FrameworkElement Frame(Views.Section section,
             string caption, FrameworkElement content) {
 
+            return Frame(section, caption, content,
+                Windows.MainWindow.DesignWidth, Windows.MainWindow.DesignHeight);
+
+        }
+
+        // The same at another size. The window lays its pages out at whatever
+        // size it has once that is above the design size, so the larger
+        // surfaces below are what a maximised window on an ordinary desktop
+        // actually shows.
+        private static FrameworkElement Frame(Views.Section section,
+            string caption, FrameworkElement content, double width, double height) {
+
             Views.ShellView shell = new Views.ShellView {
-                Width = 1000, Height = 760,
+                Width = width, Height = height,
                 DataContext = DesignData.Summary()
             };
 
@@ -327,6 +345,58 @@ namespace StarMon.Ui.Design {
 
         }
 
+        // Maximised on a 1440x900 work area — the sizes the window used to show
+        // as a 1000x760 island in the middle of empty plane
+        private const double LargeWidth = 1440, LargeHeight = 880;
+
+        private static FrameworkElement WindowLarge() {
+            return Frame(Views.Section.Dashboard, "Panel",
+                new Views.DashboardView { DataContext = DesignData.Dashboard() },
+                LargeWidth, LargeHeight);
+        }
+
+        private static FrameworkElement SensorsLarge() {
+            return Frame(Views.Section.Sensors, "Sensörler",
+                new Views.SensorsView { DataContext = DesignData.Dashboard() },
+                LargeWidth, LargeHeight);
+        }
+
+        private static FrameworkElement CurveLarge() {
+            return Frame(Views.Section.Cooling, "Soğutma",
+                new Views.CoolingView { DataContext = DesignData.Cooling() },
+                LargeWidth, LargeHeight);
+        }
+
+        private static FrameworkElement KeyboardLarge() {
+            return Frame(Views.Section.Keyboard, "Klavye",
+                new Views.KeyboardView { DataContext = DesignData.Keyboard() },
+                LargeWidth, LargeHeight);
+        }
+
+        // The window with the notice the driver's failure puts across every
+        // page, which is the state a new Windows 11 machine most often starts in
+        private static FrameworkElement WindowNotice() {
+
+            Views.ShellView shell = (Views.ShellView) Frame(Views.Section.Dashboard, "Panel",
+                new Views.DashboardView { DataContext = DesignData.Dashboard() });
+
+            ((ViewModels.SummaryViewModel) shell.DataContext).SetNotice(
+                Library.Config.Locale.Get("GuiWpfDriverTitle"),
+                "The driver StarMon uses to reach the Embedded Controller could not be "
+                    + "loaded, and memory integrity is running on this machine — which "
+                    + "enforces Microsoft's vulnerable-driver list, and is the usual reason. "
+                    + "Temperatures, battery and system readings still work. Fan control "
+                    + "and the keyboard backlight do not.");
+
+            return shell;
+
+        }
+
+        private static FrameworkElement AboutSection() {
+            return Frame(Views.Section.About, "Hakkında",
+                new Views.AboutView { DataContext = DesignData.SystemInfo() });
+        }
+
         // The dashboard on its own, at the width it has inside the window
         private static FrameworkElement Dashboard() {
             Views.DashboardView view = new Views.DashboardView {
@@ -395,10 +465,10 @@ namespace StarMon.Ui.Design {
             return Surfaces.Keys;
         }
 
-        // A stand-in for the Mica the live window sits on: a quiet diagonal
+        // A stand-in for the desktop a popup floats over: a quiet diagonal
         // wash in the dark accent, dark enough to read light content against
-        // and textured enough that a translucent card shows it has something
-        // behind it
+        // and textured enough that a translucent surface shows it has
+        // something behind it
         private static Brush DesktopBackdrop() {
 
             LinearGradientBrush brush = new LinearGradientBrush {
@@ -438,10 +508,9 @@ namespace StarMon.Ui.Design {
                 size = element.DesiredSize;
             }
 
-            // The live window sits on the desktop manager's Mica, so its own
-            // background is cleared to let that through. A render has no desktop
-            // behind it, so a stand-in backdrop is put there — otherwise every
-            // surface that is transparent for Mica would render as a black hole.
+            // A render has no desktop behind it, so a stand-in backdrop is put
+            // there — otherwise any surface that is transparent, a flyout or
+            // the margin a shadow falls into, would render as a black hole.
             System.Windows.Controls.Border host = new System.Windows.Controls.Border {
                 Width = size.Width,
                 Height = size.Height,

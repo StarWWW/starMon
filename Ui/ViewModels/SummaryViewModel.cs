@@ -101,9 +101,51 @@ namespace StarMon.Ui.ViewModels {
         public string ProgramBadge {
             get {
                 return this.ProgramNameValue.Length > 0
-                    ? this.ProgramNameValue.ToUpperInvariant()
+                    ? this.ProgramNameValue.ToUpper(Library.Config.InterfaceCulture)
                     : Library.Config.Locale.Get("GuiWpfChipProgram");
             }
+        }
+
+        // After a language change: the badge's fallback word is read from
+        // the locale rather than bound to it
+        public void Relabel() {
+            Raise("ProgramBadge");
+        }
+
+        private string NoticeTitleValue = "";
+        private string NoticeTextValue = "";
+
+        // Something the application has to say about the machine as a whole,
+        // shown across every page until it is dismissed.
+        //
+        // Made for the one thing that most needed saying and had nowhere to be
+        // said: the kernel driver not loading. The application works out why —
+        // memory integrity, the vulnerable-driver list, a missing elevation —
+        // in a sentence written for the user, keeps it, and then showed it to
+        // nobody. Temperatures went on working and the fan controls simply did
+        // nothing, which reads exactly like the application being broken.
+        public string NoticeTitle {
+            get { return this.NoticeTitleValue; }
+            private set { Set(ref this.NoticeTitleValue, value ?? ""); }
+        }
+
+        public string NoticeText {
+            get { return this.NoticeTextValue; }
+            private set { Set(ref this.NoticeTextValue, value ?? ""); }
+        }
+
+        public bool HasNotice {
+            get { return this.NoticeTitleValue.Length > 0 || this.NoticeTextValue.Length > 0; }
+        }
+
+        public void SetNotice(string title, string text) {
+            this.NoticeTitle = title;
+            this.NoticeText = text;
+            Raise("HasNotice");
+        }
+
+        public void DismissNotice() {
+            SetNotice("", "");
         }
 
         // The processor is being held back — by heat, or by its own power

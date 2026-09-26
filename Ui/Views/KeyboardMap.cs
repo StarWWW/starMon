@@ -33,9 +33,7 @@ namespace StarMon.Ui.Views {
     //
     // Drawn rather than assembled from controls for the reason the chart is:
     // a hundred keys redrawn on every colour change is far cheaper as
-    // geometry than as a hundred framework elements, and naming a type from
-    // this assembly in markup forces a compilation pass the project cannot
-    // run.
+    // geometry than as a hundred framework elements.
     public sealed class KeyboardMap : FrameworkElement {
 
         private KeyboardViewModel ModelValue;
@@ -66,6 +64,13 @@ namespace StarMon.Ui.Views {
                 this.ModelValue = value;
                 Attach();
                 this.Selected = 0;
+
+                // The panel is rebuilt with a new model when the zone count
+                // changes, and that is where the comment on Keys promises the
+                // input language is read again; it was never cleared, so the
+                // legends stayed whatever they were at startup
+                this.Keys = null;
+
                 InvalidateVisual();
             }
         }
@@ -426,6 +431,12 @@ namespace StarMon.Ui.Views {
             Rect wasd = zones > 1
                 ? WasdRect(mainLeft, blockTop, unit, keyH, gap) : Rect.Empty;
 
+            // Kept for ColourFor, which decides key by key
+            this.KeyTop = blockTop;
+            this.KeyUnit = unit;
+            this.KeyHeight = keyH;
+            this.KeyGap = gap;
+
             DrawRows(context, this.Keys.Widths, this.Keys.Legends, mainLeft, blockTop, 0,
                 unit, keyH, gap, model, lit, mainLeft, third, wasd, false);
 
@@ -693,8 +704,8 @@ namespace StarMon.Ui.Views {
             if(model.Zones.Count == 1)
                 return model.Zones[0].Colour;
 
-            // WASD island: the W on the letter rows, pulled into its own zone
-            if(!wasd.IsEmpty && wasd.Contains(centreX, centreY))
+            // WASD island: those four keys, pulled into their own zone
+            if(!wasd.IsEmpty && IsWasd(centreX, centreY, mainLeft))
                 return model.Zones[3].Colour;
 
             int band = centreX < mainLeft + third ? 0
@@ -702,14 +713,41 @@ namespace StarMon.Ui.Views {
             return model.Zones[band].Colour;
         }
 
-        // The WASD keys sit a little in from the left edge on the letter rows
-        // (Tab row and the one below it). The island is approximate — it is a
-        // zone label, not a key map — but it lands on the right keys.
+        // The region around the WASD keys, for clicking and for the ring drawn
+        // round the selected zone: from A to D across the two letter rows the
+        // keys sit on, which holds W as well.
         private Rect WasdRect(double mainLeft, double top, double unit,
             double keyH, double gap) {
             double y = top + 2 * (keyH + gap);
-            return new Rect(mainLeft + 0.9 * unit, y,
-                3.6 * unit, 2 * keyH + gap);
+            return new Rect(mainLeft + 1.75 * unit, y,
+                3.0 * unit, 2 * keyH + gap);
+        }
+
+        // Where the keys were laid out on the last render
+        private double KeyTop, KeyUnit, KeyHeight, KeyGap;
+
+        // Whether a key, by its centre, is one of the four WASD keys.
+        //
+        // By their positions on the two letter rows, which are the same on
+        // every body this draws: W is the second letter key after a Tab of one
+        // and a half units, and A, S and D follow a Caps Lock of one and
+        // three quarters. The zone used to be a rectangle drawn round the
+        // area, which took in Q and E as well, and lit five keys of the
+        // diagram in the WASD colour where the keyboard lights four.
+        private bool IsWasd(double centreX, double centreY, double mainLeft) {
+
+            double upper = this.KeyTop + 2 * (this.KeyHeight + this.KeyGap);
+            double home = this.KeyTop + 3 * (this.KeyHeight + this.KeyGap);
+            double x = (centreX - mainLeft) / (this.KeyUnit > 0 ? this.KeyUnit : 1);
+
+            if(centreY >= upper && centreY < upper + this.KeyHeight)
+                return x >= 2.5 && x < 3.5;
+
+            if(centreY >= home && centreY < home + this.KeyHeight)
+                return x >= 1.75 && x < 4.75;
+
+            return false;
+
         }
 
         // The model's name, small and quiet on the deck's lower right, so the

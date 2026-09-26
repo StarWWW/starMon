@@ -28,6 +28,58 @@ namespace StarMon.Test {
             TestStepsDownOnceClear();
             TestLargeDropCrossesSeveralThresholds();
 
+            SelfTest.Group("Fan curve: what the editor draws");
+            TestEditorReadsTheCurveAsTheProgramDoes();
+
+        }
+
+        // The editor draws the curve as steps and marks the level in force at
+        // the current temperature. Both are only honest if they read the curve
+        // the way the running program does — so the two are asked about the
+        // same curve at every temperature on the plot and have to agree.
+        //
+        // The editor used to draw straight lines between the handles, which
+        // promised a level halfway between two columns that the program never
+        // asks for.
+        private static void TestEditorReadsTheCurveAsTheProgramDoes() {
+
+            int[] columns = { 40, 50, 60, 70, 80, 90 };
+            int[] percent = { 30, 45, 60, 75, 90, 100 };
+            const int ceiling = 100;
+
+            FanProgramData program = FanCurve.ToProgram("T", columns, percent, ceiling,
+                Hardware.Bios.BiosData.FanMode.Performance,
+                Hardware.Bios.BiosData.GpuPowerLevel.Minimum);
+
+            List<byte> steps = new List<byte>(program.Level.Keys);
+
+            bool agree = true;
+            string first = null;
+
+            for(int t = 20; t <= 100; t++) {
+
+                byte key = FanProgram.LookUpLevel(steps, (byte) t);
+                int programPercent = FanCurve.ToPercent(program.Level[key][0], ceiling);
+                int editorPercent = Ui.Views.FanCurveEditor.LevelAt(columns, percent, t);
+
+                if(programPercent != editorPercent) {
+                    agree = false;
+                    if(first == null)
+                        first = t + " °C: program " + programPercent + " %, editor " + editorPercent + " %";
+                }
+
+            }
+
+            SelfTest.Check(agree, "the editor holds each level to the next column, as the program does"
+                + (first != null ? " (" + first + ")" : ""));
+
+            SelfTest.Equal(45, Ui.Views.FanCurveEditor.LevelAt(columns, percent, 59),
+                "just below a column the level is still the one before it");
+            SelfTest.Equal(60, Ui.Views.FanCurveEditor.LevelAt(columns, percent, 60),
+                "and at the column it is the column's own");
+            SelfTest.Equal(30, Ui.Views.FanCurveEditor.LevelAt(columns, percent, 25),
+                "below the first column the first level holds");
+
         }
 
         // Fan ceilings to check the mapping against.

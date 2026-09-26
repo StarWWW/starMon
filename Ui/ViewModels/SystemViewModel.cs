@@ -61,7 +61,7 @@ namespace StarMon.Ui.ViewModels {
             this.Facts = new ObservableCollection<DetailRowViewModel>();
             this.BiosSettings = new ObservableCollection<DetailRowViewModel>();
 
-            this.Profile = new DetailGroupViewModel(Text("GuiWpfProfileCaption"));
+            this.Profile = DetailGroupViewModel.Keyed("GuiWpfProfileCaption");
 
             this.CopyReportCommand = new RelayCommand(
                 () => { System.Action handler = this.CopyRequested;

@@ -146,6 +146,12 @@ namespace StarMon.Ui.ViewModels {
             }
         }
 
+        // The count line is composed from the locale, so a language change has
+        // to ask for it again
+        public void Relabel() {
+            Raise("Summary");
+        }
+
         // Records an entry, showing it if it passes the filters
         public void Add(LogEntry entry) {
 
