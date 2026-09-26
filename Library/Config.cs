@@ -123,7 +123,11 @@ namespace StarMon.Library {
 
             string name = (Language ?? "").Trim();
 
-            if(string.Equals(name, "Auto", StringComparison.OrdinalIgnoreCase))
+            // An empty setting is Auto: that is what the tray menu has always
+            // ticked for it, and resolving it to English instead meant the tick
+            // and the language on screen disagreed on a Turkish system
+            if(name.Length == 0
+                || string.Equals(name, "Auto", StringComparison.OrdinalIgnoreCase))
                 name = System.Globalization.CultureInfo.CurrentUICulture
                     .TwoLetterISOLanguageName == "tr" ? "Turkish" : "English";
 
@@ -143,6 +147,74 @@ namespace StarMon.Library {
         // The language names that can be selected in the interface
         public static string[] LanguageNames = new string[] {
             "Auto", "English", "Turkish" };
+
+        // The language the interface is set to, as one of LanguageNames.
+        // An empty setting is Auto, which is what the tray menu has always
+        // ticked for it.
+        public static string LanguageChoice {
+            get {
+                string name = (Language ?? "").Trim();
+                foreach(string known in LanguageNames)
+                    if(string.Equals(known, name, StringComparison.OrdinalIgnoreCase))
+                        return known;
+                return "Auto";
+            }
+        }
+
+        // Switches the interface language, saves it, and tells every binding.
+        //
+        // One place for it: the tray menu had this inline, and the settings
+        // page now offers the same choice.
+        public static void SetLanguage(string name) {
+
+            Language = name;
+            Save();
+
+            // Resolved first, so "Auto" follows the system and "English"
+            // lands on the Override slot the same way it does at startup;
+            // LocaleInit is what raises the change every binding listens for
+            LocaleInit(ResolveLanguage().ToString());
+
+            Logger.Gui("Config", "Language: " + name);
+
+        }
+
+        // The culture to fold the case of the interface's own text in: the
+        // one the text is written in. Upper-casing a program's Turkish name
+        // under the invariant culture turned "Sessiz" into "SESSIZ".
+        public static System.Globalization.CultureInfo InterfaceCulture {
+            get {
+                try {
+                    return ResolveLanguage() == LocaleData.Language.Turkish
+                        ? new System.Globalization.CultureInfo("tr-TR")
+                        : System.Globalization.CultureInfo.InvariantCulture;
+                } catch {
+                    return System.Globalization.CultureInfo.InvariantCulture;
+                }
+            }
+        }
+
+        // What a colour preset is called on screen.
+        //
+        // The two presets this application ships are stored under names a
+        // translation can look up — DefaultRed, DefaultWhite — and were shown
+        // under exactly those names, while the locale carried "Omen Red" for
+        // them that nothing read. A preset the user named is shown as named.
+        public static string PresetCaption(string name) {
+
+            if(string.IsNullOrEmpty(name))
+                return "";
+
+            if(name.StartsWith(ColorPresetDefaultPrefix, StringComparison.Ordinal)) {
+                string key = L_GUI_MENU + "ActKbdColorPreset" + name;
+                string caption = Locale != null ? Locale.Get(key) : key;
+                if(!string.IsNullOrEmpty(caption) && caption != key)
+                    return caption;
+            }
+
+            return name;
+
+        }
 #endregion
 
 #region Configuration Retrieval

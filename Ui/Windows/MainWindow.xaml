@@ -18,9 +18,9 @@
          working — all of which a hand-rolled frame otherwise loses, and none
          of which anybody notices until they are gone.
 
-         AllowsTransparency stays off: turning it on puts the window into a
-         layered mode that disables the DWM backdrop, and the Mica the shell
-         asks for at startup would silently never appear. -->
+         AllowsTransparency stays off: it puts the window into a layered mode
+         that costs every frame a copy through system memory, for a window
+         that paints every pixel of itself anyway. -->
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="40"
                             ResizeBorderThickness="6"
@@ -29,34 +29,35 @@
                             UseAeroCaptionButtons="False"/>
     </shell:WindowChrome.WindowChrome>
 
-    <!-- The interface is drawn at a fixed 1000x760, and scaled to whatever
-         the window actually is.
+    <!-- The interface is laid out for 1000x760 and never smaller: below that
+         it is scaled down as a whole, and above it the pages are given the
+         room.
 
-         Those are device-independent units, so the physical size follows the
-         display scale: at 150 % - an ordinary accessibility setting - the
-         window wanted 1500x1140 physical pixels, and a 1920x1080 desktop has
-         about 1040 of vertical room. A hundred pixels of the interface were
-         off the bottom of the screen with no way to reach them, because the
-         window was also pinned to exactly that size in both directions and
-         set to CanMinimize. The same happened on any 1366x768 panel, which
-         entry-level machines in this family still ship with.
+         It used to be drawn at exactly 1000x760 and scaled down only, so a
+         window made larger — or maximised on a 1440p display — showed the
+         same 1000x760 island in the middle of a sea of empty plane, and the
+         chart, the curve and the log never got a pixel more to work with.
+         Now the shell is sized to the window, in the window's own units,
+         divided by whatever scale is needed to keep it at least the design
+         size in both directions; the Viewbox then shrinks it back by that
+         same scale. The result fills the window exactly, at any size, and a
+         small window still sees the whole interface rather than a clipped
+         corner of it. See FitShell in the code-behind.
 
-         Scaling rather than reflowing is deliberate. Every page here is laid
-         out at a known size, with sized cards and a star-sized content row;
-         putting that in a scroll viewer collapses the star row, and reflowing
-         it properly is a redesign of eight pages. A uniform scale keeps the
-         layout exactly as drawn and makes it fit anywhere.
+         Frame is the element the maximised-window inset is applied to: a
+         maximised WindowChrome window hangs off every edge of the monitor by
+         its resize border, and without it the title bar's buttons and the
+         pages' outer edges are cut off. -->
+    <Border x:Name="Frame" Background="{DynamicResource Plane}">
+        <Grid x:Name="Client">
+            <Viewbox Stretch="Uniform" StretchDirection="DownOnly"
+                     HorizontalAlignment="Center" VerticalAlignment="Center">
 
-         DownOnly, so a large display gets the interface at its intended size
-         rather than a magnified one. The window is resizable now, so anybody
-         who wants it smaller can have it smaller. -->
-    <Viewbox Stretch="Uniform" StretchDirection="DownOnly"
-             HorizontalAlignment="Center" VerticalAlignment="Center">
+                <!-- The shell is put in from the code-behind, and sized there -->
+                <ContentControl x:Name="ShellHost" Width="1000" Height="760"/>
 
-        <!-- The shell is put in from the code-behind: markup here cannot name
-             a type from this assembly. See the note in Ui/Views/Cards.xaml. -->
-        <ContentControl x:Name="ShellHost" Width="1000" Height="760"/>
-
-    </Viewbox>
+            </Viewbox>
+        </Grid>
+    </Border>
 
 </Window>

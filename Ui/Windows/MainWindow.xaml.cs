@@ -4,8 +4,6 @@
 using System;
 using System.Windows;
 using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Shell;
 using StarMon.External;
 using StarMon.Ui.Views;
 
@@ -22,6 +20,12 @@ namespace StarMon.Ui.Windows {
             this.ShellHost.Content = this.Shell;
 
             this.Shell.Minimising += () => this.WindowState = WindowState.Minimized;
+
+            // The maximise button, and the double-click on the caption that
+            // WindowChrome already gives, do the same thing
+            this.Shell.MaximiseToggled += () => this.WindowState =
+                this.WindowState == WindowState.Maximized
+                    ? WindowState.Normal : WindowState.Maximized;
 
             // Closing the window hides it rather than ending the application.
             // This is a tray application: the fan program it is running has to
@@ -43,13 +47,16 @@ namespace StarMon.Ui.Windows {
             // handle.
             this.SourceInitialized += OnSourceInitialized;
 
+            this.Client.SizeChanged += (s, e) => FitShell();
+            this.StateChanged += OnStateChanged;
+
             FitToScreen();
 
         }
 
-        // The size the interface is drawn at, before any scaling
-        private const double DesignWidth = 1000;
-        private const double DesignHeight = 760;
+        // The size the interface is laid out for, and never below
+        internal const double DesignWidth = 1000;
+        internal const double DesignHeight = 760;
 
         // Keeps the window inside the desktop it is opening on.
         //
@@ -107,7 +114,84 @@ namespace StarMon.Ui.Windows {
 
         }
 
+        // Sizes the shell to the room the window has.
+        private void FitShell() {
+
+            Size size = ShellSize(this.Client.ActualWidth, this.Client.ActualHeight);
+
+            if(size.IsEmpty)
+                return;
+
+            this.ShellHost.Width = size.Width;
+            this.ShellHost.Height = size.Height;
+
+        }
+
+        // The size to lay the shell out at, for a client area of the given
+        // size, such that the Viewbox around it — which only ever scales down —
+        // brings it back to exactly the client area.
+        //
+        // The scale is whatever it takes to keep the shell at least the design
+        // size in both directions, and never more than one: a window larger
+        // than the design gets its pages laid out larger, not magnified; a
+        // smaller one gets the whole design, shrunk evenly. Dividing by the
+        // same scale the Viewbox will then apply is what makes the two cancel
+        // and leaves no band of empty plane on either side.
+        internal static Size ShellSize(double width, double height) {
+
+            if(width <= 0 || height <= 0 || double.IsNaN(width) || double.IsNaN(height))
+                return Size.Empty;
+
+            double scale = Math.Min(1.0,
+                Math.Min(width / DesignWidth, height / DesignHeight));
+
+            return new Size(width / scale, height / scale);
+
+        }
+
         public ShellView View { get { return this.Shell; } }
+
+        // What a minimised window comes back as: maximised if that is what it
+        // was when it went down. Showing it from the tray set it to Normal
+        // regardless, so a window the user kept maximised came back small.
+        public WindowState RestoreState { get; private set; } = WindowState.Normal;
+
+        private void OnStateChanged(object sender, EventArgs e) {
+
+            if(this.WindowState != WindowState.Minimized)
+                this.RestoreState = this.WindowState;
+
+            // A maximised WindowChrome window is placed with its resize border
+            // hanging off every edge of the monitor, so everything drawn in
+            // that border is off screen: the caption buttons lose their outer
+            // half and the pages their outermost pixels. Insetting by the same
+            // amount is the standard answer; the frame is the system's own,
+            // plus the padding Windows adds around it.
+            this.Frame.Padding = this.WindowState == WindowState.Maximized
+                ? MaximisedInset() : new Thickness(0);
+
+            this.Shell.IsMaximised = this.WindowState == WindowState.Maximized;
+
+        }
+
+        private Thickness MaximisedInset() {
+
+            Thickness frame = SystemParameters.WindowResizeBorderThickness;
+
+            double padded = 0;
+            try {
+                // In physical pixels, so it is brought into the window's units
+                PresentationSource source = PresentationSource.FromVisual(this);
+                double scale = source != null && source.CompositionTarget != null
+                    ? source.CompositionTarget.TransformFromDevice.M11 : 1.0;
+                padded = User32.GetSystemMetrics(User32.SM_CXPADDEDBORDER) * scale;
+            } catch { }
+
+            return new Thickness(
+                frame.Left + padded, frame.Top + padded,
+                frame.Right + padded, frame.Bottom + padded);
+
+        }
 
         // What the close button does. Hiding is the default, because a tray
         // application that stops running its fan program when its window is
@@ -129,7 +213,15 @@ namespace StarMon.Ui.Windows {
         }
 
         // Applies the window's system-level appearance once it has a handle,
-        // which is the earliest any of these can be set
+        // which is the earliest any of these can be set.
+        //
+        // There used to be a Mica backdrop requested here as well, after which
+        // the window's background was cleared to let it through. The shell
+        // paints its own opaque plane, deliberately — the charts are validated
+        // against a solid surface — so the Mica was never visible inside it;
+        // what the cleared background did show was black, wherever the window
+        // was larger than the shell, because a WPF window with a transparent
+        // background and no glass frame is drawn onto black.
         private void OnSourceInitialized(object sender, EventArgs e) {
 
             IntPtr handle = new WindowInteropHelper(this).Handle;
@@ -138,7 +230,6 @@ namespace StarMon.Ui.Windows {
 
             SetDark(handle);
             SetRounded(handle);
-            SetBackdrop(handle);
 
         }
 
@@ -164,27 +255,6 @@ namespace StarMon.Ui.Windows {
                 int preference = DwmApi.DWMWCP_ROUND;
                 DwmApi.DwmSetWindowAttribute(handle,
                     DwmApi.DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
-            } catch { }
-
-        }
-
-        // Asks the desktop manager for Mica behind the window, and only then
-        // clears the background so it can be seen.
-        //
-        // The order matters and the check is not a formality: on a release
-        // that does not support the attribute the call fails and the window
-        // keeps its solid background, which is exactly right. Clearing the
-        // background first and hoping would leave a black hole on Windows 10.
-        private void SetBackdrop(IntPtr handle) {
-
-            try {
-
-                int backdrop = DwmApi.DWMSBT_MAINWINDOW;
-
-                if(DwmApi.DwmSetWindowAttribute(handle,
-                    DwmApi.DWMWA_SYSTEMBACKDROP_TYPE, ref backdrop, sizeof(int)) == 0)
-                    this.Background = Brushes.Transparent;
-
             } catch { }
 
         }

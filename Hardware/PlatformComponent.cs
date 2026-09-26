@@ -130,6 +130,10 @@ namespace StarMon.Hardware.Platform {
         protected int LastValue;
         protected int PreviousValue;
 
+        // Whether the last reading was a zero that was held off. The next one
+        // decides: another zero is believed, anything else was a glitch.
+        private bool ZeroHeld;
+
         // Checks whether a read or write operation is valid for the component
         protected virtual void AssertHasAccess(PlatformData.AccessType access) {
             if(!this.AccessType.HasFlag(access))
@@ -175,10 +179,23 @@ namespace StarMon.Hardware.Platform {
                 // component reports does not change; the previous value has to
                 // follow it, or GetValueTrend compares an unchanged reading
                 // against a zero and reports a rise that never happened.
-                if(value == 0 && this.PreviousValue != 0) {
+                //
+                // Once, not for ever. This used to test PreviousValue, which
+                // the line below it had just made non-zero again — so after a
+                // single non-zero reading every later zero was refused, and a
+                // register that genuinely went to zero was never seen to. The
+                // failsafe countdown ran out and the window went on showing the
+                // last second it had counted; a fan that stopped went on
+                // reporting the speed it had been turning at; a switch put back
+                // to zero read as still set. A second zero in a row is an
+                // answer, and it is taken.
+                if(value == 0 && this.LastValue != 0 && !this.ZeroHeld) {
+                    this.ZeroHeld = true;
                     this.PreviousValue = this.LastValue;
                     return false;
                 }
+
+                this.ZeroHeld = false;
 
                 // Only update if the reading
                 // is not obviously incorrect

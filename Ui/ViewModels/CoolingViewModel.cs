@@ -53,14 +53,14 @@ namespace StarMon.Ui.ViewModels {
             this.Curve = curve;
             this.Programs = new ObservableCollection<FanProgramViewModel>();
 
-            this.State = new DetailGroupViewModel(Text("GuiWpfCoolingState"))
-                .Add(Text("GuiWpfRowCeiling"), "-", Text("GuiWpfTipCeiling"))
-                .Add(Text("GuiWpfRowCountdown"), "-", Text("GuiTipCountdown"))
-                .Add(Text("GuiWpfRowSoftware"), "-", Text("GuiWpfTipSoftware"))
-                .Add(Text("GuiWpfRowAlwaysOn"), "-", Text("GuiWpfTipAlwaysOn"))
-                .Add(Text("GuiWpfRowFanCount"), "-", Text("GuiWpfTipFanCount"))
-                .Add(Text("GuiWpfRowLevelPath"), "-", Text("GuiWpfTipLevelPath"))
-                .Add(Text("GuiWpfRowGuard"), "-", Text("GuiWpfTipProtection"));
+            this.State = DetailGroupViewModel.Keyed("GuiWpfCoolingState")
+                .AddKeyed("GuiWpfRowCeiling", "-", "GuiWpfTipCeiling")
+                .AddKeyed("GuiWpfRowCountdown", "-", "GuiTipCountdown")
+                .AddKeyed("GuiWpfRowSoftware", "-", "GuiWpfTipSoftware")
+                .AddKeyed("GuiWpfRowAlwaysOn", "-", "GuiWpfTipAlwaysOn")
+                .AddKeyed("GuiWpfRowFanCount", "-", "GuiWpfTipFanCount")
+                .AddKeyed("GuiWpfRowLevelPath", "-", "GuiWpfTipLevelPath")
+                .AddKeyed("GuiWpfRowGuard", "-", "GuiWpfTipProtection");
 
             this.RunCommand = new RelayCommand(
                 () => Raise(this.RunRequested, Named()),
@@ -99,6 +99,7 @@ namespace StarMon.Ui.ViewModels {
 
         // The view model touches no hardware and no configuration file: it
         // says what was asked for and whatever owns it decides how
+        public event Action<FanProgramViewModel> Picked;
         public event Action<string> RunRequested;
         public event Action StopRequested;
         public event Action<string> DeleteRequested;
@@ -107,12 +108,32 @@ namespace StarMon.Ui.ViewModels {
         // Which program the list has selected. Selecting one loads its curve
         // into the editor, so the two halves of the page are looking at the
         // same thing rather than at whatever each was last shown.
+        //
+        // Picked is raised for a choice, not for every change of the property.
+        // Rebuilding the list moves the selection through null and back, and
+        // when that was read as the user choosing, applying a drawn curve
+        // rebuilt the list, reselected whatever had been selected before, and
+        // loaded that program's curve over the one just applied — the editor
+        // snapped back to a different curve from the one now running.
         public FanProgramViewModel Selected {
             get { return this.SelectedValue; }
             set {
-                if(Set(ref this.SelectedValue, value))
-                    Raise("HasSelection");
+                if(!Set(ref this.SelectedValue, value))
+                    return;
+                Raise("HasSelection");
+                if(!this.Reloading && value != null)
+                    RaisePicked(value);
             }
+        }
+
+        // Set while the list is being rebuilt, when a change of selection is
+        // the list's doing rather than the user's
+        private bool Reloading;
+
+        private void RaisePicked(FanProgramViewModel program) {
+            Action<FanProgramViewModel> handler = this.Picked;
+            if(handler != null)
+                handler(program);
         }
 
         public bool HasSelection {
@@ -130,29 +151,56 @@ namespace StarMon.Ui.ViewModels {
             set { Set(ref this.StatusValue, value ?? ""); }
         }
 
-        // Rebuilds the list from the configuration, keeping the selection
-        // where the program it named still exists
-        public void Reload(string running) {
+        // Rebuilds the list from the configuration, selecting the program
+        // named, or else keeping the selection where the program it named
+        // still exists.
+        //
+        // The editor is sent the selected program's curve only when the
+        // selection has moved to a different program: a rebuild that lands on
+        // the one already selected leaves whatever is being drawn alone.
+        public void Reload(string running, string select = null) {
 
-            string wanted = this.SelectedValue != null ? this.SelectedValue.Name : null;
+            string before = this.SelectedValue != null ? this.SelectedValue.Name : null;
+            string wanted = !string.IsNullOrEmpty(select) ? select : before;
 
-            this.Programs.Clear();
+            FanProgramViewModel pick = null;
 
-            if(Config.FanProgram != null)
-                foreach(KeyValuePair<string, FanProgramData> entry in Config.FanProgram)
-                    this.Programs.Add(new FanProgramViewModel(
-                        entry.Key, Describe(entry.Value)) {
-                        IsRunning = entry.Key == running
-                    });
+            this.Reloading = true;
 
-            foreach(FanProgramViewModel program in this.Programs)
-                if(program.Name == wanted) {
-                    this.Selected = program;
-                    return;
-                }
+            try {
 
-            this.Selected = this.Programs.Count > 0 ? this.Programs[0] : null;
+                this.Programs.Clear();
 
+                if(Config.FanProgram != null)
+                    foreach(KeyValuePair<string, FanProgramData> entry in Config.FanProgram)
+                        this.Programs.Add(new FanProgramViewModel(
+                            entry.Key, Describe(entry.Value)) {
+                            IsRunning = entry.Key == running
+                        });
+
+                foreach(FanProgramViewModel program in this.Programs)
+                    if(program.Name == wanted) {
+                        pick = program;
+                        break;
+                    }
+
+                if(pick == null && this.Programs.Count > 0)
+                    pick = this.Programs[0];
+
+                this.Selected = pick;
+
+            } finally {
+                this.Reloading = false;
+            }
+
+            if(pick != null && pick.Name != before)
+                RaisePicked(pick);
+
+        }
+
+        // Renames the machine-state table after a language change
+        public void Relabel() {
+            this.State.Relabel();
         }
 
         // Marks which program is running without rebuilding the list, so the

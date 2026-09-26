@@ -19,10 +19,8 @@ namespace StarMon.Ui.Views {
     // of each other — this one is read at a glance, in peripheral vision,
     // beside the number it belongs to.
     //
-    // Drawn rather than assembled, for the reason every drawn control here is:
-    // markup naming a type from this assembly forces a second markup
-    // compilation pass the build cannot run, so it is placed into a named
-    // ContentControl from code-behind instead.
+    // Drawn rather than assembled, and placed into a named ContentControl
+    // from code-behind the way every drawn control here is.
     public sealed class Sparkline : FrameworkElement {
 
         private double[] ValuesField = new double[0];

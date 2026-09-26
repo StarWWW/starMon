@@ -84,8 +84,6 @@ namespace StarMon.AppGui
         // know how the scheduler is built
         internal int UpdateIconTick {
             get { return this.TickIcon.Count; } set { this.TickIcon.Count = value; } }
-        internal int UpdateMonitorTick {
-            get { return this.TickMonitor.Count; } set { this.TickMonitor.Count = value; } }
         internal int UpdateProgramTick {
             get { return this.TickProgram.Count; } set { this.TickProgram.Count = value; } }
 
@@ -181,6 +179,25 @@ namespace StarMon.AppGui
             // the last step because everything the window can ask for has to
             // exist before it is given somewhere to ask.
             this.Window.Connect(this);
+
+            // Why the fans cannot be driven, if they cannot.
+            //
+            // GuiOp works this out when the driver fails to load — memory
+            // integrity, the vulnerable-driver list, a missing elevation — as
+            // a sentence meant for the user, and held it for "whoever knows
+            // there is a problem" to say. Nobody did, so the application came
+            // up with fan and keyboard controls that silently did nothing.
+            // The window carries it on every page; the balloon says it once,
+            // because the window may not be opened for hours.
+            if (!string.IsNullOrEmpty(this.Op.DriverObstacle))
+            {
+                this.Window.SetNotice(
+                    Config.Locale.Get("GuiWpfDriverTitle"), this.Op.DriverObstacle);
+                Logger.Warning("Driver", "Fan and keyboard control are unavailable",
+                    this.Op.DriverObstacle);
+                ShowBalloonTip(Config.Locale.Get("GuiWpfDriverBalloon"),
+                    Config.AppName, Shell32.NotifyIconInfoFlags.Warning);
+            }
 
             Update();
 
@@ -566,13 +583,27 @@ namespace StarMon.AppGui
 
         void StarMon.Ui.Shell.ITrayHost.SetKbdBacklight(bool on)
         {
-            SetKbdBacklightState(on);
+            lock (this.KbdLock)
+                SetKbdBacklightState(on);
         }
 
         void StarMon.Ui.Shell.ITrayHost.SetKbdColor(int colour)
         {
-            DisableKbdColorByTemp();
-            ApplyKbdColor(colour);
+            lock (this.KbdLock)
+            {
+                DisableKbdColorByTemp();
+                ApplyKbdColor(colour);
+            }
+        }
+
+        bool StarMon.Ui.Shell.ITrayHost.IsKbdBacklightOn
+        {
+            get { lock (this.KbdLock) return GetKbdBacklightState(); }
+        }
+
+        void StarMon.Ui.Shell.ITrayHost.ApplyPreferences()
+        {
+            ApplyPreferences();
         }
 
         void StarMon.Ui.Shell.ITrayHost.SetKbdZoneColors(int[] colours)
@@ -581,19 +612,24 @@ namespace StarMon.AppGui
             if (colours == null || colours.Length == 0)
                 return;
 
-            DisableKbdColorByTemp();
+            lock (this.KbdLock)
+            {
 
-            // The colour table always carries four zones, whatever the
-            // keyboard has: a machine with fewer simply ignores the rest,
-            // and a short array would be rejected outright
-            int[] zones = new int[4];
-            for (int i = 0; i < zones.Length; i++)
-                zones[i] = colours[i < colours.Length ? i : colours.Length - 1];
+                DisableKbdColorByTemp();
 
-            this.KbdLastColors = zones;
+                // The colour table always carries four zones, whatever the
+                // keyboard has: a machine with fewer simply ignores the rest,
+                // and a short array would be rejected outright
+                int[] zones = new int[4];
+                for (int i = 0; i < zones.Length; i++)
+                    zones[i] = colours[i < colours.Length ? i : colours.Length - 1];
 
-            this.Op.Platform.System.SetKbdColor(
-                new BiosData.ColorTable(zones, true));
+                this.KbdLastColors = zones;
+
+                this.Op.Platform.System.SetKbdColor(
+                    new BiosData.ColorTable(zones, true));
+
+            }
 
         }
         #endregion
@@ -623,6 +659,36 @@ namespace StarMon.AppGui
             }
         }
 
+        // Puts the preferences that act on the window into effect, and brings
+        // the settings page up to date with the configuration.
+        //
+        // Marshalled, because the menu is not the only caller that could be
+        // on another thread one day, and a window is the dispatcher's.
+        internal void ApplyPreferences()
+        {
+
+            OnUiThread(delegate
+            {
+                System.Windows.Window window = this.Window.Current;
+                if (window != null)
+                    window.Topmost = Config.GuiStayOnTop;
+
+                this.Window.SettingsModel.Refresh();
+            });
+
+        }
+
+        // Serialises everything that decides what colour the keyboard is.
+        //
+        // The effects, the temperature colour and the idle switch-off advance
+        // on the maintenance thread; the window's controls and the tray menu
+        // change the same state from the interface thread. Unguarded, a colour
+        // cycle switched off from the window put the original colour back and
+        // then, a moment later, had the step that was already running on the
+        // other thread paint over it — so the keyboard stayed on whatever hue
+        // the cycle had reached, with the effect reported as off.
+        private readonly object KbdLock = new object();
+
         // Shows the main window
         public void ShowFormMain()
         {
@@ -632,8 +698,12 @@ namespace StarMon.AppGui
             if (!window.IsVisible)
                 window.Show();
 
+            // Back to what it was before it was minimised, which may well have
+            // been maximised
             if (window.WindowState == System.Windows.WindowState.Minimized)
-                window.WindowState = System.Windows.WindowState.Normal;
+                window.WindowState = this.Window.Current != null
+                    ? this.Window.Current.RestoreState
+                    : System.Windows.WindowState.Normal;
 
             // Briefly topmost, then back. This is what brings the application
             // into focus even when it was started by the task scheduler from a
@@ -797,7 +867,8 @@ namespace StarMon.AppGui
                 // (held still while the idle timer has the backlight off,
                 // matching the behavior of the animated effects)
                 if (!this.KbdIdle.IsEngaged)
-                    UpdateKbdColorByTemp();
+                    lock (this.KbdLock)
+                        UpdateKbdColorByTemp();
             }
 
             // The idle backlight switch-off and the animated color effects
@@ -1125,6 +1196,14 @@ namespace StarMon.AppGui
         internal void SetKbdColorByTemp(bool enable)
         {
 
+            lock (this.KbdLock)
+                SetKbdColorByTempLocked(enable);
+
+        }
+
+        private void SetKbdColorByTempLocked(bool enable)
+        {
+
             if (enable && Config.KbdColorEffect != 0)
                 SetKbdEffect(0);
 
@@ -1143,6 +1222,14 @@ namespace StarMon.AppGui
         // 2 = breathing), taking over from the temperature-reactive mode and
         // restoring the original color when the effects are switched off
         internal void SetKbdEffect(int effect)
+        {
+
+            lock (this.KbdLock)
+                SetKbdEffectLocked(effect);
+
+        }
+
+        private void SetKbdEffectLocked(int effect)
         {
 
             if (effect != 0)
@@ -1174,11 +1261,14 @@ namespace StarMon.AppGui
 
             try
             {
-                UpdateKbdIdle();
+                lock (this.KbdLock)
+                {
+                    UpdateKbdIdle();
 
-                // The effects hold still while the backlight is idled off
-                if (!this.KbdIdle.IsEngaged)
-                    UpdateKbdEffect();
+                    // The effects hold still while the backlight is idled off
+                    if (!this.KbdIdle.IsEngaged)
+                        UpdateKbdEffect();
+                }
             }
             catch (Exception ex)
             {
@@ -1347,6 +1437,14 @@ namespace StarMon.AppGui
         // The colours go with it: a backlight switched back on lights in
         // whatever the controller came up with otherwise.
         internal void ReapplyKbdState(bool includeColour)
+        {
+
+            lock (this.KbdLock)
+                ReapplyKbdStateLocked(includeColour);
+
+        }
+
+        private void ReapplyKbdStateLocked(bool includeColour)
         {
 
             if (this.KbdBacklightOn.HasValue)

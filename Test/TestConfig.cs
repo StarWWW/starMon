@@ -27,6 +27,37 @@ namespace StarMon.Test {
             TestFanLevelRange();
             TestTheLogSizeSliderReachesItsOwnMaximum();
             TestASilentFileDoesNotOverrideAShippedDecision();
+            TestAOneColourPresetLightsEveryZone();
+
+        }
+
+        // A preset that names one colour means that colour everywhere.
+        //
+        // The shipped presets are written that way — "FF0000" is Omen red —
+        // and the three zones they did not name used to come out black, so on
+        // a four-zone deck the red preset lit a third of the keyboard.
+        private static void TestAOneColourPresetLightsEveryZone() {
+
+            Hardware.Bios.BiosData.ColorTable red =
+                new Hardware.Bios.BiosData.ColorTable("FF0000");
+
+            SelfTest.Equal(4, red.Zone.Length, "a preset table has four zones");
+
+            bool allRed = true;
+            foreach(Hardware.Bios.BiosData.RgbColor zone in red.Zone)
+                if((zone.ValueReverse & 0xFFFFFF) != 0xFF0000)
+                    allRed = false;
+
+            SelfTest.Check(allRed,
+                "a single colour fills every zone rather than leaving three black");
+
+            Hardware.Bios.BiosData.ColorTable two =
+                new Hardware.Bios.BiosData.ColorTable("FF0000:00FF00");
+
+            SelfTest.Equal(0x00FF00u, two.Zone[3].ValueReverse & 0xFFFFFF,
+                "a shorter list carries its last colour on to the zones it leaves out");
+            SelfTest.Equal(0xFF0000u, two.Zone[0].ValueReverse & 0xFFFFFF,
+                "and the colours it does name stay where they were put");
 
         }
 

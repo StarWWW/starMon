@@ -40,6 +40,20 @@ namespace StarMon.Ui.Shell {
         void SetKbdColor(int colour);
         void SetKbdZoneColors(int[] colours);
 
+        // Whether the backlight is lit, as this application last set it.
+        //
+        // Not the firmware's answer: on this hardware it reports the state the
+        // wrong way round, which is why the host keeps its own record — and
+        // the menu, which asked the firmware, toggled the light to the state
+        // it was already in.
+        bool IsKbdBacklightOn { get; }
+
+        // Puts a preference changed from the menu into effect in the window
+        // as well: "stay on top" used to change the file and leave the open
+        // window where it was until it was next shown, and the settings page
+        // went on showing the old value
+        void ApplyPreferences();
+
         // Re-registers the global "display off" hotkey from the configuration.
         //
         // The binding lives in the configuration file, but the registration is
@@ -315,10 +329,9 @@ namespace StarMon.Ui.Shell {
 
             MenuModel branch = MenuModel.Branch(() => Text("SubKbd"),
 
-                MenuModel.Item(() => Text("ActKbdBacklight"),
-                    () => this.Host.SetKbdBacklight(
-                        !Safe(() => this.Host.Platform.System.GetKbdBacklight()
-                            == BiosData.Backlight.On))),
+                MenuModel.Toggle(() => Text("ActKbdBacklight"),
+                    () => this.Host.IsKbdBacklightOn,
+                    () => this.Host.SetKbdBacklight(!this.Host.IsKbdBacklightOn)),
 
                 MenuModel.Toggle(() => Text("ActKbdIdleOff") + ": "
                         + (Config.KbdIdleOffMinutes > 0
@@ -364,10 +377,10 @@ namespace StarMon.Ui.Shell {
 
                 string captured = name;
 
-                branch.Add(MenuModel.Item(() => captured, () => {
+                branch.Add(MenuModel.Item(() => Config.PresetCaption(captured), () => {
                     try {
-                        BiosData.ColorTable table = Config.ColorPreset[captured];
-                        this.Host.SetKbdColor((int) table.Zone[0].Value);
+                        this.Host.SetKbdZoneColors(
+                            PresetColours(Config.ColorPreset[captured]));
                     } catch { }
                 }));
 
@@ -387,7 +400,11 @@ namespace StarMon.Ui.Shell {
 
                 MenuModel.Toggle(() => Text("ActSetStayTop"),
                     () => Config.GuiStayOnTop,
-                    () => { Config.GuiStayOnTop = !Config.GuiStayOnTop; Config.Save(); }),
+                    () => {
+                        Config.GuiStayOnTop = !Config.GuiStayOnTop;
+                        Config.Save();
+                        this.Host.ApplyPreferences();
+                    }),
 
                 MenuModel.Separator(),
 
@@ -412,7 +429,11 @@ namespace StarMon.Ui.Shell {
 
                 MenuModel.Toggle(() => Text("ActSetAutoconfig"),
                     () => Config.AutoConfig,
-                    () => { Config.AutoConfig = !Config.AutoConfig; Config.Save(); }),
+                    () => {
+                        Config.AutoConfig = !Config.AutoConfig;
+                        Config.Save();
+                        this.Host.ApplyPreferences();
+                    }),
 
                 MenuModel.Toggle(() => Text("ActSetThermal"),
                     () => Config.ThermalProtectionEnabled,
@@ -420,6 +441,7 @@ namespace StarMon.Ui.Shell {
                         Config.ThermalProtectionEnabled =
                             !Config.ThermalProtectionEnabled;
                         Config.Save();
+                        this.Host.ApplyPreferences();
                     }),
 
                 MenuModel.Toggle(() => Text("ActSetThrottleNotify"),
@@ -427,6 +449,7 @@ namespace StarMon.Ui.Shell {
                     () => {
                         Config.ThrottleNotifyEnabled = !Config.ThrottleNotifyEnabled;
                         Config.Save();
+                        this.Host.ApplyPreferences();
                     }),
 
                 MenuModel.Toggle(() => Text("ActSetRefreshPower"),
@@ -434,6 +457,7 @@ namespace StarMon.Ui.Shell {
                     () => {
                         Config.RefreshRateFollowPower = !Config.RefreshRateFollowPower;
                         Config.Save();
+                        this.Host.ApplyPreferences();
                     }),
 
                 MenuModel.Separator(),
@@ -457,27 +481,32 @@ namespace StarMon.Ui.Shell {
 
                 branch.Add(MenuModel.Toggle(
                     () => Text("ActSetLanguage" + captured),
-                    () => string.Equals(
-                        string.IsNullOrEmpty(Config.Language) ? "Auto" : Config.Language,
-                        captured, StringComparison.OrdinalIgnoreCase),
-                    () => {
-
-                        Config.Language = captured;
-                        Config.Save();
-
-                        // Resolved first, so "Auto" follows the system and
-                        // "English" lands on the Override slot the same way
-                        // it does at startup; LocaleInit is what raises the
-                        // change every {loc:Str} binding listens for
-                        Config.LocaleInit(Config.ResolveLanguage().ToString());
-
-                        Logger.Gui("Config", "Language: " + captured);
-
-                    }));
+                    () => Config.LanguageChoice == captured,
+                    () => Config.SetLanguage(captured)));
 
             }
 
             return branch;
+
+        }
+
+        // A preset's zones as the host takes them: every zone rather than the
+        // first, and packed red-high.
+        //
+        // This read Zone[0].Value, which packs the channels the other way
+        // round from what the host's colour writer expects — so a red preset
+        // lit the keyboard blue and a blue one red — and applied that one
+        // colour to every zone, dropping the rest of a four-zone preset.
+        internal static int[] PresetColours(BiosData.ColorTable table) {
+
+            if(table.Zone == null || table.Zone.Length == 0)
+                return new int[0];
+
+            int[] colours = new int[table.Zone.Length];
+            for(int i = 0; i < colours.Length; i++)
+                colours[i] = (int) (table.Zone[i].ValueReverse & 0xFFFFFF);
+
+            return colours;
 
         }
 

@@ -37,12 +37,11 @@
             <!-- A zone's colour swatch and its value. The swatch opens the
                  picker; the hex field beside it is for pasting a known value. -->
             <DataTemplate x:Key="ZoneSwatch">
-                <Grid Margin="0,0,0,10">
+                <Grid Margin="0,0,16,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="82"/>
+                        <ColumnDefinition Width="70"/>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="128"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*" MaxWidth="150"/>
                     </Grid.ColumnDefinitions>
 
                     <TextBlock Grid.Column="0" Text="{Binding Caption}"
@@ -64,11 +63,15 @@
         </ResourceDictionary>
     </UserControl.Resources>
 
+    <!-- The diagram and the cards share the height between them, rather than
+         the diagram being pinned at 240 and the cards taking what was left: a
+         larger window now gives both more room, and the diagram never shrinks
+         below what makes its legends readable. -->
     <Grid Margin="24,20,24,20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="2*" MinHeight="210"/>
+            <RowDefinition Height="3*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
@@ -85,13 +88,13 @@
                               IsEnabled="{Binding IsSupported}"
                               ToolTip="{loc:Str GuiWpfTipBacklightSwitch}"/>
             </StackPanel>
-            <TextBlock Text="{loc:Str GuiWpfKeyboard}" Style="{StaticResource Caption}"
+            <TextBlock Text="{loc:Str GuiWpfKeyboardCaption}" Style="{StaticResource Caption}"
                        VerticalAlignment="Center"/>
         </DockPanel>
 
-        <!-- The diagram goes into MapHost from the code-behind; markup here
-             cannot name a type from this assembly. See Ui/Views/Cards.xaml. -->
-        <Border Grid.Row="1" Style="{StaticResource InsetSurface}" Height="240">
+        <!-- The diagram goes into MapHost from the code-behind, the way every
+             drawn control here is placed. See Ui/Views/Cards.xaml. -->
+        <Border Grid.Row="1" Style="{StaticResource InsetSurface}">
             <ContentControl x:Name="MapHost" Margin="12" ToolTip="{loc:Str GuiTipKbdPic}"/>
         </Border>
 
@@ -116,19 +119,28 @@
                 <StackPanel Margin="16,14,16,14">
                     <TextBlock Text="{loc:Str GuiWpfColour}" Style="{StaticResource Caption}"
                                Margin="0,0,0,12"/>
+                    <!-- Two to a row: four zones stacked one above another
+                         pushed the saved colours below the fold of a card
+                         that has the width to spare -->
                     <ItemsControl ItemsSource="{Binding Zones}"
-                                  ItemTemplate="{StaticResource ZoneSwatch}"/>
+                                  ItemTemplate="{StaticResource ZoneSwatch}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
 
                     <!-- The presets kept in the configuration file. Loaded into
                          the view model since it was written and shown by
                          nothing, so the only way to reach one was the tray
                          menu. Hidden entirely when the file has none. -->
-                    <StackPanel Margin="0,4,0,0"
-                                Visibility="{Binding HasPresets, Converter={StaticResource ShowWhen}}">
+                    <StackPanel Margin="0,4,0,0">
                         <Border Style="{StaticResource Rule}" Margin="0,0,0,10"/>
                         <TextBlock Text="{loc:Str GuiWpfKbdPresets}" Style="{StaticResource Caption}"
                                    Margin="0,0,0,9"/>
-                        <ItemsControl ItemsSource="{Binding Presets}">
+                        <ItemsControl ItemsSource="{Binding Presets}"
+                                      Visibility="{Binding HasPresets, Converter={StaticResource ShowWhen}}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
                                     <WrapPanel/>
@@ -136,13 +148,56 @@
                             </ItemsControl.ItemsPanel>
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Button Content="{Binding}" Style="{StaticResource GhostButton}"
-                                            Margin="0,0,8,8" Padding="12,5"
+                                    <!-- The caption is the preset's name as it
+                                         should be read; the key it is stored
+                                         under travels with it for the click -->
+                                    <Button Content="{Binding Caption}" Style="{StaticResource GhostButton}"
+                                            MinWidth="0" Margin="0,0,8,8" Padding="12,5"
                                             Click="OnPresetClick"
-                                            ToolTip="{loc:Str GuiWpfTipKbdPreset}"/>
+                                            ToolTip="{loc:Str GuiWpfTipKbdPreset}">
+                                        <Button.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="{loc:Str GuiWpfDelete}"
+                                                          Click="OnPresetDelete"/>
+                                            </ContextMenu>
+                                        </Button.ContextMenu>
+                                    </Button>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
+
+                        <!-- Keeping the colours on show under a name. The
+                             presets could be applied from here and made only
+                             in the configuration file, by hand, in the
+                             firmware's own zone order. -->
+                        <DockPanel Margin="0,2,0,0">
+                            <Button DockPanel.Dock="Right" Content="{loc:Str GuiWpfSave}"
+                                    Style="{StaticResource GhostButton}"
+                                    MinWidth="0" Padding="14,7" Margin="8,0,0,0"
+                                    Command="{Binding SavePresetCommand}"
+                                    ToolTip="{loc:Str GuiWpfTipKbdPresetSave}"/>
+                            <Grid>
+                                <TextBox x:Name="PresetName" Style="{StaticResource Field}"
+                                         Text="{Binding NewPresetName, UpdateSourceTrigger=PropertyChanged}"
+                                         MaxLength="32" ToolTip="{loc:Str GuiWpfTipKbdPresetSave}"/>
+                                <TextBlock Text="{loc:Str GuiWpfKbdPresetName}"
+                                           Margin="11,0,0,0" VerticalAlignment="Center"
+                                           IsHitTestVisible="False">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                                            <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Text, ElementName=PresetName}"
+                                                             Value="">
+                                                    <Setter Property="Visibility" Value="Visible"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </Grid>
+                        </DockPanel>
                     </StackPanel>
 
                 </StackPanel>

@@ -177,12 +177,13 @@ namespace StarMon.Ui.Views {
             // Where the machine currently is. Drawn under the curve so the
             // trace stays the thing in front.
             double now = model.CurrentTemperature;
+            double nowX = double.NaN;
             if(now > 0) {
-                double x = Math.Round(TempToX(Math.Min(Math.Max(now, TempMin), TempMax))) + 0.5;
+                nowX = Math.Round(TempToX(Math.Min(Math.Max(now, TempMin), TempMax))) + 0.5;
                 context.DrawLine(this.MarkerPen,
-                    new Point(x, plot.Top), new Point(x, plot.Bottom));
+                    new Point(nowX, plot.Top), new Point(nowX, plot.Bottom));
                 Draw(context, ((int) Math.Round(now)) + "°", this.InkMuted, 10,
-                    new Point(x + 4, plot.Top - 16));
+                    new Point(nowX + 4, plot.Top - 16));
             }
 
             // The curve, and the wash under it. One series, so the wash is
@@ -191,16 +192,19 @@ namespace StarMon.Ui.Views {
             for(int i = 0; i < columns.Length; i++)
                 points.Add(new Point(TempToX(columns[i]), PercentToY(percents[i])));
 
-            // The trace runs flat out to both edges rather than stopping at
-            // the first and last columns. That is not decoration: it is what
-            // the fan program does. Below the first column it holds the first
-            // level, and above the last it holds the last — so a curve drawn
-            // ending at ninety degrees looks like a cliff back to zero, which
-            // is the opposite of what happens.
-            List<Point> trace = new List<Point>(points.Count + 2);
-            trace.Add(new Point(plot.Left, points[0].Y));
-            trace.AddRange(points);
-            trace.Add(new Point(plot.Right, points[points.Count - 1].Y));
+            // The trace is drawn as steps, because that is what the fan
+            // program does with it: each level holds from its own column up to
+            // the next, and changes there (FanProgram.LookUpLevel takes the
+            // highest step at or below the temperature). It used to be drawn
+            // as straight lines between the handles, which promised a fan
+            // speed rising smoothly through the fifties when the machine holds
+            // the fifty-degree level all the way to sixty and then jumps.
+            //
+            // It runs flat out to both edges rather than stopping at the first
+            // and last columns, for the same reason: below the first column
+            // the program holds the first level, and above the last it holds
+            // the last.
+            List<Point> trace = Steps(points, plot);
 
             StreamGeometry area = new StreamGeometry();
             using(StreamGeometryContext draw = area.Open()) {
@@ -218,6 +222,23 @@ namespace StarMon.Ui.Views {
             }
             line.Freeze();
             context.DrawGeometry(null, this.CurvePen, line);
+
+            // The point the machine is at now, on the curve: the level this
+            // curve would hold at the current temperature. The marker line
+            // says where along the curve the machine is; this says what the
+            // curve asks of the fans there, which is the thing being tuned.
+            if(!double.IsNaN(nowX)) {
+
+                int held = LevelAt(columns, percents, now);
+                Point dot = new Point(nowX, PercentToY(held));
+
+                context.DrawEllipse(this.AccentWash, null, dot, 8, 8);
+                context.DrawEllipse(this.InkPrimary, new Pen(this.Accent, 2), dot, 3.5, 3.5);
+
+                Draw(context, held + "%", this.InkPrimary, 10,
+                    new Point(nowX + 7, dot.Y + 4));
+
+            }
 
             // The handles, each in the colour of the band its column sits in,
             // so the curve says at a glance which part of it is the part that
@@ -245,6 +266,49 @@ namespace StarMon.Ui.Views {
                     new Point(points[i].X - 8, plot.Bottom + 5));
 
             }
+
+        }
+
+        // The curve as the fan program follows it: level i from column i up to
+        // column i + 1, flat to both edges of the plot
+        private static List<Point> Steps(List<Point> handles, Rect plot) {
+
+            List<Point> trace = new List<Point>(handles.Count * 2 + 2);
+
+            trace.Add(new Point(plot.Left, handles[0].Y));
+
+            for(int i = 0; i < handles.Count; i++) {
+
+                // Up or down at the column, then along to the next one
+                if(i > 0)
+                    trace.Add(new Point(handles[i].X, handles[i - 1].Y));
+
+                trace.Add(handles[i]);
+
+            }
+
+            trace.Add(new Point(plot.Right, handles[handles.Count - 1].Y));
+
+            return trace;
+
+        }
+
+        // The percentage the curve holds at a temperature — the step at or
+        // below it, or the first below the first column, the way the fan
+        // program reads it
+        internal static int LevelAt(int[] columns, int[] percents, double temperature) {
+
+            if(columns == null || percents == null || columns.Length == 0
+                || percents.Length == 0)
+                return 0;
+
+            int level = percents[0];
+
+            for(int i = 0; i < columns.Length && i < percents.Length; i++)
+                if(temperature >= columns[i])
+                    level = percents[i];
+
+            return level;
 
         }
 

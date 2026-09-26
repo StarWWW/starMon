@@ -116,9 +116,9 @@
                                VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </DockPanel>
 
-                <!-- The editor is placed into EditorHost from the code-behind:
-                     markup here cannot name a type from this assembly, for the
-                     reason set out at the top of Ui/Views/Cards.xaml -->
+                <!-- The editor is placed into EditorHost from the code-behind,
+                     the way every drawn control here is; see the note at the
+                     top of Ui/Views/Cards.xaml -->
                 <Border Grid.Row="1" Style="{StaticResource InsetSurface}">
                     <ContentControl x:Name="EditorHost" Margin="4"/>
                 </Border>
@@ -196,9 +196,30 @@
                             MinWidth="0" Padding="14,7" Margin="8,0,0,0"
                             Command="{Binding SaveCommand}"
                             ToolTip="{loc:Str GuiWpfTipSave}"/>
-                    <TextBox Style="{StaticResource Field}"
-                             Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}"
-                             MaxLength="32" ToolTip="{loc:Str GuiWpfTipProgramName}"/>
+                    <!-- The hint says what the box is for: an empty field
+                         beside a Save button said nothing about what would
+                         be saved, or under what -->
+                    <Grid>
+                        <TextBox x:Name="ProgramName" Style="{StaticResource Field}"
+                                 Text="{Binding NewName, UpdateSourceTrigger=PropertyChanged}"
+                                 MaxLength="32" ToolTip="{loc:Str GuiWpfTipProgramName}"/>
+                        <TextBlock Text="{loc:Str GuiWpfProgramNameHint}"
+                                   Margin="11,0,0,0" VerticalAlignment="Center"
+                                   IsHitTestVisible="False" TextTrimming="CharacterEllipsis">
+                            <TextBlock.Style>
+                                <Style TargetType="TextBlock" BasedOn="{StaticResource Body}">
+                                    <Setter Property="Foreground" Value="{StaticResource TextMuted}"/>
+                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                    <Style.Triggers>
+                                        <DataTrigger Binding="{Binding Text, ElementName=ProgramName}"
+                                                     Value="">
+                                            <Setter Property="Visibility" Value="Visible"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </TextBlock.Style>
+                        </TextBlock>
+                    </Grid>
                 </DockPanel>
 
             </Grid>

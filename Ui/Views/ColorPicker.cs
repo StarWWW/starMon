@@ -16,10 +16,9 @@ namespace StarMon.Ui.Views {
     // current hue, a hue bar under it, and a row of presets for the colours
     // people actually reach for on a keyboard.
     //
-    // Hand-drawn rather than assembled from controls for the same reason the
-    // keyboard diagram is: naming a type from this assembly in markup forces a
-    // markup-compilation pass the project cannot run, and a picker is mostly
-    // two draggable fields and a hit test anyway.
+    // Hand-drawn rather than assembled from controls: a picker is mostly two
+    // draggable fields and a hit test, which is less as geometry than as a
+    // tree of elements.
     public sealed class ColorPicker : FrameworkElement {
 
         // The saturation-value field, the hue bar under it and the preset row,

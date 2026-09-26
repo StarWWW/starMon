@@ -218,6 +218,7 @@
         <Compile Include="Test\Devices\FakeEcDevice.cs"/>
         <Compile Include="Test\Devices\DeviceCatalogue.cs"/>
         <Compile Include="Test\TestBattery.cs"/>
+        <Compile Include="Test\TestComponent.cs"/>
         <Compile Include="Test\TestConfig.cs"/>
         <Compile Include="Test\TestConv.cs"/>
         <Compile Include="Test\TestDeviceMatrix.cs"/>

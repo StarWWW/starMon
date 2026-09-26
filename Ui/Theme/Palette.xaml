@@ -29,24 +29,14 @@
     <SolidColorBrush x:Key="Card"  Color="{StaticResource CardColor}"/>
     <SolidColorBrush x:Key="Inset" Color="{StaticResource InsetColor}"/>
 
-    <!-- Acrylic. A translucent dark for flyouts — the colour picker, the tray
-         menu — so they let the Mica behind the window show through the way a
-         Windows 11 flyout does. The alpha is high enough that light text on it
-         stays readable over whatever it is floating above. Opaque surfaces are
-         left opaque: the charts are validated against a solid inset, and making
-         that translucent would quietly break the separations that rest on it. -->
-    <SolidColorBrush x:Key="Acrylic"       Color="#E6212429"/>
+    <!-- A nearly opaque dark for flyouts — the colour picker, the tray menu —
+         which float over the desktop or the window and let a trace of it
+         through, the way a Windows 11 flyout does. The alpha is high enough
+         that light text on it stays readable over whatever is underneath.
+         Everything else is opaque: the charts are validated against a solid
+         inset, and making that translucent would quietly break the
+         separations that rest on it. -->
     <SolidColorBrush x:Key="AcrylicStrong" Color="#F21C1F25"/>
-
-    <!-- The window's own light.
-         A flat fill leaves every surface on it looking equally lit from
-         nowhere, which is what makes a dark interface read as switched off
-         rather than as unlit. One very quiet source above and to the left
-         gives the cards a direction to catch their highlight from — and the
-         range is small enough (six values) that it is felt, not seen. -->
-    <!-- Kept as a plain fill: the flat theme carries depth by surface
-         contrast, not by simulated light -->
-    <SolidColorBrush x:Key="PlaneLit" Color="{StaticResource PlaneColor}"/>
 
     <!-- Hairlines. The strong one is for a card edge, the quiet one for
          gridlines and dividers that should be felt rather than seen. Kept
@@ -55,18 +45,9 @@
     <SolidColorBrush x:Key="CardBorder" Color="#FF2B2F38"/>
     <SolidColorBrush x:Key="Divider"    Color="#FF2F333C"/>
 
-    <!-- A one-pixel light line along the top edge of a raised surface. This is
-         what makes a flat rectangle read as lifted off the plane. In WPF it is
-         a gradient stopped immediately, so one Border can carry both the fill
-         and the highlight without a second element. -->
-    <SolidColorBrush x:Key="Highlight" Color="#12FFFFFF"/>
-
-    <!-- The card fill carries the light: a brighter line along the very top
-         that falls off within a few pixels, so the surface reads as lifted and
-         catching light from above rather than as a flat slab. -->
-    <!-- Flat now: the card is one colour, and the depth comes from the card
-         sitting lighter than the plane. Kept as a key because the surface
-         style asks for it by name. -->
+    <!-- The card's fill: one colour, with the depth coming from the card
+         sitting lighter than the plane. Its own key because the surface style
+         asks for it by name. -->
     <SolidColorBrush x:Key="CardFill" Color="{StaticResource CardColor}"/>
 
     <!-- Ink, in three weights -->
@@ -83,16 +64,14 @@
     <SolidColorBrush x:Key="AccentDim"   Color="#808B5CF6"/>
     <SolidColorBrush x:Key="AccentFaint" Color="#308B5CF6"/>
 
-    <!-- The deeper end of the accent, for the brand mark's gradient only -->
-    <Color x:Key="Accent2Color">#FF5B3BD6</Color>
-    <SolidColorBrush x:Key="Accent2" Color="{StaticResource Accent2Color}"/>
-    <SolidColorBrush x:Key="Accent2Faint" Color="#305B3BD6"/>
-
-    <!-- The brand stroke: the accent falling to its deeper step, for the mark
-         in the title bar and anywhere the application signs its own name -->
-    <LinearGradientBrush x:Key="BrandStroke" StartPoint="0,0" EndPoint="1,1">
-        <GradientStop Offset="0.0" Color="{StaticResource AccentColor}"/>
-        <GradientStop Offset="1.0" Color="{StaticResource Accent2Color}"/>
+    <!-- The mark. The notification icon has always been a diamond in the
+         violet-to-teal of the dynamic icon's cool backdrop, and the window
+         signed itself with a violet square — two identities for one
+         application, one of them seen far more often than the other. The
+         window now draws the same diamond in the same two colours. -->
+    <LinearGradientBrush x:Key="BrandMark" StartPoint="0.5,0" EndPoint="0.5,1">
+        <GradientStop Offset="0.0" Color="#FF8804FF"/>
+        <GradientStop Offset="1.0" Color="#FF03EF9B"/>
     </LinearGradientBrush>
 
     <!-- Status. Reserved: these four say good / warning / serious / critical

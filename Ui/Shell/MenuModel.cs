@@ -134,9 +134,18 @@ namespace StarMon.Ui.Shell {
 
                     // Filled when the branch opens, not now: a sub-menu nobody
                     // looks at should not cost a hardware read to build
+                    //
+                    // Only for this branch's own opening. SubmenuOpened
+                    // bubbles, so opening a branch inside this one — the
+                    // language list inside the settings — arrived here too,
+                    // and rebuilt this branch around it: the item the user had
+                    // just opened was cleared away from under the pointer.
                     MenuModel captured = model;
-                    item.SubmenuOpened += delegate {
-                        Fill(item, captured.Children);
+                    MenuItem owner = item;
+                    item.SubmenuOpened += (sender, e) => {
+                        if(!ReferenceEquals(e.OriginalSource, owner))
+                            return;
+                        Fill(owner, captured.Children);
                     };
 
                     // A placeholder, so the branch shows an arrow before it

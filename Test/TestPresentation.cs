@@ -40,6 +40,10 @@ namespace StarMon.Test {
             TestSensorLabels();
             TestThrottleDescriptions();
             TestTheGraphicsCardIsNamedWhoeverMadeIt();
+            TestTheThrottleBadgeNeedsAThrottle();
+            TestBatteryFlowKeepsItsDirection();
+            TestKeysAreNamedAsPrinted();
+            TestShippedPresetsAreNamedForReading();
 
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
@@ -47,11 +51,104 @@ namespace StarMon.Test {
 
             SelfTest.Group("Presentation: fitting the screen");
             TestWindowFitsTheDisplaysThatBrokeIt();
+            TestTheShellFillsTheWindow();
 
             SelfTest.Group("Presentation: following the machine");
             TestTheSelectorSeedsItselfBeforeAnyClick();
             TestAnAnswerFetchedBeforeTheClickNeverWins();
             TestRelaunchingBringsTheWindowUp();
+
+        }
+
+        // The badge on the summary strip is lit by the flags, not the words.
+        //
+        // The description of "nothing is holding the processor back" is a word
+        // of its own, and the badge used to be lit by any description at all:
+        // it said THROTTLING on every page of every machine, all the time.
+        private static void TestTheThrottleBadgeNeedsAThrottle() {
+
+            SelfTest.Check(!AppService.Poller.IsHeldBack(
+                    Hardware.Cpu.CpuTemperature.ThrottleFlags.None),
+                "a processor with no throttle flags is not throttling");
+            SelfTest.Check(AppService.Poller.Describe(
+                    Hardware.Cpu.CpuTemperature.ThrottleFlags.None).Length > 0,
+                "even though its description is not empty");
+            SelfTest.Check(AppService.Poller.IsHeldBack(
+                    Hardware.Cpu.CpuTemperature.ThrottleFlags.Thermal),
+                "a thermal throttle lights the badge");
+            SelfTest.Check(AppService.Poller.IsHeldBack(
+                    Hardware.Cpu.CpuTemperature.ThrottleFlags.PowerLimit),
+                "and so does a power limit");
+
+        }
+
+        // The battery row says which way the energy is going. It used to read
+        // "-" for the whole of the time the machine was on battery, because a
+        // negative rate was treated as no rate at all.
+        private static void TestBatteryFlowKeepsItsDirection() {
+
+            AppService.Reading reading = new AppService.Reading {
+                BatteryPresent = true, BatteryWatts = -12.34
+            };
+
+            SelfTest.Equal("−12.3 W", Ui.Windows.WindowController.BatteryFlow(reading),
+                "a battery draining shows its rate, signed");
+
+            reading.BatteryWatts = 45;
+            SelfTest.Equal("+45.0 W", Ui.Windows.WindowController.BatteryFlow(reading),
+                "one charging shows it the other way");
+
+            reading.BatteryWatts = double.NaN;
+            SelfTest.Equal("", Ui.Windows.WindowController.BatteryFlow(reading),
+                "and a rate nobody reported shows nothing");
+
+        }
+
+        // The hotkey button names keys the way they are printed
+        private static void TestKeysAreNamedAsPrinted() {
+
+            SelfTest.Equal("1", Ui.ViewModels.SettingsViewModel.KeyName(0x31),
+                "the digit row is its digits, not D1");
+            SelfTest.Equal("Num 5", Ui.ViewModels.SettingsViewModel.KeyName(0x65),
+                "the numeric pad says so");
+            SelfTest.Equal("F8", Ui.ViewModels.SettingsViewModel.KeyName(0x77),
+                "and a function key keeps its own name");
+
+        }
+
+        // The two presets this application ships are read out under the names
+        // the locale gives them, and a preset somebody named keeps its name
+        private static void TestShippedPresetsAreNamedForReading() {
+
+            SelfTest.Check(Config.PresetCaption("DefaultRed") != "DefaultRed",
+                "a shipped preset is shown under its translated name");
+            SelfTest.Equal("Gece", Config.PresetCaption("Gece"),
+                "one the user named is shown as named");
+
+        }
+
+        // The shell is laid out at the window's size once that is above the
+        // design, and at the design size scaled down below it — so a maximised
+        // window has no bands of empty plane and a small one still shows all
+        private static void TestTheShellFillsTheWindow() {
+
+            Size large = Ui.Windows.MainWindow.ShellSize(1600, 900);
+            SelfTest.Equal(1600.0, large.Width, "a large window is laid out at its own width");
+            SelfTest.Equal(900.0, large.Height, "and its own height");
+
+            Size small = Ui.Windows.MainWindow.ShellSize(800, 608);
+            SelfTest.Equal(1000.0, Math.Round(small.Width, 6),
+                "a small window is laid out at the design width and scaled");
+            SelfTest.Equal(760.0, Math.Round(small.Height, 6),
+                "and the design height");
+
+            Size wide = Ui.Windows.MainWindow.ShellSize(1900, 700);
+            SelfTest.Check(wide.Height >= 760 && wide.Width / wide.Height > 1900.0 / 700 - 1e-9
+                    && wide.Width / wide.Height < 1900.0 / 700 + 1e-9,
+                "a wide, short window keeps the design height and fills its width");
+
+            SelfTest.Check(Ui.Windows.MainWindow.ShellSize(0, 500).IsEmpty,
+                "a window with no room yields no size");
 
         }
 

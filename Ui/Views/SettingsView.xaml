@@ -251,6 +251,35 @@
                 <!--#region Right column: the application -->
                 <StackPanel Grid.Column="2">
 
+                    <!-- Language. Both dictionaries ship in the executable and
+                         the window follows a change in place; the choice used
+                         to be reachable only from the tray menu. -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+                            <DockPanel>
+                                <Border Style="{StaticResource SegmentGroup}" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="14,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="{loc:Str GuiMenuActSetLanguageAuto}"
+                                                      Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsLanguageAuto}"
+                                                      ToolTip="{loc:Str GuiWpfTipLanguageAuto}"/>
+                                        <ToggleButton Content="{loc:Str GuiMenuActSetLanguageEnglish}"
+                                                      Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsLanguageEnglish}"/>
+                                        <ToggleButton Content="{loc:Str GuiMenuActSetLanguageTurkish}"
+                                                      Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsLanguageTurkish}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{loc:Str GuiWpfLanguage}" Style="{StaticResource Caption}"
+                                           VerticalAlignment="Center"/>
+                            </DockPanel>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,8,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfLanguageHint}"/>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Behaviour -->
                     <Border Style="{StaticResource ControlCard}">
                         <StackPanel>

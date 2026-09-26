@@ -132,7 +132,6 @@ namespace StarMon.Ui.Windows {
             model.Cpu.Caption = Name("GuiWpfCpu");
             model.Gpu.Caption = Name("GuiWpfGpu");
             model.FanCpu.Caption = Name("GuiWpfFans");
-            model.FanGpu.Caption = Name("GuiWpfFans");
             model.Battery.Caption = Name("GuiWpfBattery");
 
             RelabelSummary();
@@ -145,7 +144,26 @@ namespace StarMon.Ui.Windows {
             // they are rebuilt in the new language on the next reading
             model.Details.Clear();
 
+            // Everything else that was handed a string rather than bound to
+            // one. The dashboard's four blocks and the cooling page's table
+            // used to stay in the language they were built in until the next
+            // start, under headings that had already changed.
+            model.Relabel();
+
+            if(this.CoolingModel != null) {
+                this.CoolingModel.Relabel();
+                this.CoolingModel.Reload(RunningProgram());
+            }
+
+            this.SystemModel.Profile.Relabel();
+            this.SummaryModel.Relabel();
+            this.LogModel.Relabel();
+            this.SettingsModel.Refresh();
+
             if(this.KeyboardModel != null) {
+
+                this.KeyboardModel.Relabel();
+                FillPresets();
 
                 System.Collections.ObjectModel.ObservableCollection<ZoneViewModel> zones =
                     this.KeyboardModel.Zones;
@@ -230,9 +248,9 @@ namespace StarMon.Ui.Windows {
             this.CoolingModel.StopRequested += StopProgram;
             this.CoolingModel.SaveRequested += SaveProgram;
             this.CoolingModel.DeleteRequested += DeleteProgram;
-            this.CoolingModel.PropertyChanged += OnCoolingChanged;
+            this.CoolingModel.Picked += OnProgramPicked;
 
-            this.CoolingModel.Reload("");
+            this.CoolingModel.Reload(RunningProgram());
 
             this.SystemModel.PropertyChanged += OnSystemChanged;
 
@@ -390,15 +408,13 @@ namespace StarMon.Ui.Windows {
             try {
                 Version v = Environment.OSVersion.Version;
                 string edition = v.Build >= 22000 ? "Windows 11" : "Windows 10";
-                // ToLowerInvariant, not ToLower. This lowercases a localised
-                // string under the operating system's culture, and on a
-                // Turkish one an uppercase I becomes the dotless i - so a
-                // translation containing one would render wrongly on exactly
-                // the machines that translation is for. It was the last
-                // culture-sensitive case fold left in the codebase; the
-                // command-line parser was given the same treatment years of
-                // debugging ago, and the note in App.cs explains why.
-                return edition + " · " + Config.Locale.Get("GuiWpfBuilt").ToLowerInvariant()
+                // The word is written in the case it is shown in, rather than
+                // folded here. Folding a translation is wrong in some culture
+                // whichever rule is used: the operating system's makes an
+                // English I dotless on a Turkish machine, and the invariant one
+                // turns a Turkish İ into an i with a combining dot. A string
+                // that is already lower case needs neither.
+                return edition + " · " + Config.Locale.Get("GuiWpfBuilt")
                     + " " + v.Build;
             } catch {
                 return "Windows";
@@ -635,16 +651,15 @@ namespace StarMon.Ui.Windows {
             this.KeyboardModel.HasNumPad = hasNumPad;
             this.KeyboardModel.IsIsoBody = isIsoBody;
             this.KeyboardModel.PropertyChanged += OnKeyboardChanged;
+            this.KeyboardModel.SavePresetRequested += SavePreset;
+            this.KeyboardModel.DeletePresetRequested += DeletePreset;
 
             RefreshKeyboardSupport();
 
             // The saved colour presets, which the list has been constructed
             // empty and never filled since it was written — so the presets in
             // the configuration file were reachable only from the tray menu
-            this.KeyboardModel.Presets.Clear();
-            if(Config.ColorPreset != null)
-                foreach(string preset in Config.ColorPreset.Keys)
-                    this.KeyboardModel.Presets.Add(preset);
+            FillPresets();
 
             foreach(ZoneViewModel zone in this.KeyboardModel.Zones)
                 zone.PropertyChanged += OnZoneChanged;
@@ -668,6 +683,88 @@ namespace StarMon.Ui.Windows {
 
             if(this.Keyboard != null)
                 this.Keyboard.DataContext = this.KeyboardModel;
+
+        }
+
+        // Fills the preset buttons from the configuration, each under the name
+        // it should be shown by
+        private void FillPresets() {
+
+            KeyboardViewModel model = this.KeyboardModel;
+            if(model == null)
+                return;
+
+            model.Presets.Clear();
+
+            if(Config.ColorPreset != null)
+                foreach(string preset in Config.ColorPreset.Keys)
+                    model.Presets.Add(new PresetViewModel(preset, Config.PresetCaption(preset)));
+
+        }
+
+        // Saves the colours the zones have now as a preset.
+        //
+        // In the firmware's zone order, which is the order the configuration
+        // file stores and the tray menu and the command line apply: the panel
+        // lists its zones the way the keyboard looks, so they are put back the
+        // other way round on the way in — the same swap ApplyColours makes.
+        private void SavePreset(string name) {
+
+            KeyboardViewModel model = this.KeyboardModel;
+            if(model == null || !model.HasColour || string.IsNullOrEmpty(name))
+                return;
+
+            try {
+
+                int[] zones = new int[4];
+
+                for(int slot = 0; slot < zones.Length; slot++)
+                    zones[slot] = Packed(model.Zones[0]);
+
+                if(!model.IsSingleZone)
+                    for(int i = 0; i < model.Zones.Count && i < zones.Length; i++)
+                        zones[model.Zones.Count == 4 ? HardwareZone(i) : i] =
+                            Packed(model.Zones[i]);
+
+                Config.ColorPreset[name] = new Hardware.Bios.BiosData.ColorTable(zones, true);
+                Config.Save();
+
+                FillPresets();
+                model.NewPresetName = "";
+                model.Status = string.Format(Name("GuiWpfKbdPresetSaved"), name);
+
+                Logger.Gui("Window", "Saved the colour preset " + name);
+
+            } catch(Exception e) {
+                model.Status = string.Format(Name("GuiWpfCouldNotApply"), e.Message);
+                Logger.Error("Window", "Saving the colour preset failed", e.Message);
+            }
+
+        }
+
+        private void DeletePreset(string key) {
+
+            KeyboardViewModel model = this.KeyboardModel;
+
+            if(model == null || Config.ColorPreset == null
+                || !Config.ColorPreset.ContainsKey(key))
+                return;
+
+            try {
+
+                Config.ColorPreset.Remove(key);
+                Config.Save();
+
+                FillPresets();
+                model.Status = string.Format(Name("GuiWpfKbdPresetDeleted"),
+                    Config.PresetCaption(key));
+
+                Logger.Gui("Window", "Deleted the colour preset " + key);
+
+            } catch(Exception e) {
+                model.Status = string.Format(Name("GuiWpfCouldNotApply"), e.Message);
+                Logger.Error("Window", "Deleting the colour preset failed", e.Message);
+            }
 
         }
 
@@ -917,6 +1014,20 @@ namespace StarMon.Ui.Windows {
 
         }
 
+        // Puts a notice across the top of every page — for something about the
+        // machine as a whole that explains what the pages show. Marshalled,
+        // since whoever discovers such a thing may be on any thread.
+        public void SetNotice(string title, string text) {
+
+            if(!this.Dispatcher.CheckAccess()) {
+                this.Dispatcher.BeginInvoke((Action) delegate { SetNotice(title, text); });
+                return;
+            }
+
+            this.SummaryModel.SetNotice(title, text);
+
+        }
+
         // Brings a section to the front, as the tray menu does when it sends
         // the user somewhere specific
         public void Select(Section section) {
@@ -953,6 +1064,10 @@ namespace StarMon.Ui.Windows {
                     break;
 
                 case Section.Settings:
+                    // Read afresh: several of these are also switched from the
+                    // tray menu, and the page used to go on showing what it
+                    // showed the last time it was built
+                    this.SettingsModel.Refresh();
                     this.Window.View.SetSection(section, Name("GuiWpfSettings"), this.Settings);
                     break;
 
@@ -1127,16 +1242,29 @@ namespace StarMon.Ui.Windows {
             if(this.Host == null)
                 return;
 
+            bool applied = false;
+
             Guard(delegate {
                 this.Host.Platform.System.SetGpuMode(
                     this.SettingsModel.IsDiscrete
                         ? Hardware.Bios.BiosData.GpuMode.Discrete
                         : Hardware.Bios.BiosData.GpuMode.Optimus);
+                applied = true;
             }, "Setting the graphics mode");
+
+            if(!applied)
+                return;
 
             // The switch only takes effect on the next boot, so the panel says
             // so rather than looking as though nothing happened
             this.SettingsModel.GpuModeNote = Config.Locale.Get("GuiWpfRestartNeeded");
+
+            // And offers the restart. The prompt has been in both locale files
+            // and behind a helper since the Windows Forms build, and nothing
+            // asked it: the one setting here that needs a reboot left the user
+            // to go and find one. Declining leaves the note above in place.
+            if(Dialogs.Confirm(Config.Locale.Get(Config.L_GUI + "PromptReboot")))
+                Guard(() => Os.RestartSystem(), "Restarting for the graphics mode");
 
         }
 
@@ -1355,8 +1483,11 @@ namespace StarMon.Ui.Windows {
 
                 // The list has just gained or replaced an entry, so it is
                 // rebuilt: without this, applying a curve for the first time
-                // left the programs panel claiming there were none
-                this.CoolingModel.Reload(CurveProgramName);
+                // left the programs panel claiming there were none. The curve
+                // just applied is what gets selected — reselecting whatever
+                // was selected before loaded that program's curve over the one
+                // now running.
+                this.CoolingModel.Reload(CurveProgramName, CurveProgramName);
 
                 this.Host.Platform.ClearFanModeSticky();
                 this.Host.Program.Run(CurveProgramName);
@@ -1446,6 +1577,18 @@ namespace StarMon.Ui.Windows {
 
         }
 
+        // The program actually running, or nothing. Not the dashboard's own
+        // record: that keeps the name of the last program after it has
+        // stopped, so the list marked a stopped program as the running one.
+        private string RunningProgram() {
+            try {
+                return this.Host != null && this.Host.Program.IsEnabled
+                    ? this.Host.Program.GetName() ?? "" : "";
+            } catch {
+                return "";
+            }
+        }
+
         // Which program to run, given what the user last had in front of them.
         //
         // In order: the one already named — the Cooling section's selection,
@@ -1533,7 +1676,9 @@ namespace StarMon.Ui.Windows {
                 Config.FanProgram[name] = BuildProgram(name);
                 Config.Save();
 
-                this.CoolingModel.Reload(this.DashboardModel.ProgramName);
+                // The program just saved becomes the selection, so the list
+                // and the editor go on agreeing about what is being looked at
+                this.CoolingModel.Reload(RunningProgram(), name);
                 this.CoolingModel.NewName = "";
                 this.CoolingModel.Status = string.Format(Name("GuiWpfProgramSaved"), name);
 
@@ -1567,7 +1712,7 @@ namespace StarMon.Ui.Windows {
                 Config.FanProgram.Remove(name);
                 Config.Save();
 
-                this.CoolingModel.Reload(this.DashboardModel.ProgramName);
+                this.CoolingModel.Reload(RunningProgram());
                 this.CoolingModel.Status = string.Format(Name("GuiWpfProgramDeleted"), name);
 
                 Logger.Gui("Window", "Deleted the fan program " + name);
@@ -1584,14 +1729,9 @@ namespace StarMon.Ui.Windows {
 
         // Selecting a program in the list loads its curve into the editor, so
         // the two halves of the page are looking at the same thing
-        private void OnCoolingChanged(object sender,
-            System.ComponentModel.PropertyChangedEventArgs e) {
+        private void OnProgramPicked(FanProgramViewModel selected) {
 
-            if(e.PropertyName != "Selected" || this.IsApplyingReading)
-                return;
-
-            FanProgramViewModel selected = this.CoolingModel.Selected;
-            if(selected == null || Config.FanProgram == null)
+            if(this.IsApplyingReading || selected == null || Config.FanProgram == null)
                 return;
 
             Hardware.Platform.FanProgramData program;
@@ -1804,9 +1944,14 @@ namespace StarMon.Ui.Windows {
                 // gap rather than a value, which the buffer already knows. The
                 // fans go in as a percentage of the ceiling, to match the cards
                 // and share the load's scale.
+                //
+                // The graphics trace takes the same temperature the card and
+                // the strip show — the card's own sensor where it answers —
+                // rather than the board register: the sparkline beside the GPU
+                // figure is drawn from this series, and the two disagreed.
                 model.History.Push(
                     reading.CpuTemperature,
-                    reading.GpuTemperature,
+                    gpuTemp,
                     FanPercentValue(reading.FanLevelCpu, reading.FanLevelMaximum),
                     FanPercentValue(reading.FanLevelGpu, reading.FanLevelMaximum),
                     reading.CpuLoadPercent > 0 ? reading.CpuLoadPercent : 0,
@@ -1933,9 +2078,11 @@ namespace StarMon.Ui.Windows {
             strip.IsProgramRunning = reading.IsProgramRunning;
             strip.ProgramName = reading.ProgramName ?? "";
 
-            string throttle = reading.Throttle ?? "";
-            strip.IsThrottling = throttle.Length > 0;
-            strip.ThrottleText = throttle;
+            // The flag, not the text: the text is "None" when nothing is
+            // holding the processor back, and a badge lit by any non-empty
+            // string was lit all the time
+            strip.IsThrottling = reading.IsThrottling;
+            strip.ThrottleText = reading.Throttle ?? "";
 
             strip.Push(reading.CpuTemperature, gpuTemperature);
 
@@ -2284,11 +2431,8 @@ namespace StarMon.Ui.Windows {
             Set(model, 5, 3, reading.BatteryMinutesLeft > 0
                 ? (reading.BatteryMinutesLeft / 60) + "h "
                     + (reading.BatteryMinutesLeft % 60) + "m" : "-");
-            Set(model, 5, 4, !double.IsNaN(reading.BatteryWatts)
-                && System.Math.Abs(reading.BatteryWatts) > 0.05
-                ? System.Math.Abs(reading.BatteryWatts).ToString("F1",
-                    System.Globalization.CultureInfo.InvariantCulture) + " W"
-                : "-");
+            // Signed, as the dashboard shows it, so the direction survives
+            Set(model, 5, 4, BatteryFlow(reading));
             Set(model, 5, 5, !reading.BatteryPresent ? "-"
                 : reading.BatteryCharging ? Name("GuiWpfBatCharging")
                 : reading.BatteryOnAc ? Name("GuiWpfBatAc") : Name("GuiWpfBatDc"));
@@ -2675,13 +2819,33 @@ namespace StarMon.Ui.Windows {
 
             Set(model.PowerBlock, 0, reading.BatteryPercent >= 0
                 ? reading.BatteryPercent + " %" : "");
-            Set(model.PowerBlock, 1, Describe(reading.BatteryWatts, " W", 1));
+            Set(model.PowerBlock, 1, BatteryFlow(reading));
             Set(model.PowerBlock, 2, reading.BatteryHealthPercent >= 0
                 ? reading.BatteryHealthPercent + " %" : "");
             Set(model.PowerBlock, 3, PowerLine(reading));
             Set(model.PowerBlock, 4, Memory(reading));
             Set(model.PowerBlock, 5, Storage(reading));
             Set(model.PowerBlock, 6, Network(reading));
+
+        }
+
+        // Which way the energy is going, and how fast.
+        //
+        // The rate is signed — positive charging, negative discharging — and
+        // this row used to go through Describe(), which answers with nothing
+        // for anything below zero. So it read "-" for the whole of the time
+        // the machine was on battery, which is the only time anyone looks at
+        // how fast the battery is draining.
+        internal static string BatteryFlow(Reading reading) {
+
+            double watts = reading.BatteryWatts;
+
+            if(!reading.BatteryPresent || double.IsNaN(watts) || Math.Abs(watts) < 0.05)
+                return "";
+
+            return (watts > 0 ? "+" : "−")
+                + Math.Abs(watts).ToString("F1",
+                    System.Globalization.CultureInfo.InvariantCulture) + " W";
 
         }
 
@@ -2861,19 +3025,6 @@ namespace StarMon.Ui.Windows {
             return reading.GpuNvidiaPowerLimitW > 0
                 ? reading.GpuNvidiaPowerW + " / " + reading.GpuNvidiaPowerLimitW + " W"
                 : reading.GpuNvidiaPowerW + " W";
-
-        }
-
-        // Core and memory clock. The memory clock has been read from NVAPI all
-        // along and dropped before it reached the interface.
-        private static string GpuClocks(Reading reading) {
-
-            if(reading.GpuNvidiaCoreMhz <= 0)
-                return "";
-
-            return reading.GpuNvidiaMemMhz > 0
-                ? reading.GpuNvidiaCoreMhz + " · " + reading.GpuNvidiaMemMhz + " MHz"
-                : reading.GpuNvidiaCoreMhz + " MHz";
 
         }
 

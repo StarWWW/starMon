@@ -38,10 +38,9 @@
 
 <!--#region Surfaces -->
 
-    <!-- A raised surface: fill, hairline edge, and a light line along the top
-         inside edge suggesting the surface catches the light from above. The
-         highlight is the top gradient stop of CardFill rather than a separate
-         element, so a card is a single Border. -->
+    <!-- A raised surface: a fill a step lighter than the plane and a hairline
+         edge. The depth is the difference between the two surfaces, so a card
+         is a single Border. -->
     <Style x:Key="CardSurface" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource CardFill}"/>
         <Setter Property="BorderBrush" Value="{StaticResource CardBorder}"/>
@@ -856,19 +855,43 @@
 
 <!--#region Tooltip -->
 
+    <!-- Tooltips wrap. Most of the application's explanations live in them —
+         what a reading is, why a control is greyed out, what the firmware
+         said — and several run to a paragraph. Unwrapped, a string tip is one
+         line as wide as the screen will allow, which is unreadable and on a
+         narrow display runs off the edge. The width is a reading measure,
+         not the widest the text could be.
+
+         A shadow and a margin for it to fall into, because a tip drawn flat
+         on a dark card of nearly the same colour does not read as floating
+         above it. -->
     <Style x:Key="Tip" TargetType="ToolTip">
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
         <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
         <Setter Property="FontSize" Value="{StaticResource SizeLabel}"/>
+        <Setter Property="HasDropShadow" Value="False"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToolTip">
-                    <Border Background="#FF1F1F26"
-                            BorderBrush="{StaticResource CardBorder}"
+                    <Border Background="#FF1F2128"
+                            BorderBrush="#FF363A45"
                             BorderThickness="1"
                             CornerRadius="{StaticResource RadiusInset}"
-                            Padding="10,6">
-                        <ContentPresenter/>
+                            Padding="11,7,11,8"
+                            Margin="4,2,10,12"
+                            MaxWidth="380">
+                        <Border.Effect>
+                            <DropShadowEffect BlurRadius="16" ShadowDepth="3"
+                                              Direction="270" Opacity="0.5" Color="Black"/>
+                        </Border.Effect>
+                        <ContentPresenter>
+                            <ContentPresenter.Resources>
+                                <Style TargetType="TextBlock">
+                                    <Setter Property="TextWrapping" Value="Wrap"/>
+                                    <Setter Property="LineHeight" Value="17"/>
+                                </Style>
+                            </ContentPresenter.Resources>
+                        </ContentPresenter>
                     </Border>
                 </ControlTemplate>
             </Setter.Value>
