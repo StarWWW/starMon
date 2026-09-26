@@ -103,11 +103,6 @@ namespace StarMon.AppGui {
 
         }
 
-        // Shows the about dialog
-        public static void About(string title = "", string text = "") {
-            StarMon.Ui.Shell.Dialogs.Error(text);
-        }
-
         // Automatically applies the configuration on startup
         // Note: runs on a background thread, where any unhandled exception
         // would take down the whole process, so every step is guarded

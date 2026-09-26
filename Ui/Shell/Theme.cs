@@ -39,10 +39,8 @@ namespace StarMon.Ui.Shell {
                 new ResourceDictionary { Source = new Uri(Theme.Uri) });
 
             // The binding converters are registered here rather than declared
-            // in markup, because markup that names a type from this same
-            // assembly forces a second markup-compilation pass, and that pass
-            // builds a throwaway project which trips over StarMon.resx. The
-            // reasoning is written out in full at the top of Ui/Views/Cards.xaml.
+            // in markup. That was once forced by the build and no longer is;
+            // the history is at the top of Ui/Views/Cards.xaml.
             //
             // This has to happen before any view is constructed: a
             // StaticResource is resolved as its dictionary is parsed, and the

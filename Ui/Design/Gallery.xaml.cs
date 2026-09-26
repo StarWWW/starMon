@@ -15,11 +15,9 @@ namespace StarMon.Ui.Design {
 
             InitializeComponent();
 
-            // The drawn controls are placed here rather than in the markup:
-            // naming a type from this assembly in XAML forces a second markup
-            // compilation pass the build cannot run. Every view in the
-            // application does the same, so the gallery shows the components
-            // the way they are actually used.
+            // The drawn controls are placed here rather than in the markup.
+            // Every view in the application does the same, so the gallery
+            // shows the components the way they are actually used.
             this.SparkLead.Content = Spark(Rising(48), "Serious", true);
             this.SparkRowA.Content = Spark(Noisy(40, 6), "Series6", false);
             this.SparkRowB.Content = Spark(Rising(40), "Series2", false);
