@@ -29,6 +29,76 @@ namespace StarMon.Test {
             TestNarrowingKeepsTheNewest();
             TestResizedBufferKeepsRecording();
             TestRowWithoutATipHasNoTooltip();
+            TestExportCarriesTheTime();
+            TestTimesFollowAResize();
+            TestSummaryIgnoresTheUnfilledRing();
+
+        }
+
+        // Each row says when it was taken. The samples are not evenly spaced
+        // — the cadence slows while the window is hidden — so a row number
+        // alone could not say when anything in an exported file happened.
+        private static void TestExportCarriesTheTime() {
+
+            DateTime at = new DateTime(2026, 9, 26, 14, 30, 5);
+            HistoryBuffer buffer = Build(8);
+            buffer.Clock = () => at;
+
+            buffer.Push(50, 10);
+            at = at.AddSeconds(3);
+            buffer.Push(60, 20);
+
+            string[] lines = Lines(buffer.BuildCsv());
+
+            SelfTest.Equal("Sample,Time,CPU (°),Fan (%)", lines[0],
+                "the export names a time column after the sample number");
+            SelfTest.Equal("1,2026-09-26T14:30:05,50,10", lines[1],
+                "each row carries the moment it was recorded");
+            SelfTest.Equal("2,2026-09-26T14:30:08,60,20", lines[2],
+                "and the next one its own");
+
+        }
+
+        // A window resized under the samples keeps each one's time with it,
+        // or an export after the resize would put the right values against
+        // the wrong moments
+        private static void TestTimesFollowAResize() {
+
+            DateTime at = new DateTime(2026, 1, 1, 0, 0, 0);
+            HistoryBuffer buffer = Build(HistoryBuffer.MinimumCapacity);
+            buffer.Clock = () => at;
+
+            for(int i = 1; i <= 10; i++) {
+                buffer.Push(i * 10, i);
+                at = at.AddSeconds(1);
+            }
+
+            buffer.SetCapacity(32);
+
+            string[] lines = Lines(buffer.BuildCsv());
+
+            SelfTest.Equal("1,2026-01-01T00:00:02,30,3", lines[1],
+                "the oldest kept sample keeps its own time across a resize");
+            SelfTest.Equal("8,2026-01-01T00:00:09,100,10", lines[8],
+                "and so does the newest");
+
+        }
+
+        // The hover summary reads the samples held, not the whole ring. A ring
+        // that has not filled is zeros past its end, and counting those put the
+        // minimum at nought for the first ten minutes of every session.
+        private static void TestSummaryIgnoresTheUnfilledRing() {
+
+            HistoryBuffer buffer = Build(32);
+            buffer.Push(50, 40);
+            buffer.Push(70, 60);
+
+            string summary = buffer.BuildSummary();
+
+            SelfTest.Check(summary.Contains("CPU: 70°   (min 50  avg 60  max 70)"),
+                "the summary's minimum and mean come from the samples actually held");
+            SelfTest.Check(!summary.Contains("min 0"),
+                "the unfilled part of the ring is not read as readings of zero");
 
         }
 
@@ -71,7 +141,7 @@ namespace StarMon.Test {
 
             buffer.SetCapacity(32);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal(6, lines.Length,
                 "widening the window keeps every sample it already had");
@@ -95,7 +165,7 @@ namespace StarMon.Test {
 
             buffer.SetCapacity(HistoryBuffer.MinimumCapacity);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal(HistoryBuffer.MinimumCapacity + 1, lines.Length,
                 "narrowing keeps exactly as many samples as the window holds");
@@ -118,7 +188,7 @@ namespace StarMon.Test {
             buffer.SetCapacity(16);
             buffer.Push(40, 4);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal(5, lines.Length,
                 "a sample recorded after a resize is added, not overwritten");
@@ -132,7 +202,7 @@ namespace StarMon.Test {
             for(int i = 5; i <= 20; i++)
                 buffer.Push(i * 10, i);
 
-            SelfTest.Equal(17, Lines(buffer.BuildCsv()).Length,
+            SelfTest.Equal(17, Lines(buffer.BuildCsv(false)).Length,
                 "and it wraps at the new capacity once it is full");
 
         }
@@ -158,7 +228,7 @@ namespace StarMon.Test {
             buffer.Push(60, 20);
             buffer.Push(70, 30);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal(4, lines.Length,
                 "the export has a header plus one row per sample");
@@ -183,7 +253,7 @@ namespace StarMon.Test {
             buffer.Push(50, 0);   // The fan value is a gap
             buffer.Push(60, 20);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal("1,50,", lines[1],
                 "a missing reading is exported as an empty cell, not a zero");
@@ -209,7 +279,7 @@ namespace StarMon.Test {
             for(int i = 1; i <= 10; i++)
                 buffer.Push(i * 10, i);
 
-            string[] lines = Lines(buffer.BuildCsv());
+            string[] lines = Lines(buffer.BuildCsv(false));
 
             SelfTest.Equal(capacity + 1, lines.Length,
                 "a wrapped buffer exports exactly its capacity");

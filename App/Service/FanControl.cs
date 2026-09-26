@@ -183,14 +183,6 @@ namespace StarMon.AppService {
 
         }
 
-        // Asks the firmware for a graphics power level, if this machine has
-        // one to ask for.
-        //
-        // The level is a request, not a setting: what the firmware does with
-        // it depends on the chassis, the power source and its own thermal
-        // headroom. Several models — this Victus among them — report no
-        // support at all, and on those the call is skipped rather than made
-        // and silently ignored, so the interface can say so.
         // Hands the fans back to the firmware, in the order that leaves no
         // override outliving the mode it was applied under.
         //
@@ -214,6 +206,13 @@ namespace StarMon.AppService {
 
         }
 
+        // Asks the firmware for a graphics power level.
+        //
+        // The level is a request, not a setting: what the firmware does with
+        // it depends on the chassis, the power source and its own thermal
+        // headroom. It is made whether or not the machine will report the
+        // level back — see below — and the answer is only whether the request
+        // could be made at all.
         public static bool ApplyGpuPower(Platform platform, GpuPower level) {
 
             try {

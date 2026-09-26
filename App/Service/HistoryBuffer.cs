@@ -77,6 +77,17 @@ namespace StarMon.AppService {
         private int Head;
         private int Filled;
 
+        // When each sample was taken, in the same ring as the values.
+        //
+        // The export had a sample number and nothing else, so a file taken
+        // away to be looked at later could not say when the spike in it
+        // happened — and the samples are not evenly spaced either: the
+        // cadence changes when the window is hidden. The clock is a parameter
+        // so the export can be tested against a time that does not move.
+        private DateTime[] Stamps = new DateTime[120];
+
+        public Func<DateTime> Clock = () => DateTime.Now;
+
         public HistoryBuffer() {
             this.Capacity = 120;
         }
@@ -92,6 +103,7 @@ namespace StarMon.AppService {
         public void Begin(int capacity) {
             this.Capacity = Math.Max(MinimumCapacity, capacity);
             this.SeriesList.Clear();
+            this.Stamps = new DateTime[this.Capacity];
             this.Head = 0;
             this.Filled = 0;
         }
@@ -132,6 +144,8 @@ namespace StarMon.AppService {
                 }
 
             }
+
+            this.Stamps[this.Head] = this.Clock != null ? this.Clock() : DateTime.Now;
 
             this.Head = (this.Head + 1) % this.Capacity;
 
@@ -179,6 +193,11 @@ namespace StarMon.AppService {
 
             }
 
+            DateTime[] stamps = new DateTime[target];
+            for(int i = 0; i < keep; i++)
+                stamps[i] = this.Stamps[(this.Head - keep + i + this.Capacity) % this.Capacity];
+            this.Stamps = stamps;
+
             this.Capacity = target;
             this.Filled = keep;
 
@@ -202,6 +221,17 @@ namespace StarMon.AppService {
 
         }
 
+        // When a sample was taken, counted oldest first as Samples() yields
+        // them, or DateTime.MinValue where there is no such sample
+        public DateTime TimeAt(int sample) {
+
+            if(sample < 0 || sample >= this.Filled)
+                return DateTime.MinValue;
+
+            return this.Stamps[(this.Head - this.Filled + sample + this.Capacity) % this.Capacity];
+
+        }
+
         // Per-series current value with its minimum, mean and maximum over
         // the window
         public string BuildSummary() {
@@ -216,7 +246,11 @@ namespace StarMon.AppService {
                 double min = double.MaxValue, max = double.MinValue, sum = 0;
                 int count = 0;
 
-                foreach(double value in series.Data) {
+                // The samples held, not the whole ring. A ring that has not
+                // filled yet is zeros past its end, and walking those counted
+                // every one of them: for the first ten minutes the minimum was
+                // nought and the average was dragged down towards it.
+                foreach(double value in Samples(series)) {
                     if(double.IsNaN(value))
                         continue;
                     if(value < min) min = value;
@@ -248,12 +282,17 @@ namespace StarMon.AppService {
         // Gaps are written as empty cells rather than zeroes, so a sensor that
         // was unavailable is not mistaken for one reading zero — which is the
         // whole reason the buffer distinguishes them.
-        public string BuildCsv() {
+        //
+        // With the time of each sample, ISO 8601 to the second, unless asked
+        // not to: a spreadsheet reads it as a time, and it sorts as one.
+        public string BuildCsv(bool withTime = true) {
 
             CultureInfo invariant = CultureInfo.InvariantCulture;
             StringBuilder text = new StringBuilder(4096);
 
             text.Append("Sample");
+            if(withTime)
+                text.Append(",Time");
             foreach(HistorySeries series in this.SeriesList)
                 text.Append(',').Append(Quote(series.Unit.Length > 0
                     ? series.Label + " (" + series.Unit.Trim() + ")" : series.Label));
@@ -264,6 +303,10 @@ namespace StarMon.AppService {
                 int index = (this.Head - this.Filled + i + this.Capacity) % this.Capacity;
 
                 text.Append((i + 1).ToString(invariant));
+
+                if(withTime)
+                    text.Append(',').Append(this.Stamps[index]
+                        .ToString("yyyy-MM-dd'T'HH:mm:ss", invariant));
 
                 foreach(HistorySeries series in this.SeriesList) {
                     text.Append(',');

@@ -319,6 +319,17 @@ namespace StarMon.Hardware.Bios
 
                 }
 
+                // Fewer colours than zones means the last one carries on.
+                //
+                // The shipped presets are one colour each — "FF0000" for Omen
+                // red — and the zones they did not name were left black. On a
+                // four-zone deck the red preset lit the right-hand third of
+                // the keyboard and switched the rest off; the configuration
+                // writer then saved it back as red and three blacks, so the
+                // loss was written down as though somebody had chosen it.
+                for (int rest = i; rest > 0 && rest < Zone.Length; rest++)
+                    Zone[rest] = Zone[i - 1];
+
             }
 
         }
