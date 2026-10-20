@@ -113,6 +113,14 @@ namespace StarMon.External {
             FileAttributes dwFlagsAndAttributes,
             IntPtr hTemplateFile);
 
+        // UnmanagedType.AsAny is obsolete on .NET (CS0618) but still works on
+        // Windows, and it marshals the shapes Driver.DeviceIOControl passes -
+        // a boxed value or a struct in, a boxed value or an array out, copied
+        // back into the box - exactly as .NET Framework did; the two were
+        // compared against RtlMoveMemory when the project moved to .NET 10.
+        // Replacing it means reworking every driver call around pinned
+        // buffers, which is not a change to make without the driver to try it
+        // on, so the warning is left showing rather than silenced.
         [DllImport(DllName, CallingConvention = CallingConvention.Winapi)]
         [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         public static extern bool DeviceIoControl (
