@@ -1,48 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- StarMon: hardware monitoring and control
      Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0) -->
-<Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<Project Sdk="Microsoft.NET.Sdk">
     <PropertyGroup>
         <!-- <AllowUnsafeBlocks>true</AllowUnsafeBlocks> -->
         <ApplicationIcon>Resources\Icon.ico</ApplicationIcon>
         <ApplicationManifest>StarMon.manifest</ApplicationManifest>
-        <!-- This has to be the AppConfig property, not a None item and not an
-             AppConfig item: the common targets build AppConfigWithTargetPath
-             from the property, and that is what puts the file in Bin as
-             StarMon.exe.config. It was a None item, so it was never deployed
-             and nothing it declared had any effect on the running program. -->
-        <AppConfig>StarMon.exe.config</AppConfig>
         <AssemblyName>StarMon</AssemblyName>
         <AssemblyVersionFile>All\Version.cs</AssemblyVersionFile>
-        <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
-        <Configuration Condition=" '$(Configuration)' == '' ">Release</Configuration>
         <Deterministic>true</Deterministic>
+        <!-- With UseWPF the SDK quietly turns an Exe into a WinExe. build.ps1
+             builds the test host as a console Exe, so that it can print its
+             results and return an exit code to the shell that started it, and
+             that has to survive. -->
         <DisableWinExeOutputInference>true</DisableWinExeOutputInference>
         <ErrorReport>prompt</ErrorReport>
-        <!-- Markup that names a type declared in this same assembly — the
-             localisation extension, a binding converter — cannot be compiled
-             in one pass: the compiler needs the assembly to resolve the type
-             and the assembly needs the compiled markup. So it builds a
-             throwaway assembly first, from a generated project, and that
-             project tries to inherit the parent's NuGet restore output. There
-             is none: this project has plain references and no PackageReference
-             at all. Telling it not to look is the fix; there is nothing to
-             find. -->
-        <IncludePackageReferencesDuringMarkupCompilation>false</IncludePackageReferencesDuringMarkupCompilation>
-        <IntermediateOutputPath>Obj</IntermediateOutputPath>
-        <LangVersion>11.0</LangVersion>
-        <OutputPath>Bin</OutputPath>
         <OutputType>WinExe</OutputType>
-        <Platform Condition=" '$(Platform)' == '' ">x64</Platform>
+        <Platforms>x64</Platforms>
         <PlatformTarget>x64</PlatformTarget>
         <!-- Has to match the identifier StarMon.sln uses for this project. The
              two disagreed, so the solution and the project were, as far as any
              tool reading both was concerned, describing different things. -->
         <ProjectGuid>{0FF1C1A1-DEC1-BE15-10AD-15C1A551F1ED}</ProjectGuid>
         <RootNamespace>StarMon</RootNamespace>
+        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
         <StartupObject>StarMon.App</StartupObject>
-        <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+        <TargetFramework>net10.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
         <WarningLevel>4</WarningLevel>
+    </PropertyGroup>
+    <PropertyGroup>
+        <!-- Where things go. The shipped program is the one file the publish
+             step writes to Bin; the build output it is made from - the
+             assembly, the host, the dependency and runtime manifests, the
+             management libraries - is a means to that and stays under Obj,
+             where it cannot be mistaken for something to hand out.
+
+             The SDK would otherwise append the framework and the runtime
+             identifier to all three paths, and Bin\StarMon.exe is where the
+             README, the CI upload and every user's shortcut expect it. -->
+        <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+        <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+        <IntermediateOutputPath>Obj\</IntermediateOutputPath>
+        <OutputPath>Obj\Out\</OutputPath>
+        <PublishDir>Bin\</PublishDir>
+        <!-- One executable, as before: it needs the .NET 10 Desktop Runtime
+             (x64) to be installed rather than carrying a copy of it. The
+             management libraries the BIOS interface runs on include a native
+             one, which a single file can only hold if it is allowed to unpack
+             it at start-up; the rest are loaded straight from the bundle. -->
+        <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+        <PublishSingleFile>true</PublishSingleFile>
+        <SelfContained>false</SelfContained>
+    </PropertyGroup>
+    <PropertyGroup>
+        <!-- All\Meta.cs and All\Version.cs carry the assembly's identity, as
+             they did before the project was SDK-style, and the AddVersion
+             target below stamps the version. The SDK would generate a second
+             copy of each of those attributes, which does not compile; the ones
+             it generates that nothing here declares - the target framework and
+             the supported platform - are still wanted, so only the duplicates
+             are switched off rather than the whole of GenerateAssemblyInfo. -->
+        <GenerateAssemblyCompanyAttribute>false</GenerateAssemblyCompanyAttribute>
+        <GenerateAssemblyConfigurationAttribute>false</GenerateAssemblyConfigurationAttribute>
+        <GenerateAssemblyCopyrightAttribute>false</GenerateAssemblyCopyrightAttribute>
+        <GenerateAssemblyDescriptionAttribute>false</GenerateAssemblyDescriptionAttribute>
+        <GenerateAssemblyFileVersionAttribute>false</GenerateAssemblyFileVersionAttribute>
+        <GenerateAssemblyInformationalVersionAttribute>false</GenerateAssemblyInformationalVersionAttribute>
+        <GenerateAssemblyProductAttribute>false</GenerateAssemblyProductAttribute>
+        <GenerateAssemblyTitleAttribute>false</GenerateAssemblyTitleAttribute>
+        <GenerateAssemblyVersionAttribute>false</GenerateAssemblyVersionAttribute>
+        <GenerateNeutralResourcesLanguageAttribute>false</GenerateNeutralResourcesLanguageAttribute>
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)' == 'Debug' ">
         <DebugSymbols>true</DebugSymbols>
@@ -52,227 +80,29 @@
     </PropertyGroup>
     <PropertyGroup Condition=" '$(Configuration)' == 'Release' ">
         <DebugSymbols>false</DebugSymbols>
+        <DebugType>none</DebugType>
         <Optimize>true</Optimize>
     </PropertyGroup>
-    <Import Project="$(MSBuildBinPath)\Microsoft.CSharp.targets"/>
-    <!-- The XAML markup compiler. It is not part of the C# targets, and the
-         SDK does not import it for a non-SDK-style project, so it is imported
-         by hand; build.ps1 supplies the two paths. See the note there. -->
-    <Import Project="$(WinFXTargets)" Condition="'$(WinFXTargets)' != ''"/>
+    <PropertyGroup>
+        <!-- The SDK picks up every .cs and .xaml under the project directory.
+             That is the same set the old project listed by hand, but only once
+             the directories that hold no sources are kept out of it: the
+             build and publish output, and the knowledge graph the editor
+             tooling writes beside the sources. Resources holds binaries that
+             are embedded by name below and nothing the globs should touch. -->
+        <DefaultItemExcludes>$(DefaultItemExcludes);Bin\**;Obj\**;graphify-out\**;Resources\**</DefaultItemExcludes>
+    </PropertyGroup>
     <ItemGroup>
-        <!-- Packages.config used to be listed here and has never existed on
-             disk - this project has no package references at all. -->
-        <None Include="StarMon.manifest"/>
-    </ItemGroup>
-    <ItemGroup>
-        <Compile Include="$(AssemblyVersionFile)"/>
-        <Compile Include="All\Meta.cs"/>
-        <Compile Include="App\App.cs"/>
-        <Compile Include="App\Cli\Cli.cs"/>
-        <Compile Include="App\Cli\CliBios.cs"/>
-        <Compile Include="App\Cli\CliEc.cs"/>
-        <Compile Include="App\Cli\CliProg.cs"/>
-        <Compile Include="App\Cli\CliTask.cs"/>
-        <Compile Include="App\Cli\CliOp.cs"/>
-        <Compile Include="App\Cli\CliOpBios.cs"/>
-        <Compile Include="App\Cli\CliOpEc.cs"/>
-        <Compile Include="App\Cli\CliOpProbe.cs"/>
-        <Compile Include="App\Cli\CliOpProg.cs"/>
-        <Compile Include="App\Cli\CliOpTask.cs"/>
-        <Compile Include="App\Service\Backlight.cs"/>
-        <Compile Include="App\Service\FanControl.cs"/>
-        <Compile Include="App\Service\HistoryBuffer.cs"/>
-        <Compile Include="App\Service\Maintainer.cs"/>
-        <Compile Include="App\Service\Poller.cs"/>
-        <Compile Include="App\Service\Reading.cs"/>
-        <Compile Include="App\Service\ThermalGuard.cs"/>
-        <Compile Include="App\Service\Ticker.cs"/>
-        <Compile Include="App\Gui\Gui.cs"/>
-        <Compile Include="App\Gui\GuiOp.cs"/>
-        <Compile Include="App\Gui\GuiFilter.cs"/>
-        <Compile Include="App\Gui\GuiTray.cs"/>
-        <Compile Include="Driver\Driver.cs"/>
-        <Compile Include="Driver\LowLevel.cs"/>
-        <Compile Include="Driver\PawnIo.cs"/>
-        <Compile Include="Driver\Ring0.cs"/>
-        <Compile Include="External\AdvApi.cs"/>
-        <Compile Include="External\ColorMgmt.cs"/>
-        <Compile Include="External\DwmApi.cs"/>
-        <Compile Include="External\WlanApi.cs"/>
-        <Compile Include="External\Gdi.cs"/>
-        <Compile Include="External\Kernel.cs"/>
-        <Compile Include="External\PowrProf.cs"/>
-        <Compile Include="External\Shell32.cs"/>
-        <Compile Include="External\ShellCore.cs"/>
-        <Compile Include="Ui\Shell\IconRender.cs"/>
-        <Compile Include="Ui\Shell\DynamicIcon.cs"/>
-        <Compile Include="Ui\Shell\MenuModel.cs"/>
-        <Compile Include="Ui\Loc\Str.cs"/>
-        <Compile Include="Ui\Shell\Dialogs.cs"/>
-        <Compile Include="Ui\Shell\Theme.cs"/>
-        <Compile Include="Ui\Shell\TrayMenu.cs"/>
-        <Compile Include="Ui\Shell\TrayIcon.cs"/>
-        <Compile Include="Ui\Design\DesignData.cs"/>
-        <Compile Include="Ui\Design\DesignRender.cs"/>
-        <Compile Include="Ui\Design\Gallery.xaml.cs">
-            <DependentUpon>Gallery.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\ViewModels\Observable.cs"/>
-        <Compile Include="Ui\ViewModels\Health.cs"/>
-        <Compile Include="Ui\ViewModels\ReadingViewModel.cs"/>
-        <Compile Include="Ui\ViewModels\DashboardViewModel.cs"/>
-        <Compile Include="Ui\ViewModels\HistoryViewModel.cs"/>
-        <Compile Include="Ui\ViewModels\FanCurveViewModel.cs"/>
-        <Compile Include="Ui\ViewModels\RelayCommand.cs"/>
-        <Compile Include="Ui\ViewModels\SummaryViewModel.cs"/>
-        <Compile Include="Ui\Views\Converters.cs"/>
-        <Compile Include="Ui\Views\Dpi.cs"/>
-        <Compile Include="Ui\Views\HistoryChart.cs"/>
-        <Compile Include="Ui\Views\FanCurveEditor.cs"/>
-        <Compile Include="Ui\ViewModels\KeyboardViewModel.cs"/>
-        <Compile Include="Ui\Views\KeyboardMap.cs"/>
-        <Compile Include="Ui\Views\ColorPicker.cs"/>
-        <Compile Include="Ui\Views\BarStrip.cs"/>
-        <Compile Include="Ui\Views\Sparkline.cs"/>
-        <Compile Include="Ui\ViewModels\CoolingViewModel.cs"/>
-        <Compile Include="Ui\Views\CoolingView.xaml.cs">
-            <DependentUpon>CoolingView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\ViewModels\LogViewModel.cs"/>
-        <Compile Include="Ui\Views\KeyboardView.xaml.cs">
-            <DependentUpon>KeyboardView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\ViewModels\SystemViewModel.cs"/>
-        <Compile Include="Ui\ViewModels\SettingsViewModel.cs"/>
-        <Compile Include="Ui\Views\LogView.xaml.cs">
-            <DependentUpon>LogView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\SystemView.xaml.cs">
-            <DependentUpon>SystemView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\AboutView.xaml.cs">
-            <DependentUpon>AboutView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\SettingsView.xaml.cs">
-            <DependentUpon>SettingsView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\SensorsView.xaml.cs">
-            <DependentUpon>SensorsView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Windows\WindowController.cs"/>
-        <Compile Include="Ui\Windows\MainWindow.xaml.cs">
-            <DependentUpon>MainWindow.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\ShellView.xaml.cs">
-            <DependentUpon>ShellView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="Ui\Views\DashboardView.xaml.cs">
-            <DependentUpon>DashboardView.xaml</DependentUpon>
-        </Compile>
-        <Compile Include="External\TaskSchd.cs"/>
-        <Compile Include="External\User.cs"/>
-        <Compile Include="External\WinBase.cs"/>
-        <Compile Include="Hardware\Bios.cs"/>
-        <Compile Include="Hardware\Absent.cs"/>
-        <Compile Include="Hardware\Capabilities.cs"/>
-        <Compile Include="Hardware\CodeIntegrity.cs"/>
-        <Compile Include="Hardware\BiosCtl.cs"/>
-        <Compile Include="Hardware\Battery.cs"/>
-        <Compile Include="Hardware\BiosData.cs"/>
-        <Compile Include="Hardware\CpuBoost.cs"/>
-        <Compile Include="Hardware\CpuTemperature.cs"/>
-        <Compile Include="Hardware\CpuMetrics.cs"/>
-        <Compile Include="Hardware\DeviceProfile.cs"/>
-        <Compile Include="Hardware\DiskActivity.cs"/>
-        <Compile Include="Hardware\DiskTemperature.cs"/>
-        <Compile Include="Hardware\DisplayBrightness.cs"/>
-        <Compile Include="Hardware\FeatureSupport.cs"/>
-        <Compile Include="Hardware\Ec.cs"/>
-        <Compile Include="Hardware\EcData.cs"/>
-        <Compile Include="Hardware\EcMutex.cs"/>
-        <Compile Include="Hardware\Fan.cs"/>
-        <Compile Include="Hardware\FanArray.cs"/>
-        <Compile Include="Hardware\FanProgram.cs"/>
-        <Compile Include="Hardware\GpuNvidia.cs"/>
-        <Compile Include="Hardware\HpSensors.cs"/>
-        <Compile Include="Hardware\HpBiosSettings.cs"/>
-        <Compile Include="Hardware\Identity.cs"/>
-        <Compile Include="Hardware\AcpiThermal.cs"/>
-        <Compile Include="Hardware\NetworkMeter.cs"/>
-        <Compile Include="Hardware\Platform.cs"/>
-        <Compile Include="Hardware\PlatformComponent.cs"/>
-        <Compile Include="Hardware\PlatformData.cs"/>
-        <Compile Include="Hardware\Settings.cs"/>
-        <Compile Include="Hardware\SystemMetrics.cs"/>
-        <Compile Include="Hardware\Topology.cs"/>
-        <Compile Include="Library\Config.cs"/>
-        <Compile Include="Library\ConfigData.cs"/>
-        <Compile Include="Library\Conv.cs"/>
-        <Compile Include="Library\Logger.cs"/>
-        <Compile Include="Library\Hw.cs"/>
-        <Compile Include="Library\Locale.cs"/>
-        <Compile Include="Library\LocaleData.cs"/>
-        <Compile Include="Library\LocaleDataTr.cs"/>
-        <Compile Include="Test\SelfTest.cs"/>
-        <Compile Include="Test\Devices\FakeBiosDevice.cs"/>
-        <Compile Include="Test\Devices\FakeEcDevice.cs"/>
-        <Compile Include="Test\Devices\DeviceCatalogue.cs"/>
-        <Compile Include="Test\TestBattery.cs"/>
-        <Compile Include="Test\TestConfig.cs"/>
-        <Compile Include="Test\TestConv.cs"/>
-        <Compile Include="Test\TestDeviceMatrix.cs"/>
-        <Compile Include="Test\TestDeviceProfile.cs"/>
-        <Compile Include="Test\TestDriver.cs"/>
-        <Compile Include="Test\TestEmbeddedController.cs"/>
-        <Compile Include="Test\TestFanCurve.cs"/>
-        <Compile Include="Test\TestGraph.cs"/>
-        <Compile Include="Test\TestLocale.cs"/>
-        <Compile Include="Test\TestPresentation.cs"/>
-        <Compile Include="Test\TestService.cs"/>
-        <Compile Include="Library\OnlyOnce.cs"/>
-        <Compile Include="Library\Os.cs"/>
-        <Compile Include="Library\WmiEvent.cs"/>
-        <Compile Include="Library\WmiInfo.cs"/>
-    </ItemGroup>
-    <ItemGroup>
-        <Reference Include="Microsoft.CSharp"/>
-        <Reference Include="Microsoft.Management.Infrastructure"/>
-        <Reference Include="System"/>
-        <Reference Include="System.Xml"/>
-        <!-- The interface, now entirely WPF -->
-        <Reference Include="PresentationCore"/>
-        <Reference Include="PresentationFramework"/>
-        <Reference Include="System.Xaml"/>
-        <Reference Include="WindowsBase"/>
-    </ItemGroup>
-    <ItemGroup>
-        <Page Include="Ui\Theme\Palette.xaml"/>
-        <Page Include="Ui\Theme\Typography.xaml"/>
-        <Page Include="Ui\Theme\Controls.xaml"/>
-        <Page Include="Ui\Theme\Menu.xaml"/>
-        <Page Include="Ui\Theme\Theme.xaml"/>
-        <Page Include="Ui\Design\Gallery.xaml"/>
-        <Page Include="Ui\Views\Cards.xaml"/>
-        <Page Include="Ui\Views\ShellView.xaml"/>
-        <Page Include="Ui\Views\DashboardView.xaml"/>
-        <Page Include="Ui\Views\CoolingView.xaml"/>
-        <Page Include="Ui\Views\KeyboardView.xaml"/>
-        <Page Include="Ui\Views\LogView.xaml"/>
-        <Page Include="Ui\Views\SystemView.xaml"/>
-        <Page Include="Ui\Views\AboutView.xaml"/>
-        <Page Include="Ui\Views\SettingsView.xaml"/>
-        <Page Include="Ui\Views\SensorsView.xaml"/>
-        <Page Include="Ui\Windows\MainWindow.xaml"/>
+        <!-- The CIM client the BIOS interface runs on. It was part of Windows
+             for .NET Framework; on .NET it is a package, which also brings the
+             native half it calls into. -->
+        <PackageReference Include="Microsoft.Management.Infrastructure" Version="3.0.0"/>
     </ItemGroup>
     <ItemGroup>
         <!-- StarMon.resx is gone with the Windows Forms interface that needed
              it. It held icons, bitmaps and a TrueType font, and the SDK's
              GenerateResource task — which runs on the core runtime — cannot
-             serialize any of those. Working around that is the entire reason
-             build.ps1 pre-generated the resource bundle under Windows
-             PowerShell, and the reason no markup in this project could name a
-             type declared in it: doing so forces a second compilation pass in
-             a generated project that re-ran the task and failed.
+             serialize any of those.
 
              The application icon is still Resources\Icon.ico, through the
              ApplicationIcon property, which WPF also uses as the default
@@ -304,7 +134,7 @@
     </ItemGroup> -->
     <Target Name="AddVersion" BeforeTargets="CoreCompile" Condition="'$(AssemblyVersion)'!='' And '$(AssemblyVersionWord)'!=''">
         <Error
-            Condition="'$([System.Text.RegularExpressions.Regex]::IsMatch(&quot;$(AssemblyVersion)&quot;, &quot;^\d+\.\d+\.\d+\.\d+$&quot;))' == false" 
+            Condition="'$([System.Text.RegularExpressions.Regex]::IsMatch(&quot;$(AssemblyVersion)&quot;, &quot;^\d+\.\d+\.\d+\.\d+$&quot;))' == false"
             Text="Assembly version must consist of exactly four non-negative integers separated by dots"/>
         <Message Text="Assembly Version: $(AssemblyVersion)-$(AssemblyVersionWord)" />
         <ReadLinesFromFile File="$(AssemblyVersionFile)">
@@ -331,19 +161,27 @@
     </Target>
     <Target Name="BuildBeginning" BeforeTargets="BeforeBuild">
     </Target>
+    <!-- Only seed the configuration when the output does not have one. This
+         used to copy unconditionally, which overwrote the settings the running
+         application had saved on every single build, so a value changed
+         through the interface survived until the next rebuild and then
+         silently reverted to the template's default. Pass
+         /p:OverwriteConfig=true to refresh it deliberately.
+
+         Both beside the build output, for a program started from there, and
+         beside the published one, which is the one people run. -->
     <Target Name="BuildComplete" AfterTargets="AfterBuild">
-        <!-- Only seed the configuration when the output does not have one.
-             This used to copy unconditionally, which overwrote the settings
-             the running application had saved on every single build, so a
-             value changed through the interface survived until the next
-             rebuild and then silently reverted to the template's default.
-             Pass /p:OverwriteConfig=true to refresh it deliberately. -->
         <Copy SourceFiles="StarMon.xml" DestinationFolder="$(OutDir)"
               Condition="!Exists('$(OutDir)StarMon.xml') Or '$(OverwriteConfig)' == 'true'" />
         <!-- <Exec Command="robocopy /nc /ndl /nfl /njh /njs /np /ns /r:2 /w:5 Bin \\Momentum\Exchange\ StarMon.*" IgnoreExitCode="true" /> -->
     </Target>
+    <Target Name="PublishComplete" AfterTargets="Publish">
+        <Copy SourceFiles="StarMon.xml" DestinationFolder="$(PublishDir)"
+              Condition="!Exists('$(PublishDir)StarMon.xml') Or '$(OverwriteConfig)' == 'true'" />
+    </Target>
     <Target Name="DeleteDirs" AfterTargets="Clean">
         <RemoveDir Directories="$(IntermediateOutputPath)" />
         <RemoveDir Directories="$(OutputPath)" />
+        <RemoveDir Directories="$(PublishDir)" />
     </Target>
 </Project>

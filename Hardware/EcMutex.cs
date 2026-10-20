@@ -29,10 +29,14 @@ namespace StarMon.Hardware.Ec {
                         new MutexAccessRule(
                             new SecurityIdentifier(WellKnownSidType.WorldSid, null),
                             MutexRights.FullControl, AccessControlType.Allow));
-                    return new Mutex(false, name, out _, security);
+                    // The .NET Framework constructor and OpenExisting that
+                    // took a MutexSecurity and MutexRights are not part of
+                    // .NET; MutexAcl is where the same two calls live now, and
+                    // they reach the same CreateMutexEx and OpenMutex.
+                    return MutexAcl.Create(false, name, out _, security);
                 } catch(UnauthorizedAccessException) {
                     try {
-                        return Mutex.OpenExisting(name, MutexRights.Synchronize);
+                        return MutexAcl.OpenExisting(name, MutexRights.Synchronize);
                     } catch {
                     }
                 }
