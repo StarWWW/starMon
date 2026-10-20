@@ -311,7 +311,10 @@ namespace StarMon.Hardware.Cpu {
         // makes the strip's length match the processor count everyone knows
         // ("12 threads") instead of a core count nobody recognises, and the
         // P-cores' pairs read as pairs.
-        private static int[] ExpandToLogical(int[] perCore, ulong[] masks) {
+        //
+        // Internal because the per-core clocks go through it too: the two
+        // strips are drawn one above the other, bar for bar.
+        internal static int[] ExpandToLogical(int[] perCore, ulong[] masks) {
 
             int highest = -1;
             for(int i = 0; i < masks.Length; i++)

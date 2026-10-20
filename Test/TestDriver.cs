@@ -53,6 +53,7 @@ namespace StarMon.Test {
 
             TestAmdTemperatureDecodesCorrectly();
             TestEveryProcessorReadingSaysWhyItIsAbsent();
+            TestPerCoreFiguresAreOnePerLogicalProcessor();
 
             SelfTest.Group("Which driver answers");
 
@@ -115,6 +116,31 @@ namespace StarMon.Test {
 #endregion
 
 #region What this processor publishes
+        // The per-core temperatures and clocks, laid out one per logical
+        // processor.
+        //
+        // The dashboard draws the two as strips one above the other, bar for
+        // bar. The temperatures were expanded from physical cores to logical
+        // processors and the clocks were not, so a hyperthreaded or hybrid
+        // part drew eight clock bars under twelve temperature bars. Both go
+        // through this now; reading them needs the processor's registers, so
+        // the mapping is what can be checked here.
+        private static void TestPerCoreFiguresAreOnePerLogicalProcessor() {
+
+            // Two hyperthreaded performance cores and two efficiency cores:
+            // six logical processors, four physical ones
+            ulong[] masks = { 0x3, 0xC, 0x10, 0x20 };
+
+            int[] logical = StarMon.Hardware.Cpu.CpuTemperature.ExpandToLogical(
+                new int[] { 4800, 4700, 3200, 3300 }, masks);
+
+            SelfTest.Equal("4800,4800,4700,4700,3200,3300",
+                string.Join(",", Array.ConvertAll(logical, v => v.ToString())),
+                "a core's figure is shown once for each logical processor on it, "
+                    + "in the order the processors are numbered");
+
+        }
+
         // The one AMD reading in the application, and it cannot be exercised
         // on the machine it was written on.
         //

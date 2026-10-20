@@ -320,6 +320,12 @@ namespace StarMon.Hardware.Cpu {
         // previous call (pins to one logical processor of each core in turn).
         // Returns null when unavailable; the first call after a Reset() only
         // establishes the baselines and reports -1 for each core.
+        //
+        // Handed back one per logical processor, the way the per-core
+        // temperatures are. The dashboard draws the two strips one above the
+        // other, bar for bar, and with one per physical core here and one per
+        // logical processor there, a hyperthreaded or hybrid part drew eight
+        // clock bars under twelve temperature bars and nothing lined up.
         public static int[] GetPerCoreClocks() {
             EnsureDetected();
             if(!LowLevel.HasMsr || DetectedVendor == Vendor.Unknown || BaseClockMhz <= 0)
@@ -372,7 +378,7 @@ namespace StarMon.Hardware.Cpu {
                     result[i] = -1;
                 }
                 HasPerfCore = true;
-                return result;
+                return CpuTemperature.ExpandToLogical(result, masks);
             }
 
             for(int i = 0; i < n; i++) {
@@ -404,7 +410,7 @@ namespace StarMon.Hardware.Cpu {
                 result[i] = (mhz > 0 && mhz < 12000) ? mhz : -1;
             }
 
-            return result;
+            return CpuTemperature.ExpandToLogical(result, masks);
         }
 
     }
