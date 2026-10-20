@@ -66,6 +66,9 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: a fan program and the window at once");
             TestAStoppedProgramStaysStopped();
 
+            SelfTest.Group("Device matrix: the command line writes what it was given");
+            TestAMistypedFanLevelIsNotWrittenAsZero();
+
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
 
@@ -1084,6 +1087,67 @@ namespace StarMon.Test {
                     Config.FanProgram = previous;
                     Config.GpuPowerSetInterval = previousInterval;
                 }
+
+            }
+
+        }
+
+        // "-Bios FanLevel=" and "-Bios FanTable=" with a value that is not a
+        // byte.
+        //
+        // Each field went through Conv.GetByte with its answer ignored, and a
+        // byte that will not parse comes out of that as zero. So a level of
+        // 300, a stray letter or a trailing comma was written to the firmware
+        // as a fan level of nought, with the line above it printing nought as
+        // the thing that had been asked for.
+        private static void TestAMistypedFanLevelIsNotWrittenAsZero() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                System.Reflection.MethodInfo level = typeof(StarMon.AppCli.CliOp)
+                    .GetMethod("BiosSetFanLevel", System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Static)
+                    .MakeGenericMethod(typeof(BiosData.FanType));
+
+                System.Reflection.MethodInfo table = typeof(StarMon.AppCli.CliOp)
+                    .GetMethod("BiosSetStruct", System.Reflection.BindingFlags.NonPublic
+                        | System.Reflection.BindingFlags.Static, null,
+                        new Type[] { typeof(string), typeof(string),
+                            typeof(Action<BiosData.FanTable>) }, null);
+
+                Action<byte[]> setLevel = Hw.Bios.SetFanLevel;
+                Action<BiosData.FanTable> setTable = Hw.Bios.SetFanTable;
+
+                foreach(string typed in new string[] { "abc,30", "30,300", "30," }) {
+
+                    board.Bios.ResetCounts();
+                    level.Invoke(null, new object[] { "Fan #{0} Level", typed, setLevel });
+
+                    SelfTest.Equal(0, board.Bios.CallCount("SetFanLevel"),
+                        "-Bios FanLevel=" + typed + " writes nothing");
+
+                }
+
+                board.Bios.ResetCounts();
+                level.Invoke(null, new object[] { "Fan #{0} Level", "40,45", setLevel });
+
+                SelfTest.Equal("40,45",
+                    string.Join(",", Array.ConvertAll(board.Bios.FanLevel, b => b.ToString())),
+                    "-Bios FanLevel=40,45 writes those two levels");
+
+                board.Bios.ResetCounts();
+                table.Invoke(null, new object[] { "Fan Table", "30,30,40:x,40,50", setTable });
+
+                SelfTest.Equal(0, board.Bios.CallCount("SetFanTable"),
+                    "-Bios FanTable= with a field that is not a byte writes nothing");
+
+                board.Bios.ResetCounts();
+                table.Invoke(null, new object[] { "Fan Table", "30,30,40:40,40,50", setTable });
+
+                SelfTest.Equal(1, board.Bios.CallCount("SetFanTable"),
+                    "and a table that parses is written");
 
             }
 

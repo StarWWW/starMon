@@ -99,10 +99,13 @@ namespace StarMon.AppCli {
                 // Split the parameter into per-fan values
                 string[] level = param.Split(',');
 
-                // Parse the per-fan values
+                // Parse the per-fan values. A value that will not parse is
+                // an error, not a zero: GetByte hands back nought for one, and
+                // that was being written to the fans as the level asked for.
                 byte[] levelValue = new byte[2];
-                Conv.GetByte(level[0], out levelValue[0]);
-                Conv.GetByte(level[1], out levelValue[1]);
+                if(!Conv.GetByte(level[0], out levelValue[0])
+                    || !Conv.GetByte(level[1], out levelValue[1]))
+                    throw new FormatException();
 
                 // Output the updated fan levels and send them to the BIOS
                 Cli.PrintBiosResult(true, String.Format(message, 1), levelValue[0], Enum.GetName(typeof(TFanType), 1));
@@ -175,9 +178,10 @@ namespace StarMon.AppCli {
                     // Parse the per-fan level and temperature within each entry
                     string[] levelArray = levelEntry.Split(',');
                     byte[] levelValues = new byte[3];
-                    Conv.GetByte(levelArray[0], out levelValues[0]);
-                    Conv.GetByte(levelArray[1], out levelValues[1]);
-                    Conv.GetByte(levelArray[2], out levelValues[2]);
+                    if(!Conv.GetByte(levelArray[0], out levelValues[0])
+                        || !Conv.GetByte(levelArray[1], out levelValues[1])
+                        || !Conv.GetByte(levelArray[2], out levelValues[2]))
+                        throw new FormatException();
 
                     // Populate the new fan table
                     fanTable.Level[level] = new BiosData.FanLevel(levelValues);
