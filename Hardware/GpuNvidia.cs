@@ -296,6 +296,121 @@ namespace StarMon.Hardware {
             get { return HasLastKnown && LastKnown.Present; }
         }
 
+        // Whether the card has powered itself down, without asking the card.
+        //
+        // A reading through the driver wakes a card in D3 and keeps it awake
+        // for several seconds, so anything that wants to leave a sleeping card
+        // alone has to find out it is sleeping some other way. The Plug and
+        // Play manager knows the power state it last put the device in, and
+        // answers from that.
+        //
+        // Only D3 counts as asleep. Anything that cannot be established - no
+        // NVIDIA display adapter found, more than one, a failed query - answers
+        // no, which is what everything did before this existed: ask the card.
+        public static bool IsAsleep {
+            get {
+
+                uint node = CardNode();
+                if(node == 0)
+                    return false;
+
+                try {
+
+                    byte[] data = new byte[64];
+                    uint size = (uint) data.Length;
+                    uint type;
+                    External.CfgMgr32.DEVPROPKEY key = External.CfgMgr32.DEVPKEY_Device_PowerData;
+
+                    if(External.CfgMgr32.CM_Get_DevNode_PropertyW(node, ref key, out type,
+                        data, ref size, 0) != External.CfgMgr32.CR_SUCCESS || size < 8)
+                        return false;
+
+                    return BitConverter.ToInt32(data, 4) == External.CfgMgr32.PowerDeviceD3;
+
+                } catch {
+                    return false;
+                }
+
+            }
+        }
+
+        // The device node of the NVIDIA display adapter, found once; zero where
+        // there is not exactly one
+        private static uint CardNodeFound;
+        private static bool CardNodeLooked;
+
+        private static uint CardNode() {
+
+            lock(Lock) {
+
+                if(CardNodeLooked)
+                    return CardNodeFound;
+
+                CardNodeLooked = true;
+
+                try {
+
+                    uint length;
+                    uint flags = External.CfgMgr32.CM_GETIDLIST_FILTER_ENUMERATOR
+                        | External.CfgMgr32.CM_GETIDLIST_FILTER_PRESENT;
+
+                    if(External.CfgMgr32.CM_Get_Device_ID_List_SizeW(out length, "PCI", flags)
+                        != External.CfgMgr32.CR_SUCCESS || length == 0)
+                        return 0;
+
+                    char[] buffer = new char[length];
+                    if(External.CfgMgr32.CM_Get_Device_ID_ListW("PCI", buffer, length, flags)
+                        != External.CfgMgr32.CR_SUCCESS)
+                        return 0;
+
+                    uint found = 0;
+                    int cards = 0;
+
+                    // A list of instance identifiers separated by nulls. The
+                    // card's audio function carries the same vendor, so the
+                    // class is what tells them apart.
+                    foreach(string id in new string(buffer).Split('\0')) {
+
+                        if(!id.StartsWith(@"PCI\VEN_10DE&", StringComparison.OrdinalIgnoreCase))
+                            continue;
+
+                        uint node;
+                        if(External.CfgMgr32.CM_Locate_DevNodeW(out node, id,
+                            External.CfgMgr32.CM_LOCATE_DEVNODE_NORMAL) != External.CfgMgr32.CR_SUCCESS)
+                            continue;
+
+                        byte[] data = new byte[16];
+                        uint size = (uint) data.Length;
+                        uint type;
+                        External.CfgMgr32.DEVPROPKEY key = External.CfgMgr32.DEVPKEY_Device_ClassGuid;
+
+                        if(External.CfgMgr32.CM_Get_DevNode_PropertyW(node, ref key, out type,
+                            data, ref size, 0) != External.CfgMgr32.CR_SUCCESS || size != 16)
+                            continue;
+
+                        if(new Guid(data) != External.CfgMgr32.GUID_DEVCLASS_DISPLAY)
+                            continue;
+
+                        found = node;
+                        cards++;
+
+                    }
+
+                    // Two cards and one NVAPI handle: which of them the
+                    // readings come from is not known here, so neither is said
+                    // to be asleep
+                    CardNodeFound = cards == 1 ? found : 0;
+
+                } catch {
+                    CardNodeFound = 0;
+                }
+
+                return CardNodeFound;
+
+            }
+
+        }
+
         // The most recent reading, without taking a new one.
         //
         // Querying the driver wakes a discrete card that has powered itself

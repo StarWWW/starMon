@@ -491,6 +491,21 @@ namespace StarMon.Hardware.Platform {
 
             bool updated = this.Temperature[index].Update();
 
+            // A graphics card that has powered itself down is resting, not
+            // missing. It was not asked, so there is nothing to count against
+            // it: counted, a card that sleeps most of the day would be stood
+            // down after DormantAfter updates and then read only every
+            // DormantRetryEvery-th one - which is how long it could take to be
+            // seen again once a game woke it and made it the hottest thing in
+            // the machine.
+            NvapiGpuTemperatureComponent card =
+                this.Temperature[index] as NvapiGpuTemperatureComponent;
+
+            if(card != null && card.IsResting) {
+                this.TemperatureMisses[index] = 0;
+                return;
+            }
+
             // A reading that arrived and is not zero means the sensor is there.
             //
             // The zero qualification carries more weight than it looks. The

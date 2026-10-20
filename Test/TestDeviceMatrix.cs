@@ -50,6 +50,7 @@ namespace StarMon.Test {
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
             TestAHundredDegreesIsARealTemperature();
             TestAFrozenProbeStopsCountingTowardsTheMaximum();
+            TestASleepingGraphicsCardIsLeftAsleep();
 
             SelfTest.Group("Device matrix: leaving the machine as it was found");
             TestExitHandsTheFansBack();
@@ -765,6 +766,81 @@ namespace StarMon.Test {
                 SelfTest.Check(HottestOfControllerBacked(platform) < 92,
                     "but that reading no longer counts as the machine's hottest point ("
                         + HottestOfControllerBacked(platform) + " C)");
+
+            }
+
+        }
+
+        // A discrete graphics card that has powered itself down.
+        //
+        // On an Optimus laptop the card drops to D3 whenever nothing is using
+        // it, and a reading through its driver wakes it: measured on an RTX
+        // 5050 Laptop board, one reading taken in D3 kept the card in D0 for
+        // about nine seconds. The thermal guard reads the hottest sensor every
+        // second, so the card never slept, on battery as on mains -
+        // GpuPollOnBattery, which says it prevents exactly this, was undone by
+        // the temperature sensor standing in for GPTM.
+        //
+        // A card that is asleep is not hot, so leaving it asleep costs the
+        // guard nothing: it is not asked, it reads as no reading, and it is
+        // neither counted as missing nor stood down, so it is read again the
+        // moment it wakes rather than up to a minute later.
+        private static void TestASleepingGraphicsCardIsLeftAsleep() {
+
+            using(new Installed(DeviceCatalogue.Reference())) {
+
+                Platform platform = new Platform();
+
+                int index = 0;
+                for(int i = 0; i < platform.Temperature.Length; i++)
+                    if(platform.Temperature[i].GetName() == "GPTM")
+                        index = i;
+
+                int temperature = 70;
+                bool asleep = false;
+                int asked = 0;
+
+                platform.Temperature[index] = new NvapiGpuTemperatureComponent(110,
+                    () => { asked++; return temperature; },
+                    () => asleep);
+
+                platform.UpdateTemperature(false);
+
+                SelfTest.Equal(70, platform.Temperature[index].GetValue(),
+                    "an awake card is read");
+
+                asleep = true;
+                asked = 0;
+
+                for(int i = 0; i < 40; i++)
+                    platform.UpdateTemperature(false);
+
+                SelfTest.Equal(0, asked,
+                    "a card that has powered down is not asked, which would wake it");
+
+                SelfTest.Equal(0, platform.Temperature[index].GetValue(),
+                    "and it reads as no reading rather than as the 70 C it had while awake");
+
+                SelfTest.Check(!platform.TemperatureDormant[index],
+                    "and forty sleeping ticks do not stand it down as missing");
+
+                asleep = false;
+                temperature = 55;
+                platform.UpdateTemperature(false);
+
+                SelfTest.Equal(55, platform.Temperature[index].GetValue(),
+                    "so it is read on the first tick after it wakes");
+
+                // A power state that cannot be read is no reason to stop
+                // reading the card: it is asked, as it always was
+                platform.Temperature[index] = new NvapiGpuTemperatureComponent(110,
+                    () => 61,
+                    () => { throw new InvalidOperationException(); });
+
+                platform.UpdateTemperature(false);
+
+                SelfTest.Equal(61, platform.Temperature[index].GetValue(),
+                    "and a card whose power state cannot be read is read as before");
 
             }
 

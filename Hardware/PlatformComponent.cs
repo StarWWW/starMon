@@ -450,15 +450,61 @@ namespace StarMon.Hardware.Platform {
     // board (RTX 5050 Laptop, PnP power state read alongside), a reading
     // taken while the card was in D3 came back with a temperature, and the
     // card then stayed in D0 for about nine seconds. Called every second, as
-    // the thermal guard does, this keeps the card from ever powering down.
+    // the thermal guard does, this kept the card from ever powering down. So a
+    // card the Plug and Play manager reports in D3 is not asked; see Update.
     public class NvapiGpuTemperatureComponent : PlatformComponentAbstract, IPlatformReadComponent {
 
-        public NvapiGpuTemperatureComponent(int constraint = 110) {
+        // Where the reading and the card's power state come from: the card,
+        // except in a test that stands in for both
+        private readonly Func<int> ReadCard;
+        private readonly Func<bool> CardAsleep;
+
+        // Whether the card was asleep at the last update, and so was not asked
+        public bool IsResting { get; private set; }
+
+        public NvapiGpuTemperatureComponent(int constraint = 110)
+            : this(constraint, null, null) { }
+
+        internal NvapiGpuTemperatureComponent(int constraint,
+            Func<int> readCard, Func<bool> cardAsleep) {
             this.AccessType = PlatformData.AccessType.Read;
             this.Constraint = constraint;
             this.LinkType = PlatformData.LinkType.WmiBios; // nearest existing kind
             this.Size = PlatformData.DataSize.Byte;
+            this.ReadCard = readCard ?? ReadTheCard;
+            this.CardAsleep = cardAsleep ?? (() => GpuNvidia.IsAsleep);
             SetName();
+        }
+
+        // A card that has powered itself down is left down.
+        //
+        // It is not asked, which would wake it, and it reads as no reading:
+        // a sleeping card is not hot, and the figure it had while awake is not
+        // its temperature now. Zero is what every consumer of these readings
+        // already takes as "nothing to report" - the hottest-of check, the
+        // poller's board list, the history. Platform also leaves a resting
+        // card out of the misses that would stand it down, so it is read on
+        // the first update after it wakes.
+        //
+        // A power state that cannot be read is treated as awake, which is
+        // what this always assumed.
+        public override bool Update() {
+
+            bool asleep = false;
+            try {
+                asleep = this.CardAsleep();
+            } catch { }
+
+            if(asleep) {
+                this.IsResting = true;
+                this.PreviousValue = this.LastValue;
+                this.LastValue = 0;
+                return false;
+            }
+
+            this.IsResting = false;
+            return base.Update();
+
         }
 
         // Kept as GPTM so the rest of the application, which looks the sensor
@@ -467,18 +513,23 @@ namespace StarMon.Hardware.Platform {
             this.Name = name != "" ? name : "GPTM";
         }
 
-        // Reads the GPU temperature through the driver, returning zero when the
-        // card is asleep or unavailable
+        // Reads the GPU temperature, returning zero when the card is
+        // unavailable
         protected override int Read() {
             try {
-                GpuNvidia.GpuInfo gpu = GpuNvidia.Get();
-                return gpu.Present && gpu.TempC > 0 ? gpu.TempC : 0;
+                return this.ReadCard();
             } catch {
                 return 0;
             }
         }
 
-        // A card that is asleep or will not answer is a failed exchange, as
+        // Through the driver
+        private static int ReadTheCard() {
+            GpuNvidia.GpuInfo gpu = GpuNvidia.Get();
+            return gpu.Present && gpu.TempC > 0 ? gpu.TempC : 0;
+        }
+
+        // A card that will not answer is a failed exchange, as
         // for the processor sensor above: the last value is held and the miss
         // counted, rather than leaning on the zero hold-off that used to hold
         // it for good
