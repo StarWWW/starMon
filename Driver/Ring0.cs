@@ -195,11 +195,16 @@ namespace StarMon.Driver {
             }
             return null;
 
-            // Retrieves the filesystem path given an assembly
+            // Retrieves a path beside the program, named after an assembly.
+            //
+            // Not from the assembly's location: inside a single-file program
+            // an assembly has no file of its own and that location is empty,
+            // so both of the choices above that use this went straight past
+            // the program's directory to the temporary one.
             static string GetPathFromAssembly(Assembly assembly) {
                 try {
-                    string location = assembly?.Location;
-                    return !string.IsNullOrEmpty(location) ? Path.ChangeExtension(location, ".sys") : null;
+                    string name = assembly?.GetName().Name;
+                    return !string.IsNullOrEmpty(name) ? Path.Combine(AppContext.BaseDirectory, name + ".sys") : null;
                 } catch {
                     return null;
                 }
