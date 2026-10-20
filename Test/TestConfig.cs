@@ -28,6 +28,82 @@ namespace StarMon.Test {
             TestTheLogSizeSliderReachesItsOwnMaximum();
             TestASilentFileDoesNotOverrideAShippedDecision();
 
+            SelfTest.Group("Configuration: the program as it ships");
+            TestTheCommandLineRunsFromTheShippedFile();
+
+        }
+
+        // The command line, started the way somebody starts it.
+        //
+        // Every command went through a relaunch that read the executable's
+        // own file and loaded it a second time as an assembly. On .NET
+        // Framework that file was the assembly. Published as one file on .NET
+        // it is the native host the bundle starts from, which is not one:
+        // every command failed before printing anything, and failed into an
+        // error dialog, because the console was not attached yet to say it
+        // on. Nothing here saw it, because no check goes through Main.
+        //
+        // This one does. The test host is published the same way as the
+        // program, and is started again with the one command that touches no
+        // hardware. It has to finish, succeed, and print the header - which
+        // carries the version read back out of the executable's own
+        // resources, the other thing a single file could lose.
+        private static void TestTheCommandLineRunsFromTheShippedFile() {
+
+            System.Diagnostics.ProcessStartInfo start =
+                new System.Diagnostics.ProcessStartInfo(Config.AppFile, "-Usage") {
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true
+                };
+
+            System.Diagnostics.Process process;
+
+            try {
+                process = System.Diagnostics.Process.Start(start);
+            } catch(Exception e) {
+                // The shipping executable asks for elevation, which a test
+                // run without it cannot grant
+                SelfTest.Skip("the command line could not be started from here ("
+                    + e.Message + "), run-through not checked");
+                return;
+            }
+
+            using(process) {
+
+                // Both streams read as they come, so that a full pipe cannot
+                // be what stops it
+                System.Threading.Tasks.Task<string> output = process.StandardOutput.ReadToEndAsync();
+                System.Threading.Tasks.Task<string> error = process.StandardError.ReadToEndAsync();
+
+                bool finished = process.WaitForExit(30000);
+
+                if(!finished)
+                    try {
+                        process.Kill();
+                    } catch { }
+
+                SelfTest.Check(finished,
+                    "the command line finishes instead of stopping on an error dialog");
+
+                if(!finished)
+                    return;
+
+                process.WaitForExit();
+                string text = output.Result + error.Result;
+
+                SelfTest.Equal(0, process.ExitCode, "and reports success");
+
+                SelfTest.Check(!string.IsNullOrEmpty(Config.AppVersion),
+                    "the version is read from the executable's own resources");
+
+                SelfTest.Check(!string.IsNullOrEmpty(Config.AppVersion)
+                        && text.Contains(Config.AppVersion),
+                    "and the command line prints it in its header");
+
+            }
+
         }
 
         // A configuration file that says nothing about a sensor must not be

@@ -4,7 +4,6 @@
 using System;
 using System.Diagnostics;
 using System.IO;
-using System.Reflection;
 using StarMon.External;
 using StarMon.Hardware.Bios;
 using StarMon.Hardware.Ec;
@@ -60,11 +59,6 @@ namespace StarMon.AppCli {
         // Wide enough for the register table's rows without wrapping in a
         // file, narrow enough to stay readable when it is read back in one
         private const int DefaultWidth = 120;
-
-        // Portable Executable (PE) Common Object File Format (COFF) header constants
-        private const UInt16 IMAGE_OPTIONAL_HEADER_SUBSYSTEM = 0x00DC;
-        private const byte IMAGE_SUBSYSTEM_WINDOWS_GUI = 0x02;
-        private const byte IMAGE_SUBSYSTEM_WINDOWS_CUI = 0x03;
 
         // Setting flags for printing numerical values
         // Note: not all flag combinations are implemented for all data types
@@ -237,30 +231,40 @@ namespace StarMon.AppCli {
 
         }
 
-        // Relaunches the process as a console application
-        public static void Relaunch(string[] args) {
-            byte[] data;
+        // Runs the command-line operations in this process.
+        //
+        // This used to read the process's own image, patch the PE subsystem
+        // byte to console, load the result as a second assembly and call its
+        // entry point. That copy found the CLI lock already held, took the
+        // other branch in App.Main and did what is done here. The patched
+        // byte never did anything for an image loaded in-process, as the note
+        // that came with it said, and on .NET the image is the native host a
+        // single-file program starts from, which Assembly.Load rejects - so
+        // every command failed before printing anything. Doing the same three
+        // steps directly is what the copy did, without a second set of
+        // statics and a second hardware initialization behind it.
+        public static void Run(string[] args) {
 
-            // Read the image of our own process into an array
-            using(FileStream dataIn = new FileStream(
-                Config.AppFile,
-                FileMode.Open, FileAccess.Read)) {
+            try {
 
-                data = new byte[dataIn.Length];
-                dataIn.Read(data, 0, data.Length);
+                // Attach the console (which is detached by default)
+                Initialize();
+
+                // Output the header
+                PrintHeader();
+
+                // Process all command-line arguments
+                // and perform the operations as requested
+                CliOp.Loop(args);
+
+            } catch(Exception e) {
+
+                // The copy caught this in its own Main and returned, so the
+                // caller still released the lock and put the prompt back.
+                // Letting it propagate would skip both.
+                App.Error("ErrUnexpected|EXCEPTION", e);
 
             }
-
-            // Modify the PE header to run as a console application
-            data[IMAGE_OPTIONAL_HEADER_SUBSYSTEM] = IMAGE_SUBSYSTEM_WINDOWS_CUI;
-
-            // Launch ourselves again
-            Assembly ass = Assembly.Load(data);
-            MethodInfo m = ass.EntryPoint;
-            m.Invoke(null, new[] { args });
-
-            // Note: this is still not enough to run as a proper console application
-            // Would need to launch a separate process or perhaps Assembly.LoadFile()
 
         }
 

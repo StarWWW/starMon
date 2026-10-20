@@ -156,8 +156,8 @@ namespace StarMon {
                 } else {
 
 #region CLI (Console) Mode
-                    // If this is the first CLI instance,
-                    // relaunch as a console application
+                    // The first CLI instance holds the lock while it runs;
+                    // one started while it is held runs without taking it
                     bool isFirstInstance;
                     using(Mutex mutex = new Mutex(
                         true,
@@ -166,8 +166,8 @@ namespace StarMon {
 
                         if(isFirstInstance) {
 
-                            // Relaunch the process as a console application
-                            Cli.Relaunch(args);
+                            // Run the command line here
+                            Cli.Run(args);
 
                             // Release the lock when done
                             mutex.ReleaseMutex();
