@@ -286,7 +286,7 @@ namespace StarMon.Library
 
                             string line = entry.ToString();
                             _fileWriter.WriteLine(line);
-                            _fileBytes += line.Length + Environment.NewLine.Length;
+                            _fileBytes += LineBytes(line);
 
                             // Roll the file over once it grows past the limit, so
                             // an application left running for weeks cannot quietly
@@ -662,7 +662,18 @@ namespace StarMon.Library
             _fileRepeats = 0;
 
             _fileWriter.WriteLine(line);
-            _fileBytes += line.Length + Environment.NewLine.Length;
+            _fileBytes += LineBytes(line);
+        }
+
+        // What a line costs in the file, which is UTF-8.
+        //
+        // Counted in bytes because the limit is in bytes. This used the
+        // string's length, which is characters: every Turkish letter outside
+        // ASCII is two bytes in the file and was counted as one, so a log
+        // with Turkish in it went past its limit before it was rolled over.
+        private static int LineBytes(string line)
+        {
+            return Encoding.UTF8.GetByteCount(line) + Environment.NewLine.Length;
         }
 
         // Rolls the current log file over to a single ".1" backup, replacing
@@ -695,7 +706,10 @@ namespace StarMon.Library
             {
                 _fileWriter = new StreamWriter(_logFilePath, false, Encoding.UTF8);
                 _fileWriter.AutoFlush = true;
-                _fileBytes = 0;
+
+                // The fresh file starts with the byte-order mark the writer
+                // puts at its head
+                _fileBytes = Encoding.UTF8.GetPreamble().Length;
             }
             catch
             {

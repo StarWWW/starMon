@@ -26,11 +26,81 @@ namespace StarMon.Test {
             TestThermalThresholdsMakeSense();
             TestFanLevelRange();
             TestTheLogSizeSliderReachesItsOwnMaximum();
+            TestTheLogFileStaysWithinItsSizeInTurkish();
             TestASilentFileDoesNotOverrideAShippedDecision();
 
             SelfTest.Group("Configuration: the program as it ships");
             TestTheCommandLineRunsFromTheShippedFile();
             TestTheHardwareGateCanReadThisMachine();
+
+        }
+
+        // The log file's size limit, with text that is not ASCII.
+        //
+        // The logger counted what it had written in characters and compared
+        // that with a limit in bytes. The file is UTF-8, where every Turkish
+        // letter outside ASCII - ç ğ ı İ ö ş ü - takes two bytes, so a log
+        // carrying Turkish text grew past its limit before it was rolled over,
+        // by up to twice the limit for text that is all such letters.
+        //
+        // Run against a file of its own and put back afterwards, so whatever
+        // this host was logging to carries on as it was.
+        private static void TestTheLogFileStaysWithinItsSizeInTurkish() {
+
+            FieldInfo pathField = typeof(Logger).GetField("_logFilePath",
+                BindingFlags.NonPublic | BindingFlags.Static);
+            FieldInfo enabledField = typeof(Logger).GetField("_fileLoggingEnabled",
+                BindingFlags.NonPublic | BindingFlags.Static);
+
+            string previousPath = pathField == null ? null : pathField.GetValue(null) as string;
+            bool previouslyEnabled = enabledField != null && (bool) enabledField.GetValue(null);
+            int previousLimit = Config.LogFileMaxBytes;
+
+            string path = System.IO.Path.Combine(System.IO.Path.GetTempPath(),
+                "StarMon-logtest-" + System.Diagnostics.Process.GetCurrentProcess().Id + ".log");
+            string backup = path + ".1";
+
+            const int Limit = 4096;
+            const string Turkish = "ğüşıöçĞÜŞİÖÇ ğüşıöçĞÜŞİÖÇ ğüşıöçĞÜŞİÖÇ ğüşıöçĞÜŞİÖÇ";
+            int longest = 0;
+
+            try {
+
+                Config.LogFileMaxBytes = Limit;
+                Logger.EnableFileLogging(path);
+
+                // Distinct lines, so none of them is folded into a repeat
+                for(int i = 0; i < 60; i++) {
+                    string message = "Sıcaklık " + i + " " + Turkish;
+                    Logger.Info("Test", message);
+                    longest = Math.Max(longest,
+                        System.Text.Encoding.UTF8.GetByteCount(message) + 200);
+                }
+
+                Logger.DisableFileLogging();
+
+                SelfTest.Check(System.IO.File.Exists(backup),
+                    "a log written past its limit is rolled over");
+
+                long rolled = System.IO.File.Exists(backup)
+                    ? new System.IO.FileInfo(backup).Length : 0;
+
+                SelfTest.Check(rolled <= Limit + longest,
+                    "and the file rolled over holds no more than its limit and one line ("
+                        + rolled + " bytes against a " + Limit + "-byte limit)");
+
+            } finally {
+
+                Logger.DisableFileLogging();
+                Config.LogFileMaxBytes = previousLimit;
+
+                try { System.IO.File.Delete(path); } catch { }
+                try { System.IO.File.Delete(backup); } catch { }
+
+                if(previouslyEnabled && !string.IsNullOrEmpty(previousPath))
+                    Logger.EnableFileLogging(previousPath);
+
+            }
 
         }
 
