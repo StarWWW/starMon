@@ -394,8 +394,12 @@ namespace StarMon.Test {
         // template the repository ships.
         private static string RepositoryRoot() {
             try {
+                // The program's directory, not the assembly's location: in a
+                // single-file program the assembly has no file of its own and
+                // that location is empty, so the walk started from nowhere
+                // and every check that reads the sources was skipped.
                 string dir = System.IO.Path.GetDirectoryName(
-                    Assembly.GetExecutingAssembly().Location);
+                    AppContext.BaseDirectory);
 
                 for(int i = 0; i < 4 && dir != null; i++) {
 
