@@ -443,8 +443,14 @@ namespace StarMon.Hardware.Platform {
     // battery — which it does whenever nothing is using it — the EC cannot
     // fetch a temperature from a chip that is asleep, and the read fails.
     // Polling it every second then fills the log with failures for a sensor
-    // that was redundant anyway. Reading through the driver instead returns a
-    // clean "asleep" rather than a failed EC exchange.
+    // that was redundant anyway.
+    //
+    // Reading through the driver does not leave a sleeping card asleep,
+    // though. This said it returned a clean "asleep"; measured on an Optimus
+    // board (RTX 5050 Laptop, PnP power state read alongside), a reading
+    // taken while the card was in D3 came back with a temperature, and the
+    // card then stayed in D0 for about nine seconds. Called every second, as
+    // the thermal guard does, this keeps the card from ever powering down.
     public class NvapiGpuTemperatureComponent : PlatformComponentAbstract, IPlatformReadComponent {
 
         public NvapiGpuTemperatureComponent(int constraint = 110) {
