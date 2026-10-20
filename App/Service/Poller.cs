@@ -430,7 +430,8 @@ namespace StarMon.AppService {
             reading.FanLevelMaximum = Config.FanLevelMax;
 
             try {
-                reading.FanIsManual = this.Platform.Fans.GetManual();
+                reading.FanIsManual = FanControl.HeldByManualBit(
+                    this.Platform.Fans.GetManual());
             } catch { }
 
             // The failsafe countdown. When it reaches zero the Embedded

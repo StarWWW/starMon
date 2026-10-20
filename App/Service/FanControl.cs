@@ -169,6 +169,18 @@ namespace StarMon.AppService {
 
         }
 
+        // Whether the manual bit says the levels are someone's held levels.
+        //
+        // Only where this application raises it to hold them, which is where
+        // FanLevelNeedManual says the board needs it. Elsewhere it is never
+        // this application's doing, and at least one board raises it itself:
+        // measured on an HP 8DCF (Victus), asking the BIOS for Performance left
+        // OMCC at 0x06, which is FanManual.On, with nobody holding a level -
+        // so Identify answered Constant and the selector opened on it.
+        public static bool HeldByManualBit(bool manualBit) {
+            return manualBit && Config.FanLevelNeedManual;
+        }
+
         // Which of the three shapes a Constant request takes
         public static ConstantAction ResolveConstant(
             int levelCpu, int levelGpu, int ceiling) {

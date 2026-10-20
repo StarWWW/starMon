@@ -697,6 +697,36 @@ namespace StarMon.Test {
                 FanControl.Identify(false, false, false, true, 0, 0, 0),
                 "an unknown ceiling does not turn held levels into maximum");
 
+            // Whose the manual bit is.
+            //
+            // This application raises it only where FanLevelNeedManual says the
+            // board needs it to take a level. Elsewhere - the default, and the
+            // HP 8DCF this was measured on - the bit is never its doing, and on
+            // that board the firmware raises it itself: asking the BIOS for
+            // Performance left OMCC at 0x06, which is what On is. The selector
+            // then opened on Constant for a machine nobody had set a speed on.
+            bool previous = StarMon.Library.Config.FanLevelNeedManual;
+
+            try {
+
+                StarMon.Library.Config.FanLevelNeedManual = false;
+
+                SelfTest.Equal(FanRequest.Automatic,
+                    FanControl.Identify(false, false, false,
+                        FanControl.HeldByManualBit(true), 31, 26, 56),
+                    "a manual bit the firmware raised for Performance is not the user's levels");
+
+                StarMon.Library.Config.FanLevelNeedManual = true;
+
+                SelfTest.Equal(FanRequest.Constant,
+                    FanControl.Identify(false, false, false,
+                        FanControl.HeldByManualBit(true), 31, 26, 56),
+                    "while on a board where the bit is how a level is held, it still says so");
+
+            } finally {
+                StarMon.Library.Config.FanLevelNeedManual = previous;
+            }
+
         }
 #endregion
 
