@@ -179,8 +179,14 @@ namespace StarMon.Hardware.Platform {
 
         }
 
-        // Retrieves the manual fan speed toggle status
+        // Retrieves the manual fan speed toggle status.
+        //
+        // Read from the board, like every other getter here. This one alone
+        // reported the last value written, which on a fresh start is none —
+        // so manual levels a previous session left in force read as automatic
+        // to FanControl.Identify, which calls this the deciding signal.
         public bool GetManual() {
+            this.Manual.Update();
             return this.Manual.GetValue() == (byte) PlatformData.FanManual.On;
         }
 

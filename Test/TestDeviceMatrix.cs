@@ -45,6 +45,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: readings that are not temperatures");
             TestARegisterThatGoesToZeroReadsZero();
+            TestTheManualToggleIsReadFromTheBoard();
             TestSilentControllerYieldsNoReading();
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
             TestAHundredDegreesIsARealTemperature();
@@ -633,6 +634,38 @@ namespace StarMon.Test {
 
                 SelfTest.Equal(BiosData.FanMode.Default, platform.Fans.GetMode(),
                     "and the Default profile reads as Default");
+
+            }
+
+        }
+
+        // The manual toggle as the board holds it, not as this process last
+        // wrote it.
+        //
+        // FanControl.Identify calls it the deciding signal between levels the
+        // user set and levels the firmware is turning at, and the window seeds
+        // its fan selector from that on the first reading. GetManual was the
+        // one reader in the fan array that never asked the register: it
+        // reported the last value written, which on a fresh start is nothing
+        // at all — so manual levels left in force by a session that did not
+        // end cleanly read as automatic.
+        private static void TestTheManualToggleIsReadFromTheBoard() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+            board.Ec.Set(Register.OMCC, (byte) PlatformData.FanManual.On);
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                SelfTest.Check(platform.Fans.GetManual(),
+                    "manual control left on by an earlier session reads as on");
+
+                board.Ec.Set(Register.OMCC, (byte) PlatformData.FanManual.Off);
+                platform.Fans.GetManual();
+
+                SelfTest.Check(!platform.Fans.GetManual(),
+                    "and reads as off once the board has handed it back");
 
             }
 
