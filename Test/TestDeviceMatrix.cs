@@ -52,6 +52,9 @@ namespace StarMon.Test {
             TestAFrozenProbeStopsCountingTowardsTheMaximum();
             TestASleepingGraphicsCardIsLeftAsleep();
 
+            SelfTest.Group("Device matrix: the fan mode the board reports");
+            TestCoolIsStillCoolWhereTheRegisterSaysNought();
+
             SelfTest.Group("Device matrix: leaving the machine as it was found");
             TestExitHandsTheFansBack();
             TestOneOverrideComesDownBeforeTheOther();
@@ -519,6 +522,79 @@ namespace StarMon.Test {
                 // And it still rejects a register that is not a temperature
                 SelfTest.Check(Config.MaxBelievableTemperature < 255,
                     "while still rejecting a register holding something else");
+
+            }
+
+        }
+
+        // The mode register is not the mode's number on every board.
+        //
+        // Measured on an HP 8DCF (Victus): after the BIOS was asked for each
+        // mode, HPCM read 1 for Performance and 0 for both Default and Cool.
+        // The fan mode was read by casting that register straight to the enum,
+        // so Cool read as Default. On that board the tray menu ticked the wrong
+        // mode, the sticky mode was rewritten through the firmware on every
+        // check because it never seemed to have taken, and choosing a constant
+        // fan speed - which re-asserts the mode it reads - moved the machine
+        // from Cool to Default and its power limits with it.
+        private static void TestCoolIsStillCoolWhereTheRegisterSaysNought() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            // The 8DCF's register, as measured
+            board.Bios.OnFanMode = mode => board.Ec.Set(Register.HPCM,
+                (byte) (mode == BiosData.FanMode.Performance ? 1 : 0));
+
+            board.Ec.Set(Register.HPCM, 1);
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                platform.Fans.SetMode(BiosData.FanMode.Cool);
+
+                SelfTest.Equal(BiosData.FanMode.Cool, platform.Fans.GetMode(),
+                    "Cool, set and read back as nought, is still read as Cool");
+
+                platform.Fans.SetMode(BiosData.FanMode.Performance);
+                platform.Fans.SetMode(BiosData.FanMode.Cool);
+
+                // Straight from Performance, so the register falls from one to
+                // nought - which the component holds off once, as it would a
+                // momentary nought
+                SelfTest.Equal(BiosData.FanMode.Cool, platform.Fans.GetMode(),
+                    "and so is Cool set straight after Performance");
+
+                // Kept for the mode it was asked for: written once, then only
+                // when the keep-alive comes round, not on every check
+                platform.SetFanModeSticky(BiosData.FanMode.Cool);
+                board.Bios.WriteLog.Clear();
+
+                for(int i = 0; i < 3; i++)
+                    platform.MaintainFanModeSticky();
+
+                SelfTest.Check(!board.Bios.WriteLog.Contains("SetFanMode=Cool"),
+                    "a sticky Cool is not rewritten on every check as if it had not taken");
+
+                // A constant fan speed re-asserts the mode in force, and the
+                // mode in force is Cool
+                board.Bios.WriteLog.Clear();
+
+                StarMon.AppService.FanControl.Apply(platform,
+                    new FanProgram(platform, delegate(FanProgram.Severity s, string m) { }),
+                    StarMon.AppService.FanRequest.Constant, 30, 30, null);
+
+                SelfTest.Check(!board.Bios.WriteLog.Contains("SetFanMode=Default"),
+                    "and a constant fan speed does not move the machine from Cool to Default");
+
+                // The board changing mode on its own is still seen: the
+                // register now says something other than what Cool left it at
+                board.Ec.Set(Register.HPCM, 1);
+
+                SelfTest.Equal(BiosData.FanMode.Performance, platform.Fans.GetMode(),
+                    "while a mode the firmware changed by itself is read as the firmware says");
+
+                StarMon.AppService.FanControl.ReleaseToFirmware(platform.Fans);
 
             }
 

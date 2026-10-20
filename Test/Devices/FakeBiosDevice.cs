@@ -357,7 +357,16 @@ namespace StarMon.Test.Devices {
             if(!Enter("SetFanMode")) return;
             FanMode = value;
             WriteLog.Add("SetFanMode=" + value);
+
+            Action<BiosData.FanMode> hook = OnFanMode;
+            if(hook != null)
+                hook(value);
         }
+
+        // What a mode change does to the rest of the board, for a scenario
+        // that models a firmware whose mode register does not simply hold the
+        // mode's number
+        internal Action<BiosData.FanMode> OnFanMode;
 
         public BiosData.FanTable GetFanTable() {
             Enter("GetFanTable");

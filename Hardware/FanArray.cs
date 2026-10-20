@@ -213,17 +213,61 @@ namespace StarMon.Hardware.Platform {
             try { Hw.BiosSet(Hw.Bios.SetMaxFan, flag); } catch { }
         }
 
-        // Retrieves the current fan mode
+        // Retrieves the current fan mode.
+        //
+        // The mode register does not hold the mode's number on every board.
+        // On an HP 8DCF (Victus) it reads 1 for Performance and 0 for both
+        // Default and Cool, so cast straight to the enum, Cool read as
+        // Default - and everything that compares the mode in force with the
+        // one wanted acted on that. So while the register still reads what it
+        // read straight after this application set a mode, that mode is the
+        // answer. A register that has moved since is the firmware, or someone
+        // else, having changed the mode, and is read as it stands.
         public BiosData.FanMode GetMode() {
             this.Mode.Update();
-            return (BiosData.FanMode) this.Mode.GetValue();
+            int value = this.Mode.GetValue();
+
+            ModeWrite written = this.LastModeWrite;
+            if(written != null && written.Reads == value)
+                return written.Mode;
+
+            return (BiosData.FanMode) value;
         }
 
         // Sets the current fan mode
         public void SetMode(BiosData.FanMode mode) {
-            try { Hw.BiosSet<BiosData.FanMode>(Hw.Bios.SetFanMode, mode); } catch { }
+            try {
+                Hw.BiosSet<BiosData.FanMode>(Hw.Bios.SetFanMode, mode);
+            } catch {
+                return;
+            }
             // Note: WMI BIOS call preferred over this.Mode.SetValue((byte) mode);
+
+            // What the register reads now the mode has been set. Read twice:
+            // a register going to nought is held off once by the component,
+            // in case the nought is momentary, and this one is not.
+            try {
+                this.Mode.Update();
+                this.Mode.Update();
+                this.LastModeWrite = new ModeWrite(mode, this.Mode.GetValue());
+            } catch {
+                this.LastModeWrite = null;
+            }
         }
+
+        // The last mode set, and what the register read straight after. One
+        // object, so a reader on another thread never pairs one mode with the
+        // reading of another.
+        private sealed class ModeWrite {
+            public readonly BiosData.FanMode Mode;
+            public readonly int Reads;
+            public ModeWrite(BiosData.FanMode mode, int reads) {
+                this.Mode = mode;
+                this.Reads = reads;
+            }
+        }
+
+        private volatile ModeWrite LastModeWrite;
 
         // Retrieves the fan off switch status
         public bool GetOff() {
