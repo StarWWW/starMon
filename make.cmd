@@ -11,7 +11,7 @@ set op_scope=build clean kill prepare test usage
 set op=%~1
 set taskkill=%SystemRoot%\System32\taskkill.exe
 set result_bin=StarMon.exe
-set test_param=-Ec -Ec HPCM RPM0^^(2^^) RPM2^^(2^^) -Bios -Bios Backlight=Off Color=0080FF:00FF00:00FF00:FFFFFF Backlight=On -Prog -Task -Usage
+set test_param=-Ec -Ec HPCM RPM1^^(2^^) RPM3^^(2^^) -Bios -Bios Backlight=Off Color=0080FF:00FF00:00FF00:FFFFFF Backlight=On -Prog -Task -Usage
 pushd %~dps0
 for %%p in (%op_scope%) do if "%op%"=="%%p" echo BEGIN %~n0 (%op%) & goto %op%
 echo BEGIN %~n0 & goto usage
