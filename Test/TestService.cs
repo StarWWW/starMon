@@ -36,6 +36,7 @@ namespace StarMon.Test {
             TestGuardPanicsOnceWhenStillClimbing();
             TestGuardIgnoresAMissingReading();
             TestGuardReleasesQuietlyWhenSwitchedOff();
+            TestGuardHoldsTheFansAtMaximum();
             TestThrottleNotificationIsRateLimited();
             TestManualFansNeedAPlausibleReading();
             TestManualFansAreKeptWhenAlreadyAtTheCeiling();
@@ -392,6 +393,37 @@ namespace StarMon.Test {
 
             SelfTest.Equal(ThermalAction.None, guard.Step(false, 95, 90, 75),
                 "and does not keep releasing it");
+
+        }
+
+        // Engaged is a state the guard holds, not a write it makes once.
+        //
+        // Anything else that touches the fans — the window's selector, the
+        // tray menu's switches — clears the maximum the guard asked for, and
+        // the guard went on reporting itself engaged with the fans at whatever
+        // that left, or switched off, until the panic margin four degrees on.
+        private static void TestGuardHoldsTheFansAtMaximum() {
+
+            ThermalGuard guard = new ThermalGuard();
+
+            SelfTest.Check(!guard.ShouldHoldMaximum(false, false),
+                "a guard that is not engaged holds nothing");
+
+            guard.Step(true, 95, 90, 75);
+
+            SelfTest.Check(guard.ShouldHoldMaximum(false, false),
+                "an engaged guard puts back a maximum something else cleared");
+
+            SelfTest.Check(guard.ShouldHoldMaximum(true, true),
+                "and lifts an off switch that would stop the fans under it");
+
+            SelfTest.Check(!guard.ShouldHoldMaximum(true, false),
+                "fans already at maximum are left alone");
+
+            guard.Step(true, 75, 90, 75);
+
+            SelfTest.Check(!guard.ShouldHoldMaximum(false, false),
+                "a released guard lets go");
 
         }
 

@@ -948,6 +948,35 @@ namespace StarMon.AppGui
             } catch { }
         }
 
+        // Puts the fans back to maximum where something else has taken them
+        // off it while protection is engaged. Off before maximum, for the same
+        // reason the engage path does it in that order.
+        private void HoldFansAtMaximum(byte temp)
+        {
+            bool isMax = false, isOff = false;
+            try { isMax = this.Op.Platform.Fans.GetMax(); } catch { }
+            try { isOff = this.Op.Platform.Fans.GetOff(); } catch { }
+
+            if (!this.Guard.ShouldHoldMaximum(isMax, isOff))
+                return;
+
+            ReleaseFanOff();
+            try { this.Op.Platform.Fans.SetMax(true); } catch { }
+
+            // Once per episode: a board that will not report its maximum flag
+            // reads as off every time, and this would otherwise say so on
+            // every check for as long as the episode lasts
+            if (this.MaximumHeldWarned)
+                return;
+
+            this.MaximumHeldWarned = true;
+            Logger.Warning("Thermal", "Maximum fans put back at " + temp + " °C",
+                "protection is engaged and the fans had been taken off maximum");
+        }
+
+        // Whether the hold above has already been reported this episode
+        private bool MaximumHeldWarned;
+
         // Forces the fans to maximum at the high threshold, releasing below
         // the low threshold, and notifies on CPU thermal throttling; if the
         // temperature keeps climbing regardless, all manual fan overrides
@@ -968,8 +997,10 @@ namespace StarMon.AppGui
 
                 // Automatic thermal protection with hysteresis. The decision is
                 // the guard's; carrying it out is this method's.
-                switch (this.Guard.Step(Config.ThermalProtectionEnabled, temp,
-                    Config.ThermalProtectionHighC, Config.ThermalProtectionLowC))
+                ThermalAction action = this.Guard.Step(Config.ThermalProtectionEnabled,
+                    temp, Config.ThermalProtectionHighC, Config.ThermalProtectionLowC);
+
+                switch (action)
                 {
 
                     case ThermalAction.Engage:
@@ -1024,6 +1055,15 @@ namespace StarMon.AppGui
                         break;
 
                 }
+
+                // Held for as long as the guard is engaged, not only asserted
+                // when it engages: a fan mode chosen in the window or a switch
+                // in the tray menu clears the maximum on its way through. See
+                // ThermalGuard.ShouldHoldMaximum.
+                if (action == ThermalAction.None && this.Guard.IsActive)
+                    HoldFansAtMaximum(temp);
+                else if (!this.Guard.IsActive)
+                    this.MaximumHeldWarned = false;
 
                 // Thermal-throttle notification, rate-limited by the guard
                 if (Config.ThrottleNotifyEnabled

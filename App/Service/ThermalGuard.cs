@@ -105,6 +105,20 @@ namespace StarMon.AppService {
 
         }
 
+        // Whether the fans have to be put back to maximum, given what they
+        // are doing now.
+        //
+        // Engaging is not a write made once and forgotten. Everything else
+        // that drives the fans — the window's selector, the tray menu's
+        // switches — clears the maximum override on its way to what it was
+        // asked for, and the off switch sits above the maximum one. Either
+        // left the guard reporting itself engaged while the fans ran at
+        // whatever that had set, or stood still, with nothing to catch it
+        // short of the panic margin four degrees further on.
+        public bool ShouldHoldMaximum(bool isMax, bool isOff) {
+            return this.IsActive && (!isMax || isOff);
+        }
+
         // Whether a thermal-throttle notification is due, given that the
         // hardware is reporting one. Takes the current tick count rather than
         // reading the clock, so the rate limit can be tested.
