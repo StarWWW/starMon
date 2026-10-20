@@ -1,6 +1,6 @@
 # StarMon — how it is built
 
-About 43,000 lines of C# targeting .NET Framework 4.8, in one non-SDK-style project, with no package references at all. Everything it needs it either carries or binds by hand.
+About 43,000 lines of C# targeting .NET 10 (`net10.0-windows`), in one SDK-style project, published as a single framework-dependent `StarMon.exe`. It has one package reference — `Microsoft.Management.Infrastructure`, the CIM client the BIOS interface runs on, which was part of Windows while the project targeted .NET Framework 4.8. Everything else it needs it either carries or binds by hand.
 
 This document is for whoever changes it next. It explains the layers, the rules each one lives by, and the handful of decisions that are load-bearing — the ones where doing the obvious thing produces an application that appears to work and quietly drives the wrong hardware.
 
@@ -295,7 +295,7 @@ The capability probe deserves its own note: it asks the firmware about two dozen
 
 ## 10. Tests
 
-A hand-rolled runner, because there are no package references to bring one in.
+A hand-rolled runner, built into the program itself. It dates from when the project had no package references to bring one in.
 
 ```
   StarMon.exe -SelfTest            everything

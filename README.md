@@ -7,7 +7,7 @@ _HP Omen ve Victus dizüstüleri için donanım izleme ve denetimi_
 
 [![License](https://img.shields.io/badge/license-GPL--3.0-8B5CF6?style=flat-square)](https://www.gnu.org/licenses/gpl-3.0.html)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-8B5CF6?style=flat-square)](#requirements)
-[![Framework](https://img.shields.io/badge/.NET%20Framework-4.8-8B5CF6?style=flat-square)](#building-from-source)
+[![Framework](https://img.shields.io/badge/.NET-10-8B5CF6?style=flat-square)](#building-from-source)
 [![UI](https://img.shields.io/badge/UI-WPF-8B5CF6?style=flat-square)](#the-interface)
 
 **[English](#english) · [Türkçe](#türkçe)**
@@ -51,7 +51,7 @@ Around those it adds NVIDIA readings through NVAPI and NVML, processor power and
 
 It runs in the notification area and does not phone home.
 
-It is a WPF application, and it costs what one costs. Measured on the machine this was developed on: **around 45 MB** while it has only ever sat in the notification area, and **around 250 MB** once the window has been opened — the visual tree and the render surfaces stay resident afterwards. That second figure is stable rather than growing; two samples ninety minutes apart went down, not up.
+It is a WPF application, and it costs what one costs. Measured on the machine this was developed on: **around 45 MB** while it has only ever sat in the notification area, and **around 250 MB** once the window has been opened — the visual tree and the render surfaces stay resident afterwards. That second figure is stable rather than growing; two samples ninety minutes apart went down, not up. Both were measured while StarMon still ran on .NET Framework 4.8 and have not been taken again since the move to .NET 10.
 
 Both are readings, not estimates. The System page reports the process's own footprint and so does `-Probe`, so the figure on your machine is one you can look at rather than take on trust.
 
@@ -62,7 +62,7 @@ An earlier version of this paragraph said "a few megabytes" for both cases. That
 | | |
 |---|---|
 | **Operating system** | Windows 10 or Windows 11, 64-bit |
-| **Runtime** | .NET Framework 4.8 (present on every supported Windows) |
+| **Runtime** | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), x64 — not part of Windows, installed once. `StarMon.exe` is a single file that uses it rather than carrying its own copy |
 | **Rights** | Administrator — the EC and the BIOS calls are not reachable otherwise |
 | **Hardware** | An HP Omen or Victus laptop. Most features need the HP BIOS interface; what your particular board offers is listed on the System page |
 
@@ -298,21 +298,20 @@ Everything probed is listed in the hardware report with the source of each findi
 .\build.ps1 -Configuration Debug
 ```
 
-The script works with the plain .NET SDK — no Visual Studio. It handles the two things that otherwise make this project awkward to build:
+`StarMon.csproj` is an SDK-style project targeting `net10.0-windows`, and the script needs nothing but the .NET SDK — no Visual Studio. It **publishes** rather than just builds: what ships is `Bin\StarMon.exe`, one framework-dependent file, while the ordinary build output it is made from stays under `Obj`. The one package the project uses, `Microsoft.Management.Infrastructure` (the CIM client the BIOS interface runs on), is restored from NuGet on the first build, so that build needs network access.
 
-* the **.NET Framework 4.8 reference assemblies** the SDK does not ship, along with `System.Management.Instrumentation`, which is not in the reference pack at all. Staying on `net48` is not nostalgia: that assembly and `System.Management` would need NuGet packages on modern .NET.
-* the **WPF markup compiler**, which turns the `.xaml` files into BAML before the C# compiler runs. It ships inside the WindowsDesktop SDK rather than with the C# targets, and a non-SDK-style project does not import it on its own.
+What the script adds over a plain `dotnet publish` are the checks listed under the self-test below and the version stamp: `-Version 1.2.2.0 -VersionWord Release` produces `1.2.2-Release` in the About page, the tray menu and the command-line header. `.github/workflows/build.yml` builds through this same script rather than its own `dotnet` line, so CI runs the same checks.
 
 #### What has to be installed
 
-* a **.NET SDK** including the Windows Desktop workload — it carries the markup compiler
-* the **[.NET Framework 4.8 Developer Pack](https://dotnet.microsoft.com/download/dotnet-framework/net48)** — it carries the reference assemblies
+* to build: the **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — on Windows it includes the Windows Desktop pieces WPF needs
+* to run: the **.NET 10 Desktop Runtime, x64** — the SDK includes it; a machine that only runs StarMon needs the runtime alone
 
-Both are searched for, so nothing has to be configured. If either is somewhere unusual, `STARMON_REFASM` and `STARMON_MMI` name the directories directly and skip the search. These two paths used to be written into the script as absolute locations on one developer's machine, which meant the project built nowhere else — including on a CI runner, which is why `.github/workflows/build.yml` now builds through this same script rather than its own `msbuild` line.
+Earlier builds targeted .NET Framework 4.8. Upgrading an existing folder means replacing `StarMon.exe`; `StarMon.exe.config` and `Microsoft.Management.Infrastructure.dll` left beside it by an older build are no longer used and can be deleted.
 
 ### The self-test
 
-The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore builds the same sources a second time without the manifest into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **596 tests**, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
+The shipping executable demands elevation, which makes it unusable as a test host. `-Test` therefore publishes the same sources a second time without the manifest, as the same kind of single file, into `Bin\Test` and runs `StarMonTest.exe -SelfTest`. **805 checks** at the time of writing, no hardware touched: the Embedded Controller is stood in for by a fake that models its I/O ports, so the wait-and-retry protocol can be exercised including the failure modes a working controller never produces.
 
 #### The device matrix
 
@@ -328,11 +327,12 @@ Suites are found by reflection — a class marked `[TestSuite]` runs because it 
 
 A filter that matches nothing is an error, not an empty pass. A suite that throws no longer takes the rest of the run down with it: it is reported, and the other suites still run. The exit code for a failing run is `6`, which used to be `1` — the same code a BIOS initialisation failure returns, so a script could not tell the two apart.
 
-Three things are checked against the source before anything compiles, because none of them can be seen from a built assembly:
+Two things are checked against the source before anything compiles, because neither can be seen from a built assembly:
 
 * a **duplicate locale key** — the collection-initialiser syntax silently keeps the last one
 * a **test method with no caller** — it compiles, never runs, and the count at the end still looks healthy
-* a **fan mode or message key missing from either language**
+
+A **fan mode or message key missing from either language** is caught too, by the Locale suite once the test host runs.
 
 ### The design loop
 
@@ -348,7 +348,7 @@ No markup in this project may name a type declared in the same assembly — no l
 
 ## Project layout
 
-About 43,000 lines of C#, one project, no package references at all.
+About 43,000 lines of C#, one project, one package reference — the CIM client, which was part of Windows until the move to .NET 10.
 
 | Path | What lives there |
 |---|---|
@@ -452,7 +452,7 @@ Bunların çevresine NVAPI ve NVML üzerinden NVIDIA ölçümlerini, Intel RAPL 
 
 Bildirim alanında çalışır ve dışarıyla konuşmaz.
 
-Bir WPF uygulamasıdır ve bir WPF uygulamasının bedelini öder. Geliştirildiği makinede ölçüldü: yalnızca bildirim alanında durduğu sürece **yaklaşık 45 MB**, pencere bir kez açıldıktan sonra ise **yaklaşık 250 MB** — görsel ağaç ve çizim yüzeyleri sonrasında bellekte kalıyor. İkinci rakam büyüyen değil kararlı; doksan dakika arayla alınan iki örnek yükselmedi, düştü.
+Bir WPF uygulamasıdır ve bir WPF uygulamasının bedelini öder. Geliştirildiği makinede ölçüldü: yalnızca bildirim alanında durduğu sürece **yaklaşık 45 MB**, pencere bir kez açıldıktan sonra ise **yaklaşık 250 MB** — görsel ağaç ve çizim yüzeyleri sonrasında bellekte kalıyor. İkinci rakam büyüyen değil kararlı; doksan dakika arayla alınan iki örnek yükselmedi, düştü. İkisi de StarMon henüz .NET Framework 4.8 üzerinde çalışırken ölçüldü; .NET 10'a geçişten sonra yeniden alınmadı.
 
 İkisi de tahmin değil ölçüm. Sistem sayfası sürecin kendi ayak izini bildiriyor, `-Probe` de öyle; yani kendi makinenizdeki rakam güvenmeniz gereken değil bakabileceğiniz bir şey.
 
@@ -463,7 +463,7 @@ Bu paragrafın eski hâli her iki durum için de "birkaç megabayt" diyordu. Bu 
 | | |
 |---|---|
 | **İşletim sistemi** | Windows 10 veya Windows 11, 64 bit |
-| **Çalışma zamanı** | .NET Framework 4.8 (desteklenen her Windows'ta hazır gelir) |
+| **Çalışma zamanı** | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), x64 — Windows'la gelmez, bir kez kurulur. `StarMon.exe` bunu kullanan tek bir dosyadır, kendi kopyasını taşımaz |
 | **Yetki** | Yönetici — EC ve BIOS çağrılarına başka türlü erişilemez |
 | **Donanım** | HP Omen ya da Victus dizüstü. Özelliklerin çoğu HP BIOS arayüzünü gerektirir; sizin anakartınızın neyi sunduğu Sistem sayfasında yazar |
 
@@ -699,14 +699,20 @@ Yoklanan her şey, her bulgunun kaynağıyla birlikte donanım raporunda listele
 .\build.ps1 -Configuration Debug
 ```
 
-Betik düz .NET SDK ile çalışır — Visual Studio gerekmez. Bu projeyi başka türlü zahmetli kılan iki şeyi kendisi halleder:
+`StarMon.csproj`, `net10.0-windows` hedefleyen SDK biçiminde bir projedir ve betik .NET SDK'dan başka bir şey istemez — Visual Studio gerekmez. Yalnızca derlemekle kalmaz, **yayımlar**: sevk edilen şey tek, çerçeveye bağımlı bir dosya olan `Bin\StarMon.exe`'dir; onun üretildiği olağan derleme çıktısı `Obj` altında kalır. Projenin kullandığı tek paket olan `Microsoft.Management.Infrastructure` (BIOS arayüzünün üzerinde çalıştığı CIM istemcisi) ilk derlemede NuGet'ten geri yüklenir; o derleme ağ erişimi ister.
 
-* SDK'nın birlikte getirmediği **.NET Framework 4.8 başvuru derlemeleri** ve başvuru paketinde hiç bulunmayan `System.Management.Instrumentation`. `net48` üzerinde kalmak nostalji değil: o derleme ile `System.Management`, modern .NET'te NuGet paketleri gerektirirdi.
-* `.xaml` dosyalarını C# derleyicisi çalışmadan önce BAML'e çeviren **WPF markup derleyicisi**. Bu, C# hedefleriyle değil WindowsDesktop SDK'sının içinde gelir ve SDK biçiminde olmayan bir proje onu kendiliğinden içe aktarmaz.
+Betiğin düz bir `dotnet publish`'e eklediği, aşağıda öz test altında sayılan denetimler ve sürüm damgasıdır: `-Version 1.2.2.0 -VersionWord Release`, Hakkında sayfasında, tepsi menüsünde ve komut satırı başlığında `1.2.2-Release` üretir. `.github/workflows/build.yml` kendi `dotnet` satırıyla değil bu betikle derler; CI da aynı denetimlerden geçer.
+
+#### Kurulu olması gerekenler
+
+* derlemek için: **[.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)** — Windows'ta WPF'nin ihtiyaç duyduğu Windows Desktop parçalarını içerir
+* çalıştırmak için: **.NET 10 Desktop Runtime, x64** — SDK bunu içerir; yalnızca StarMon çalıştıracak bir makineye çalışma zamanının kendisi yeter
+
+Önceki yapılar .NET Framework 4.8'i hedefliyordu. Var olan bir klasörü güncellemek `StarMon.exe`'yi değiştirmekten ibarettir; eski bir yapının yanında bıraktığı `StarMon.exe.config` ve `Microsoft.Management.Infrastructure.dll` artık kullanılmaz, silinebilir.
 
 ### Öz test
 
-Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan ikinci kez `Bin\Test` altına derler ve `StarMonTest.exe -SelfTest` çalıştırır. **596 test**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
+Sevkiyat çalıştırılabiliri yükseltme ister; bu da onu test barındırıcısı olarak kullanılamaz kılar. Bu yüzden `-Test`, aynı kaynakları manifest olmadan, aynı türden tek bir dosya olarak ikinci kez `Bin\Test` altına yayımlar ve `StarMonTest.exe -SelfTest` çalıştırır. Bu yazı yazılırken **805 denetim**, donanıma hiç dokunulmadan: Gömülü Denetleyici'nin yerini G/Ç portlarını modelleyen bir taklit alır; böylece bekle-ve-yeniden-dene protokolü, çalışan bir denetleyicinin hiç üretmediği arıza kipleri dahil sınanabilir. Derleme ayrıca yinelenen bir yerel anahtarda ve iki dilden birinde eksik kalan bir fan kipi ya da ileti anahtarında başarısız olur.
 
 ### Tasarım döngüsü
 
@@ -722,7 +728,7 @@ Bu projede hiçbir markup, aynı derlemede tanımlı bir tipi adlandıramaz — 
 
 ## Proje düzeni
 
-Yaklaşık 43.000 satır C#, tek proje, hiç paket referansı yok.
+Yaklaşık 43.000 satır C#, tek proje, tek paket referansı — .NET 10'a geçişe kadar Windows'un parçası olan CIM istemcisi.
 
 | Yol | Ne bulunur |
 |---|---|
