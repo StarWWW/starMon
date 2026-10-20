@@ -561,6 +561,30 @@ namespace StarMon.Test {
 
             }
 
+            // A level written through the firmware survives all three of
+            // those. Measured on an HP 8DCF (Victus): a level set through the
+            // BIOS call held with the manual toggle at zero and no failsafe
+            // countdown running, until 0xFF was written - so quitting with the
+            // fans at Maximum, which is a level at the ceiling, or at a
+            // constant level, left them there for as long as the machine ran.
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                platform.Fans.SetLevels(new byte[] { 56, 56 });
+
+                board.Bios.WriteLog.Clear();
+
+                StarMon.AppService.FanControl.ReleaseToFirmware(platform.Fans);
+
+                SelfTest.Check(board.Bios.WriteLog.Contains("SetFanLevel=255,255"),
+                    "a fixed fan level is released to the firmware on the way out");
+
+                SelfTest.Check(!platform.Fans.GetManual(),
+                    "and releasing it leaves no manual control behind");
+
+            }
+
             // A board that refuses one of the three still gets the other two.
             // Stopping at the first refusal would leave the rest of the state
             // exactly as it was, which is the outcome being avoided.
@@ -1030,6 +1054,7 @@ namespace StarMon.Test {
                     new byte[] { 56, 56 }, new byte[] { 56, 56 },
                     new byte[] { 48, 46 }, ceiling),
                 "and arriving is agreement");
+
 
             // A request above the ceiling answered by the ceiling is the
             // firmware doing its job

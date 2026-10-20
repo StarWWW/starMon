@@ -203,6 +203,16 @@ namespace StarMon.AppService {
         // refuses one of these refuses it; stopping at the first refusal would
         // leave the rest of the state exactly as it was, which is the outcome
         // being avoided.
+        //
+        // The level goes too. Maximum is a level at the ceiling, and a
+        // constant speed is a level, and on at least one board neither is
+        // undone by the three toggles: measured on an HP 8DCF (Victus), a level
+        // set through the BIOS call held with the manual toggle at zero and no
+        // failsafe countdown running, until 0xFF - the firmware's own "no
+        // custom level" - was written, after which the firmware took the fans
+        // back within seconds. So quitting at Maximum left the fans at
+        // Maximum for as long as the machine stayed on. Released before the
+        // manual toggle comes down, because setting a level raises it.
         public static void ReleaseToFirmware(IFanArray fans) {
 
             if(fans == null)
@@ -210,6 +220,7 @@ namespace StarMon.AppService {
 
             try { fans.SetOff(false); } catch { }
             try { fans.SetMax(false); } catch { }
+            try { fans.SetLevels(new byte[] { Byte.MaxValue, Byte.MaxValue }); } catch { }
             try { fans.SetManual(false); } catch { }
 
         }
