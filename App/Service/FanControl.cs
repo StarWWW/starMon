@@ -214,6 +214,25 @@ namespace StarMon.AppService {
 
         }
 
+        // The two overrides on their own, for a caller that is not asking for
+        // a fan mode — the tray menu's two switches.
+        //
+        // Asserting one takes the other down first, for the reason the
+        // Constant branch below gives: they are not independent switches, and
+        // maximum asked for under the off switch leaves the fans stopped. The
+        // menu wrote each on its own, so its maximum ticked and did nothing to
+        // fans that had been switched off. Clearing either touches nothing
+        // else.
+        public static void SetMaximum(IFanArray fans, bool on) {
+            if(on && Read(() => fans.GetOff())) fans.SetOff(false);
+            fans.SetMax(on);
+        }
+
+        public static void SetOff(IFanArray fans, bool off) {
+            if(off && Read(() => fans.GetMax())) fans.SetMax(false);
+            fans.SetOff(off);
+        }
+
         public static bool ApplyGpuPower(Platform platform, GpuPower level) {
 
             try {

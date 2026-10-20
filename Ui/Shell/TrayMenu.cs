@@ -221,10 +221,13 @@ namespace StarMon.Ui.Shell {
 
             branch.Add(MenuModel.Separator());
 
+            // Through FanControl, which takes the other override down first:
+            // the two are not independent switches, and maximum asked for
+            // with the fans switched off leaves them off
             branch.Add(MenuModel.Toggle(() => Text("ActFanMax"),
                 () => Safe(() => this.Host.Platform.Fans.GetMax()),
                 () => {
-                    this.Host.Platform.Fans.SetMax(
+                    AppService.FanControl.SetMaximum(this.Host.Platform.Fans,
                         !Safe(() => this.Host.Platform.Fans.GetMax()));
                     this.Host.Platform.ClearFanModeSticky();
                     this.Host.RefreshFanState();
@@ -233,7 +236,7 @@ namespace StarMon.Ui.Shell {
             branch.Add(MenuModel.Toggle(() => Text("ActFanOff"),
                 () => Safe(() => this.Host.Platform.Fans.GetOff()),
                 () => {
-                    this.Host.Platform.Fans.SetOff(
+                    AppService.FanControl.SetOff(this.Host.Platform.Fans,
                         !Safe(() => this.Host.Platform.Fans.GetOff()));
                     this.Host.Platform.ClearFanModeSticky();
                     this.Host.RefreshFanState();

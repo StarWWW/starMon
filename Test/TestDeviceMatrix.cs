@@ -52,6 +52,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: leaving the machine as it was found");
             TestExitHandsTheFansBack();
+            TestOneOverrideComesDownBeforeTheOther();
 
             SelfTest.Group("Device matrix: writes that do not take");
             TestRefusedFanWriteIsNotRetriedForever();
@@ -632,6 +633,41 @@ namespace StarMon.Test {
 
                 SelfTest.Equal(BiosData.FanMode.Default, platform.Fans.GetMode(),
                     "and the Default profile reads as Default");
+
+            }
+
+        }
+
+        // The tray menu's two fan switches, maximum and off.
+        //
+        // They are the same pair of overrides FanControl already orders - the
+        // off switch sits above maximum, so asking for maximum under it leaves
+        // the fans stopped - and the menu wrote each one on its own, so
+        // "maximum" chosen with the fans switched off ticked in the menu and
+        // changed nothing the fans were doing.
+        private static void TestOneOverrideComesDownBeforeTheOther() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                platform.Fans.SetOff(true);
+                StarMon.AppService.FanControl.SetMaximum(platform.Fans, true);
+
+                SelfTest.Check(platform.Fans.GetMax() && !platform.Fans.GetOff(),
+                    "maximum asked for with the fans off lifts the off switch");
+
+                StarMon.AppService.FanControl.SetOff(platform.Fans, true);
+
+                SelfTest.Check(platform.Fans.GetOff() && !platform.Fans.GetMax(),
+                    "and off asked for at maximum lifts maximum");
+
+                StarMon.AppService.FanControl.SetOff(platform.Fans, false);
+
+                SelfTest.Check(!platform.Fans.GetOff() && !platform.Fans.GetMax(),
+                    "switching one off leaves the other as it was");
 
             }
 
