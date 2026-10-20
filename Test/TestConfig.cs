@@ -30,6 +30,55 @@ namespace StarMon.Test {
 
             SelfTest.Group("Configuration: the program as it ships");
             TestTheCommandLineRunsFromTheShippedFile();
+            TestTheHardwareGateCanReadThisMachine();
+
+        }
+
+        // The CIM client, loaded from inside the single file.
+        //
+        // On .NET Framework it was part of Windows. On .NET it is a package
+        // with a native half, which a single file can only carry by unpacking
+        // it at start-up. If that fails nothing says so: every caller catches,
+        // and the one that matters most is the hardware gate, which reads the
+        // board and the chassis through it and, when it cannot, abstains -
+        // letting writes through on the very desktop boards it exists to
+        // stop.
+        //
+        // Only reads, of two classes every Windows machine publishes.
+        private static void TestTheHardwareGateCanReadThisMachine() {
+
+            int boards = 0;
+            bool named = false;
+
+            using(StarMon.Hardware.Platform.WmiInfo wmi = new StarMon.Hardware.Platform.WmiInfo()) {
+
+                SelfTest.Check(wmi.IsInitialized,
+                    "a CIM session opens from inside the program");
+
+                foreach(Dictionary<string, string> row
+                    in wmi.EnumerateInstances("Win32_BaseBoard")) {
+
+                    string manufacturer;
+
+                    boards++;
+
+                    if(row.TryGetValue("Manufacturer", out manufacturer)
+                        && !string.IsNullOrEmpty(manufacturer))
+                        named = true;
+
+                }
+
+            }
+
+            SelfTest.Check(boards > 0 && named,
+                "and the board the hardware gate reads comes back with a maker");
+
+            List<int> chassis = (List<int>) typeof(StarMon.Hardware.Identity)
+                .GetMethod("ReadChassisTypes", BindingFlags.NonPublic | BindingFlags.Static)
+                .Invoke(null, null);
+
+            SelfTest.Check(chassis.Count > 0,
+                "and so does the chassis type it reads alongside it");
 
         }
 
