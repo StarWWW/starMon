@@ -28,7 +28,30 @@ namespace StarMon.Test {
             TestWideningKeepsHistory();
             TestNarrowingKeepsTheNewest();
             TestResizedBufferKeepsRecording();
+            TestSummaryCountsOnlyWhatWasRecorded();
             TestRowWithoutATipHasNoTooltip();
+
+        }
+
+        // The hover summary's minimum, mean and maximum, before the window has
+        // filled.
+        //
+        // It walked the whole ring rather than the samples held, and the slots
+        // not written yet are zero rather than a gap - so for the first two
+        // minutes of every session the summary reported a minimum of nought
+        // and a mean dragged down by every empty slot.
+        private static void TestSummaryCountsOnlyWhatWasRecorded() {
+
+            HistoryBuffer buffer = Build(8);
+            buffer.Push(50, 20);
+            buffer.Push(60, 40);
+
+            string summary = buffer.BuildSummary();
+
+            SelfTest.Check(summary.IndexOf("CPU: 60°   (min 50  avg 55  max 60)",
+                StringComparison.Ordinal) >= 0,
+                "the summary is taken over the samples recorded, not the empty slots"
+                    + " - " + summary.Replace("\n", " | "));
 
         }
 

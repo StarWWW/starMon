@@ -216,7 +216,11 @@ namespace StarMon.AppService {
                 double min = double.MaxValue, max = double.MinValue, sum = 0;
                 int count = 0;
 
-                foreach(double value in series.Data) {
+                // The samples held, not the whole ring. The slots not written
+                // yet are zero rather than a gap, so walking the ring put a
+                // minimum of nought and a mean dragged down by every empty slot
+                // in front of the user for the first window of every session.
+                foreach(double value in Samples(series)) {
                     if(double.IsNaN(value))
                         continue;
                     if(value < min) min = value;
