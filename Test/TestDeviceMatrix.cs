@@ -69,6 +69,7 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: a fan program and the window at once");
             TestAStoppedProgramStaysStopped();
             TestCyclingProgramsPutsTheOriginalModeBack();
+            TestAProgramWithNoStepsIsNotStarted();
 
             SelfTest.Group("Device matrix: the command line writes what it was given");
             TestAMistypedFanLevelIsNotWrittenAsZero();
@@ -1275,6 +1276,54 @@ namespace StarMon.Test {
                 } finally {
                     Config.FanProgram = previous;
                     Config.GpuPowerSetInterval = previousInterval;
+                }
+
+            }
+
+        }
+
+        // A program in the configuration file with no steps in it.
+        //
+        // The loader accepts one - a Program element whose Level children are
+        // missing or all malformed - and Run set it going: it reported itself
+        // running, and every step it took threw looking up a level in an empty
+        // list, before any level was written. The same shape as the one-fan
+        // program above, reached by a different road.
+        private static void TestAProgramWithNoStepsIsNotStarted() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                var previous = Config.FanProgram;
+
+                try {
+
+                    Config.FanProgram =
+                        new System.Collections.Generic.SortedList<string, FanProgramData> {
+                            ["Empty"] = new FanProgramData("Empty",
+                                BiosData.FanMode.Default,
+                                BiosData.GpuPowerLevel.Minimum,
+                                new System.Collections.Generic.SortedDictionary<byte, byte[]>()) };
+
+                    FanProgram runner = new FanProgram(new Platform(),
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    bool started = true;
+                    string failure = null;
+
+                    try {
+                        started = runner.Run("Empty");
+                    } catch(Exception e) {
+                        failure = e.GetType().Name;
+                    }
+
+                    SelfTest.Check(failure == null && !started && !runner.IsEnabled,
+                        "a program with no steps is refused rather than started"
+                            + (failure == null ? "" : " - " + failure));
+
+                } finally {
+                    Config.FanProgram = previous;
                 }
 
             }

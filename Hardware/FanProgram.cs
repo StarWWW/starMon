@@ -527,6 +527,20 @@ namespace StarMon.Hardware.Platform {
 
             }
 
+            // A program with no steps has no level to give. The loader
+            // accepts one whose steps are missing or malformed, and started,
+            // it reported itself running while every step threw looking up a
+            // level in an empty list.
+            FanProgramData data = Config.FanProgram[name];
+            if(data == null || data.Level == null || data.Level.Count == 0) {
+
+                Logger.Error("Program", "Fan program has no steps",
+                    "\"" + name + "\" in the configuration file has no levels to set");
+
+                return false;
+
+            }
+
             // Set up the program name
             this.Name = name;
 
