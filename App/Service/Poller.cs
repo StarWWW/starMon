@@ -353,9 +353,9 @@ namespace StarMon.AppService {
 
             if(slowTick)
                 try {
-                    int disk = Hardware.DiskTemperature.GetTemperature();
-                    if(disk > 0)
-                        this.DiskTemperatureCache = disk;
+                    this.DiskTemperatureCache = NextDiskTemperature(
+                        this.DiskTemperatureCache,
+                        Hardware.DiskTemperature.GetTemperature());
                 } catch { }
             reading.DiskTemperature = this.DiskTemperatureCache;
 
@@ -757,6 +757,20 @@ namespace StarMon.AppService {
         private static bool Has(string text, string part) {
             return text != null && text.IndexOf(part,
                 StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        // The disk temperature to show after a slow tick has asked for one.
+        //
+        // An answer replaces the last one, and no answer clears it. This kept
+        // the last temperature whenever the drive did not answer, so a drive
+        // that stopped answering for good went on showing its last figure for
+        // the life of the process, indistinguishable from a live reading. A
+        // drive that is only momentarily busy is not lost by clearing it:
+        // DiskTemperature re-probes in the same call before it gives up an
+        // answer, and three empty probes in a row before it gives up the
+        // drive. Internal so the tests can reach it.
+        internal static int NextDiskTemperature(int shown, int fresh) {
+            return fresh > 0 ? fresh : -1;
         }
 
         // A part name, without the decoration the vendors put in it.

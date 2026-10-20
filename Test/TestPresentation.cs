@@ -45,6 +45,7 @@ namespace StarMon.Test {
             TestUptimeFormatting();
             TestNumberFormatting();
             TestBatteryFlowShowsDischarging();
+            TestADriveThatStopsAnsweringIsNotShownAsLive();
 
             SelfTest.Group("Presentation: fitting the screen");
             TestWindowFitsTheDisplaysThatBrokeIt();
@@ -664,6 +665,27 @@ namespace StarMon.Test {
 
             SelfTest.Equal("", WindowController.BatteryFlow(0),
                 "and so is a battery doing neither");
+
+        }
+
+        // The drive temperature, when the drive stops answering.
+        //
+        // The poller kept the last temperature it was given and only ever
+        // replaced it with a newer one. A drive that stopped answering -
+        // asleep behind a controller that will not wake it, removed, or given
+        // up on after three empty probes - went on showing the figure it last
+        // had, on the dashboard, for the life of the process, looking exactly
+        // like a live reading.
+        private static void TestADriveThatStopsAnsweringIsNotShownAsLive() {
+
+            SelfTest.Equal(47, StarMon.AppService.Poller.NextDiskTemperature(-1, 47),
+                "a drive that answers is shown");
+
+            SelfTest.Equal(52, StarMon.AppService.Poller.NextDiskTemperature(47, 52),
+                "and its next answer replaces the last");
+
+            SelfTest.Equal(-1, StarMon.AppService.Poller.NextDiskTemperature(52, -1),
+                "but one that stops answering is shown as unknown, not as 52 °C");
 
         }
 
