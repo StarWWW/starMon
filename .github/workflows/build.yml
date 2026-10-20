@@ -2,8 +2,9 @@ name: Build and test
 
 # This existed once and was deleted in d24332e. It is back because it is the
 # only thing that answers the question the local build cannot: does this
-# project build on a machine that is not the author's? Until the paths in
-# build.ps1 were made discoverable, the honest answer was no.
+# project build on a machine that is not the author's? While it targeted .NET
+# Framework 4.8 that took a toolchain build.ps1 had to go looking for; on
+# .NET 10 it takes the SDK and nothing else.
 
 on:
   push:
@@ -19,10 +20,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # The SDK of the major version the project targets, rather than
+      # whatever the runner image happens to carry: an image that moves on to
+      # a newer major version would otherwise change the compiler and the
+      # analyzers under this build without anything here saying so.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
       # Deliberately the same entry point developers use, rather than a
       # hand-written msbuild line. A CI that builds a different way than
       # everyone else proves only that the CI works: the duplicate-locale-key
-      # gate, the toolchain discovery and the version stamping all live in
+      # gate, the uncalled-test gate and the version stamping all live in
       # build.ps1, and a separate invocation would skip every one of them.
       #
       # It runs under Windows PowerShell (shell: powershell) rather than
@@ -32,12 +41,14 @@ jobs:
         shell: powershell
         run: .\build.ps1 -Test -Version 1.0.2.${{ github.run_number }} -VersionWord CI
 
+      # One file and its configuration template: the program is published as
+      # a single framework-dependent executable, and StarMon.exe.config meant
+      # something only to .NET Framework.
       - name: Upload build
         uses: actions/upload-artifact@v4
         with:
           name: StarMon
           path: |
             Bin/StarMon.exe
-            Bin/StarMon.exe.config
             Bin/StarMon.xml
           if-no-files-found: error
