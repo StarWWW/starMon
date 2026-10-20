@@ -44,6 +44,7 @@ namespace StarMon.Test {
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
             TestNumberFormatting();
+            TestBatteryFlowShowsDischarging();
 
             SelfTest.Group("Presentation: fitting the screen");
             TestWindowFitsTheDisplaysThatBrokeIt();
@@ -642,6 +643,27 @@ namespace StarMon.Test {
             SelfTest.Check(Conv.GetWord(Conv.GetString(4095, 0, 10), out word)
                     && word == 4095,
                 "a word written as decimal parses back to itself");
+
+        }
+
+        // The dashboard's battery flow row. The reading is positive while
+        // charging and negative while discharging, and the row went through a
+        // formatter that answers anything not above zero with a dash — so on
+        // battery, the case the row's own tooltip describes first, it never
+        // showed anything.
+        private static void TestBatteryFlowShowsDischarging() {
+
+            SelfTest.Equal("-12.3 W", WindowController.BatteryFlow(-12.3),
+                "a battery discharging shows how fast, and which way");
+
+            SelfTest.Equal("+45.0 W", WindowController.BatteryFlow(45),
+                "and one charging shows that the other way");
+
+            SelfTest.Equal("", WindowController.BatteryFlow(double.NaN),
+                "an unknown flow is left for the row's dash");
+
+            SelfTest.Equal("", WindowController.BatteryFlow(0),
+                "and so is a battery doing neither");
 
         }
 

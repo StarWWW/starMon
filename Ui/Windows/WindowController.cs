@@ -2675,13 +2675,30 @@ namespace StarMon.Ui.Windows {
 
             Set(model.PowerBlock, 0, reading.BatteryPercent >= 0
                 ? reading.BatteryPercent + " %" : "");
-            Set(model.PowerBlock, 1, Describe(reading.BatteryWatts, " W", 1));
+            Set(model.PowerBlock, 1, BatteryFlow(reading.BatteryWatts));
             Set(model.PowerBlock, 2, reading.BatteryHealthPercent >= 0
                 ? reading.BatteryHealthPercent + " %" : "");
             Set(model.PowerBlock, 3, PowerLine(reading));
             Set(model.PowerBlock, 4, Memory(reading));
             Set(model.PowerBlock, 5, Storage(reading));
             Set(model.PowerBlock, 6, Network(reading));
+
+        }
+
+        // The battery's flow, with the sign that says which way it is going.
+        //
+        // The reading is positive while charging and negative while
+        // discharging, and this row went through Describe, which answers
+        // anything not above zero with nothing — so on battery, the case the
+        // row's tooltip describes first, it only ever showed a dash. The sign
+        // stays, because nothing else in the block says which way it is.
+        internal static string BatteryFlow(double watts) {
+
+            if(double.IsNaN(watts) || System.Math.Abs(watts) < 0.05)
+                return "";
+
+            return watts.ToString("+0.0;-0.0",
+                System.Globalization.CultureInfo.InvariantCulture) + " W";
 
         }
 
