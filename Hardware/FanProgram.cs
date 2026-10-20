@@ -264,7 +264,8 @@ namespace StarMon.Hardware.Platform {
                 Platform.Fans.SetManual(false);
 
             // Restore the previous fan mode
-            UpdateFanMode(true, this.LastFanMode);
+            BiosData.FanMode restored = this.LastFanMode;
+            UpdateFanMode(true, restored);
 
             // Restore the previous GPU power settings
             UpdateGpuPower(true, this.LastGpuPowerData);
@@ -280,8 +281,10 @@ namespace StarMon.Hardware.Platform {
             // Update the status
             Status(Severity.Notice, Config.Locale.Get(Config.L_PROG + "End"));
 
+            // The mode put back, taken before Reset cleared it. Read after,
+            // this said Default whatever had actually been restored.
             Logger.Info("Program", "Fan program stopped",
-                "fan mode put back to " + this.LastFanMode);
+                "fan mode put back to " + restored);
 
             // Report success
             return true;

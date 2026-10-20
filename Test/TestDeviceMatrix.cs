@@ -1273,6 +1273,16 @@ namespace StarMon.Test {
                         "stopping the second program puts back the mode from "
                             + "before the first");
 
+                    // And the log says the mode it put back, rather than the
+                    // one left over once the program's state had been cleared
+                    string said = null;
+                    foreach(LogEntry entry in Logger.GetAll())
+                        if(entry.Message == "Fan program stopped")
+                            said = entry.Details;
+
+                    SelfTest.Equal("fan mode put back to Cool", said,
+                        "the log names the mode that was put back");
+
                 } finally {
                     Config.FanProgram = previous;
                     Config.GpuPowerSetInterval = previousInterval;
