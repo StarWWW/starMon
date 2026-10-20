@@ -1,29 +1,22 @@
 # StarMon build script
 #
-# Builds without Visual Studio, using only the system .NET SDK.
+# Builds with the .NET SDK alone, no Visual Studio needed.
 #
 #   .\build.ps1                    build
 #   .\build.ps1 -Test              build, then run the self-test
 #   .\build.ps1 -Render window     build, then draw a piece of the interface
 #
-# Two things make this project awkward to build with the SDK's MSBuild alone,
-# and both are handled here.
+# The program is published rather than just built: what ships is the single
+# framework-dependent Bin\StarMon.exe that the publish step writes, and the
+# ordinary build output it is made from stays under Obj. It needs the .NET 10
+# SDK to build and the .NET 10 Desktop Runtime (x64) to run.
 #
-#  1. It targets .NET Framework 4.8, whose reference assemblies the SDK does
-#     not ship, and it uses Microsoft.Management.Infrastructure, which is not
-#     in the reference pack at all. Both are pointed at explicitly below.
-#     Staying on net48 is not nostalgia: that assembly and System.Management
-#     need NuGet packages on modern .NET, and this machine cannot reach NuGet.
-#
-#  2. The interface is WPF, so the .xaml files have to be compiled to BAML
-#     before the C# compiler runs - and the markup compiler ships inside the
-#     WindowsDesktop SDK rather than with the C# targets, which a non-SDK-style
-#     project does not import on its own.
-#
-# There used to be a third: StarMon.resx held icons, bitmaps and a font, and
-# the SDK's GenerateResource task cannot serialize any of those, so this script
-# pre-generated the resource bundle under Windows PowerShell first. The resx
-# went with the Windows Forms interface, and that whole mechanism with it.
+# This used to be most of what the script did: the project targeted .NET
+# Framework 4.8, so the reference assemblies, the CIM client and the XAML
+# markup compiler all had to be found on disk and handed to a non-SDK-style
+# project by hand. The project is SDK-style on .NET 10 now, and the SDK and
+# NuGet supply all three; what is left here is the checks no build can make
+# and the version stamp.
 
 param(
     [switch] $Test,
@@ -51,111 +44,6 @@ if ($Render) { $Test = $true }
 
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
-
-# The two paths below used to be hardcoded to one developer's machine, which
-# meant this script built nowhere else - including on a CI runner. Both are now
-# searched for, in order of preference, and each check insists on a file that
-# proves the directory is the real thing rather than an empty husk.
-#
-# Set STARMON_REFASM or STARMON_MMI to skip the search and point at a directory
-# directly.
-
-function Find-Directory {
-    param(
-        [string]   $What,       # what is being looked for, for the error message
-        [string[]] $Candidates, # directories to try, best first
-        [string]   $MustContain,# a file that has to be in it
-        [string]   $Remedy      # what the user should do if nothing matched
-    )
-
-    foreach ($candidate in $Candidates) {
-
-        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
-
-        # Candidates may be wildcards (a NuGet package with a version in the
-        # path, say), so resolve and prefer the highest-sorting match.
-        $matched = Get-Item $candidate -ErrorAction SilentlyContinue |
-                   Where-Object { $_.PSIsContainer } |
-                   Sort-Object FullName
-
-        foreach ($dir in $matched) {
-            if (Test-Path (Join-Path $dir.FullName $MustContain)) { return $dir.FullName }
-        }
-
-    }
-
-    throw "$What was not found. $Remedy"
-}
-
-# .NET Framework 4.8 reference assemblies. The SDK does not ship these; they
-# come from the Developer Pack, or from the reference-assemblies NuGet package
-# if one has already been restored.
-$refasm = Find-Directory `
-    -What "The .NET Framework 4.8 reference assemblies" `
-    -MustContain "mscorlib.dll" `
-    -Candidates @(
-        $env:STARMON_REFASM,
-        "${env:ProgramFiles(x86)}\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8",
-        "$env:ProgramFiles\Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8",
-        "$(if ($env:NUGET_PACKAGES) { $env:NUGET_PACKAGES } else { "$env:USERPROFILE\.nuget\packages" })\microsoft.netframework.referenceassemblies.net48\*\build\.NETFramework\v4.8"
-    ) `
-    -Remedy ("Install the .NET Framework 4.8 Developer Pack from " +
-             "https://dotnet.microsoft.com/download/dotnet-framework/net48, " +
-             "or set STARMON_REFASM to a directory holding the v4.8 reference assemblies.")
-
-# Microsoft.Management.Infrastructure - the CIM client the BIOS interface runs
-# on. It is not in the reference pack at all, so it is taken from the GAC, or
-# failing that from the copy kept beside the built binary.
-$mmi = Find-Directory `
-    -What "Microsoft.Management.Infrastructure" `
-    -MustContain "Microsoft.Management.Infrastructure.dll" `
-    -Candidates @(
-        $env:STARMON_MMI,
-        "$env:WINDIR\Microsoft.NET\assembly\GAC_MSIL\Microsoft.Management.Infrastructure\v4.0_*",
-        "$env:WINDIR\assembly\GAC_MSIL\Microsoft.Management.Infrastructure\*",
-        (Join-Path $root "Bin")
-    ) `
-    -Remedy ("It ships with Windows Management Framework and is normally in the GAC. " +
-             "Set STARMON_MMI to a directory containing the assembly.")
-
-# The XAML markup compiler. The task assembly has to be loadable by the
-# runtime MSBuild itself is on, and `dotnet msbuild` runs on the SDK's own
-# .NET - so it is the modern build beside the tools directory that is wanted,
-# not the net472 one sitting next to it.
-#
-# Which "modern" that is depends on the SDK: an SDK 10 ships net10.0, an SDK 8
-# ships net8.0. This used to name net10.0 outright, so the script built only
-# where the newest installed SDK happened to be that exact major version.
-$wdSdk = Get-ChildItem "$env:ProgramFiles\dotnet\sdk\*\Sdks\Microsoft.NET.Sdk.WindowsDesktop" `
-    -ErrorAction SilentlyContinue |
-    Sort-Object { [version] ($_.FullName -replace '.*\\sdk\\([^\\]+)\\.*', '$1' -replace '-.*', '') } |
-    Select-Object -Last 1
-
-if (-not $wdSdk) {
-    throw "The WindowsDesktop SDK was not found under $env:ProgramFiles\dotnet\sdk. " +
-          "It carries the XAML markup compiler, without which the interface cannot " +
-          "build. Install a .NET SDK that includes the Windows Desktop workload."
-}
-
-$winfx = Join-Path $wdSdk.FullName "targets\Microsoft.WinFX.targets"
-
-# Highest netN.0 wins; net472 is the deliberate last resort, for the case
-# where a future SDK stops shipping a cross-platform build of the task.
-$pbt = Get-ChildItem (Join-Path $wdSdk.FullName "tools") -Directory -ErrorAction SilentlyContinue |
-    Where-Object { Test-Path (Join-Path $_.FullName "PresentationBuildTasks.dll") } |
-    Sort-Object {
-        if ($_.Name -match '^net(\d+)\.(\d+)$') { [version] "$($Matches[1]).$($Matches[2])" }
-        else { [version] "0.0" }
-    } |
-    Select-Object -Last 1 |
-    ForEach-Object { Join-Path $_.FullName "PresentationBuildTasks.dll" }
-
-if (-not $pbt) {
-    throw "PresentationBuildTasks.dll was not found under $(Join-Path $wdSdk.FullName 'tools'). " +
-          "The XAML markup compiler is part of the Windows Desktop workload."
-}
-
-if (-not (Test-Path $winfx)) { throw "Missing part of the XAML toolchain: $winfx" }
 
 # Duplicate locale keys.
 #
@@ -239,16 +127,11 @@ if ($Version -notmatch '^\d+\.\d+\.\d+\.\d+$') {
 
 Write-Host "Building ($Configuration, $Version-$VersionWord)..." -ForegroundColor Cyan
 
-dotnet msbuild (Join-Path $root "StarMon.csproj") `
-    /t:Build `
-    /p:Configuration=$Configuration `
-    /p:AssemblyVersion=$Version `
-    /p:AssemblyVersionWord=$VersionWord `
-    /p:FrameworkPathOverride=$refasm `
-    /p:ReferencePath=$mmi `
-    /p:WinFXTargets=$winfx `
-    /p:_PresentationBuildTasksAssembly=$pbt `
-    /v:minimal /nologo
+dotnet publish (Join-Path $root "StarMon.csproj") `
+    -c $Configuration `
+    -p:AssemblyVersion=$Version `
+    -p:AssemblyVersionWord=$VersionWord `
+    -v:minimal -nologo
 
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -263,30 +146,28 @@ if ($Test) {
     #
     # The tests touch no hardware, so the same sources are built a second time
     # with the manifest left off, under a different name and into a separate
-    # output directory. Nothing else about the build changes, so what is tested
-    # is the same code that ships.
+    # output directory. Nothing else about the build changes - it is published
+    # the same way, as one file - so what is tested is the same code that
+    # ships, packaged the way it ships.
 
     $testObj = "Obj\Test\"
-    $testBin = "Bin\Test"
+    $testOut = "Obj\Test\Out\"
+    $testBin = "Bin\Test\"
 
     Write-Host ""
     Write-Host "Building test host..." -ForegroundColor Cyan
 
-    dotnet msbuild (Join-Path $root "StarMon.csproj") `
-        /t:Build `
-        /p:Configuration=$Configuration `
-        /p:AssemblyVersion=$Version `
-        /p:AssemblyVersionWord=$VersionWord `
-        /p:FrameworkPathOverride=$refasm `
-        /p:ReferencePath=$mmi `
-        /p:WinFXTargets=$winfx `
-        /p:_PresentationBuildTasksAssembly=$pbt `
-        /p:ApplicationManifest= `
-        /p:AssemblyName=StarMonTest `
-        /p:OutputType=Exe `
-        /p:IntermediateOutputPath=$testObj `
-        /p:OutputPath=$testBin `
-        /v:minimal /nologo
+    dotnet publish (Join-Path $root "StarMon.csproj") `
+        -c $Configuration `
+        -p:AssemblyVersion=$Version `
+        -p:AssemblyVersionWord=$VersionWord `
+        -p:ApplicationManifest= `
+        -p:AssemblyName=StarMonTest `
+        -p:OutputType=Exe `
+        -p:IntermediateOutputPath=$testObj `
+        -p:OutputPath=$testOut `
+        -p:PublishDir=$testBin `
+        -v:minimal -nologo
 
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -294,14 +175,14 @@ if ($Test) {
 
     if ($Render) {
         foreach ($surface in $Render) {
-            & (Join-Path $root "$testBin\StarMonTest.exe") `
+            & (Join-Path $root "${testBin}StarMonTest.exe") `
                 -RenderUi $surface (Join-Path $root "Obj\$surface.png") 2 | Out-Host
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
         exit 0
     }
 
-    & (Join-Path $root "$testBin\StarMonTest.exe") -SelfTest | Out-Host
+    & (Join-Path $root "${testBin}StarMonTest.exe") -SelfTest | Out-Host
     exit $LASTEXITCODE
 
 }

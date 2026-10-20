@@ -5,17 +5,8 @@ rem  Portions copyright © 2023 Piotr Szczepański (GPL-3.0)
 rem
 set DOTNET_CLI_TELEMETRY_OPTOUT=1
 setlocal
-rem For Visual Studio 2022 Build Tools only (no IDE):
-set msbuild=
-set vswhere="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
-if exist %vswhere% for /f "usebackq delims=" %%i in (`%vswhere% -latest -products * -requires Microsoft.Component.MSBuild -find MSBuild\**\Bin\MSBuild.exe`) do set msbuild="%%i"
-rem For Visual Studio 2022 Build Tools only (no IDE):
-if not defined msbuild if exist "%ProgramFiles%\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe" set msbuild="%ProgramFiles%\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\amd64\MSBuild.exe"
-rem For Visual Studio 2022 Community Edition (IDE):
-if not defined msbuild if exist "%ProgramFiles%\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe" set msbuild="%ProgramFiles%\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\amd64\MSBuild.exe"
-set msbuild_flags=/p:AssemblyVersion=0.0.0.0 /p:AssemblyVersionWord=Manual /p:Configuration=Release
-set nuget=%~dps0nuget.exe
-set nuget_url=https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
+rem The .NET 10 SDK builds this on its own; Visual Studio is not needed.
+set msbuild_flags=-p:AssemblyVersion=0.0.0.0 -p:AssemblyVersionWord=Manual -c Release
 set op_scope=build clean kill prepare test usage
 set op=%~1
 set taskkill=%SystemRoot%\System32\taskkill.exe
@@ -27,13 +18,14 @@ echo BEGIN %~n0 & goto usage
 
 :build
 call :TaskKill %result_bin%
-if not defined msbuild echo MSBuild not found. Install Visual Studio Build Tools (Desktop development with .NET) and .NET Framework 4.8 targeting pack. & goto end
-%msbuild% /t:Clean,Build %msbuild_flags%
+where dotnet >nul 2>&1 || ( echo The dotnet command was not found. Install the .NET 10 SDK. & goto end )
+dotnet msbuild StarMon.csproj -restore /t:Clean /v:minimal /nologo
+dotnet publish StarMon.csproj %msbuild_flags% -v:minimal -nologo
 goto end
 
 :clean
 call :TaskKill %result_bin%
-%msbuild% /t:Clean
+dotnet msbuild StarMon.csproj -restore /t:Clean /v:minimal /nologo
 rem Handled within .csproj now:
 rem call :RecursivelyRemoveDir Bin
 rem call :RecursivelyRemoveDir Obj
@@ -44,8 +36,7 @@ call :TaskKill %result_bin%
 goto end
 
 :prepare
-if not exist %nuget% powershell Invoke-WebRequest -OutFile %nuget% -Uri %nuget_url%
-%nuget% restore
+dotnet restore StarMon.csproj
 goto end
 
 :test
