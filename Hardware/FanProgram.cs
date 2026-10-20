@@ -161,6 +161,10 @@ namespace StarMon.Hardware.Platform {
             // Note: no need to terminate
             // the previous program first, if any
 
+            // Whether one is running already. Its starting point is the one
+            // to put back, not the state it put the machine in.
+            bool wasRunning = this.IsEnabled;
+
             // Try to set up the new program
             // bail out if not succesful
             if(!Setup(name))
@@ -176,11 +180,15 @@ namespace StarMon.Hardware.Platform {
             // Set the state flag
             this.IsEnabled = true;
 
-            // Save the last fan mode
-            this.LastFanMode = Platform.Fans.GetMode();
-
-            // Save the last GPU power state
-            this.LastGpuPowerData = Platform.System.GetGpuPower();
+            // Save the last fan mode and GPU power state, from before any
+            // program ran. A program started over another one — the Omen key
+            // cycling them, the alternate program taking over on battery —
+            // used to record the first one's mode here, and stopping it then
+            // left the machine in a profile the user never chose.
+            if(!wasRunning) {
+                this.LastFanMode = Platform.Fans.GetMode();
+                this.LastGpuPowerData = Platform.System.GetGpuPower();
+            }
 
             // The lifecycle of a fan program was entirely unlogged, and it is
             // the part of this application most likely to misbehave — the

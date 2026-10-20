@@ -68,6 +68,7 @@ namespace StarMon.Test {
 
             SelfTest.Group("Device matrix: a fan program and the window at once");
             TestAStoppedProgramStaysStopped();
+            TestCyclingProgramsPutsTheOriginalModeBack();
 
             SelfTest.Group("Device matrix: the command line writes what it was given");
             TestAMistypedFanLevelIsNotWrittenAsZero();
@@ -1202,6 +1203,74 @@ namespace StarMon.Test {
                             + "not the stopped program's");
 
                     SelfTest.Check(!runner.IsEnabled, "and the program is stopped");
+
+                } finally {
+                    Config.FanProgram = previous;
+                    Config.GpuPowerSetInterval = previousInterval;
+                }
+
+            }
+
+        }
+
+        // One program started over another, which is what the Omen key does
+        // when it cycles them and what a change of power source does when the
+        // alternate program takes over.
+        //
+        // Run recorded "the mode to put back" every time it was called, so the
+        // second program recorded the first one's mode, and stopping it put the
+        // machine into a profile the user had never chosen.
+        private static void TestCyclingProgramsPutsTheOriginalModeBack() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+            board.Ec.Set(Register.HPCM, (byte) BiosData.FanMode.Cool);
+
+            using(new Installed(board)) {
+
+                System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                    new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+                steps[0] = new byte[] { 30, 30 };
+
+                var previous = Config.FanProgram;
+                int previousInterval = Config.GpuPowerSetInterval;
+
+                try {
+
+                    Config.FanProgram =
+                        new System.Collections.Generic.SortedList<string, FanProgramData> {
+                            ["First"] = new FanProgramData("First",
+                                BiosData.FanMode.Performance,
+                                BiosData.GpuPowerLevel.Minimum, steps),
+                            ["Second"] = new FanProgramData("Second",
+                                BiosData.FanMode.Quiet,
+                                BiosData.GpuPowerLevel.Minimum, steps) };
+
+                    Config.GpuPowerSetInterval = 0;
+
+                    Platform platform = new Platform();
+
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    runner.Run("First");
+
+                    // What the firmware reports once the first program's mode
+                    // has taken
+                    board.Ec.Set(Register.HPCM, (byte) BiosData.FanMode.Performance);
+
+                    runner.Run("Second");
+
+                    board.Bios.WriteLog.Clear();
+                    runner.Terminate();
+
+                    string last = null;
+                    foreach(string write in board.Bios.WriteLog)
+                        if(write.StartsWith("SetFanMode=", StringComparison.Ordinal))
+                            last = write;
+
+                    SelfTest.Equal("SetFanMode=Cool", last,
+                        "stopping the second program puts back the mode from "
+                            + "before the first");
 
                 } finally {
                     Config.FanProgram = previous;
