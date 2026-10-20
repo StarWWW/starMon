@@ -383,8 +383,8 @@ namespace StarMon.Library
         //
         // Matches the top of the slider on the settings page, in the unit the
         // configuration file stores. A value above this in a hand-edited file
-        // is refused rather than accepted, since the rotation has to keep the
-        // whole file in memory to trim it.
+        // is refused rather than accepted: the slider could not show it, and
+        // the setting it saved back would not be the one that was read.
         public const uint LogFileMaxKilobytes = 64 * 1024;
 
         // Log file extension, appended to the executable's own path

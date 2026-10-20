@@ -416,12 +416,14 @@ namespace StarMon.Hardware {
         //
         // Any level above the ceiling is proof, whatever mode the machine is
         // in — the figure comes from the firmware's own fan-level call, which
-        // either answers or throws, and every level this application writes is
-        // clamped to the ceiling before it goes out. So a reading above the
-        // ceiling cannot be one of ours coming back, and cannot be a misread
-        // of a busy bus either. Only the direction is restricted: the ceiling
-        // never falls here, because a fan running slowly says nothing about
-        // how fast it can run.
+        // either answers or throws, so it cannot be a misread of a busy bus.
+        // The window's sliders and the curve editor clamp what they write to
+        // the ceiling; a fan program written into the configuration file by
+        // hand, or a level set from the command line, is not clamped, and a
+        // fan the firmware runs there is a level this board reaches all the
+        // same. Only the direction is restricted: the ceiling never falls
+        // here, because a fan running slowly says nothing about how fast it
+        // can run.
         public static void Observe(int level, bool firmwareAtMaximum) {
 
             if(!Config.FanLevelAutoDetect || !Probed)

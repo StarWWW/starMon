@@ -127,7 +127,7 @@ namespace StarMon.Hardware.Bios
             BiosData.Cmd command,
             uint commandType,
             byte[] inData,
-            byte outDataSize, // One of 0, 4, 128, 1024, or 4096 only
+            byte outDataSize, // One of 0, 4 or 128: the firmware also has 1024 and 4096, which a byte cannot ask for
             out byte[] outData)
         {
 
