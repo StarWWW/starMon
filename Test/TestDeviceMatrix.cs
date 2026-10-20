@@ -44,6 +44,7 @@ namespace StarMon.Test {
             TestAbsentProbesNeverGoDormant();
 
             SelfTest.Group("Device matrix: readings that are not temperatures");
+            TestARegisterThatGoesToZeroReadsZero();
             TestSilentControllerYieldsNoReading();
             TestStuckAuxiliaryProbeDoesNotDriveTheFans();
             TestAHundredDegreesIsARealTemperature();
@@ -581,6 +582,56 @@ namespace StarMon.Test {
 
                 SelfTest.Check(!platform.Fans.GetOff() && !platform.Fans.GetManual(),
                     "and the steps either side of it still happen");
+
+            }
+
+        }
+
+        // Zero is a value most of the control registers genuinely hold: the
+        // fans switched back on, the Default profile, a failsafe countdown
+        // that has run out.
+        //
+        // A zero arriving after a non-zero reading is held off once, in case
+        // it is a momentary one. The hold-off set the previous value to the
+        // last one rather than clearing it, so its own condition stayed true
+        // for ever: once a register had read non-zero twice, it never read
+        // zero again. The poller asks every tick, so on a running machine
+        // that was every register, the first time it changed.
+        private static void TestARegisterThatGoesToZeroReadsZero() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                Platform platform = new Platform();
+
+                board.Ec.Set(Register.SFAN, (byte) PlatformData.FanSwitch.Off);
+                board.Ec.Set(Register.XFCD, 30);
+                board.Ec.Set(Register.HPCM, (byte) BiosData.FanMode.Performance);
+
+                for(int i = 0; i < 3; i++) {
+                    platform.Fans.GetOff();
+                    platform.Fans.GetCountdown();
+                    platform.Fans.GetMode();
+                }
+
+                board.Ec.Set(Register.SFAN, (byte) PlatformData.FanSwitch.On);
+                board.Ec.Set(Register.XFCD, 0);
+                board.Ec.Set(Register.HPCM, (byte) BiosData.FanMode.Default);
+
+                // One reading may be held off; the next one is believed
+                platform.Fans.GetOff();
+                platform.Fans.GetCountdown();
+                platform.Fans.GetMode();
+
+                SelfTest.Check(!platform.Fans.GetOff(),
+                    "fans switched back on are read as on");
+
+                SelfTest.Equal(0, platform.Fans.GetCountdown(),
+                    "a countdown that has run out reads zero");
+
+                SelfTest.Equal(BiosData.FanMode.Default, platform.Fans.GetMode(),
+                    "and the Default profile reads as Default");
 
             }
 

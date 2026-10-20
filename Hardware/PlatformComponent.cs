@@ -130,6 +130,10 @@ namespace StarMon.Hardware.Platform {
         protected int LastValue;
         protected int PreviousValue;
 
+        // Whether the last reading was a zero that was held off, so the next
+        // one is believed
+        private bool ZeroHeldOff;
+
         // Checks whether a read or write operation is valid for the component
         protected virtual void AssertHasAccess(PlatformData.AccessType access) {
             if(!this.AccessType.HasFlag(access))
@@ -175,10 +179,20 @@ namespace StarMon.Hardware.Platform {
                 // component reports does not change; the previous value has to
                 // follow it, or GetValueTrend compares an unchanged reading
                 // against a zero and reports a rise that never happened.
-                if(value == 0 && this.PreviousValue != 0) {
+                //
+                // Once, and only once. Following the last value kept the
+                // previous one non-zero, which is the condition this tests, so
+                // the hold-off never ended: a register that had read non-zero
+                // twice never read zero again. The fans switched back on, the
+                // Default profile and a countdown that had run out all went on
+                // reading as whatever they had been before.
+                if(value == 0 && this.LastValue != 0 && !this.ZeroHeldOff) {
+                    this.ZeroHeldOff = true;
                     this.PreviousValue = this.LastValue;
                     return false;
                 }
+
+                this.ZeroHeldOff = false;
 
                 // Only update if the reading
                 // is not obviously incorrect
@@ -210,9 +224,17 @@ namespace StarMon.Hardware.Platform {
             // Set the value
             Write(value);
 
-            // If the component can also be read from, update the value
-            if(this.AccessType.HasFlag(PlatformData.AccessType.Read))
+            // If the component can also be read from, update the value.
+            //
+            // A zero read straight back after writing one is the write having
+            // taken, not a reading dropping out, so it is not held off: the
+            // component would otherwise go on reporting the value it was just
+            // told to leave until something happened to read it again.
+            if(this.AccessType.HasFlag(PlatformData.AccessType.Read)) {
+                if(value == 0)
+                    this.ZeroHeldOff = true;
                 Update();
+            }
 
         }
 
@@ -394,11 +416,19 @@ namespace StarMon.Hardware.Platform {
         }
 
         // Reads the temperature directly from the processor,
-        // returning zero when it is momentarily unavailable so that
-        // the base class retains the previous valid value
+        // returning zero when it is momentarily unavailable
         protected override int Read() {
             int value = StarMon.Hardware.Cpu.CpuTemperature.GetTemperature();
             return value > 0 ? value : 0;
+        }
+
+        // An unavailable reading is a failed exchange rather than a value, so
+        // the previous valid one is kept and the miss is counted towards
+        // standing the sensor down. The base class's hold-off on a zero used
+        // to keep it, for good; it now does so once.
+        protected override bool TryRead(out int value) {
+            value = Read();
+            return value > 0;
         }
 
     }
@@ -432,7 +462,7 @@ namespace StarMon.Hardware.Platform {
         }
 
         // Reads the GPU temperature through the driver, returning zero when the
-        // card is asleep or unavailable so the base class holds the last value
+        // card is asleep or unavailable
         protected override int Read() {
             try {
                 GpuNvidia.GpuInfo gpu = GpuNvidia.Get();
@@ -440,6 +470,15 @@ namespace StarMon.Hardware.Platform {
             } catch {
                 return 0;
             }
+        }
+
+        // A card that is asleep or will not answer is a failed exchange, as
+        // for the processor sensor above: the last value is held and the miss
+        // counted, rather than leaning on the zero hold-off that used to hold
+        // it for good
+        protected override bool TryRead(out int value) {
+            value = Read();
+            return value > 0;
         }
 
     }
