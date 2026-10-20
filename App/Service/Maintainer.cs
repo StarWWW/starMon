@@ -52,12 +52,12 @@ namespace StarMon.AppService {
 
         // Whether work is being carried out right now
         public bool IsBusy {
-            get { return Thread.VolatileRead(ref this.Busy) != 0; }
+            get { return Volatile.Read(ref this.Busy) != 0; }
         }
 
         // Whether the way out has been taken and nothing further will run
         public bool IsClosed {
-            get { return Thread.VolatileRead(ref this.Closed) != 0; }
+            get { return Volatile.Read(ref this.Closed) != 0; }
         }
 
         // Hands one beat's work to a background thread, unless the previous
@@ -74,8 +74,11 @@ namespace StarMon.AppService {
 
             // Read after the claim rather than before it, so a beat arriving
             // as the process is closing either loses the claim to Drain or is
-            // waited for by it — never slips between the two
-            if(Thread.VolatileRead(ref this.Closed) != 0) {
+            // waited for by it — never slips between the two. What keeps the
+            // read after the claim is the claim itself: an interlocked
+            // operation is a full fence, here and in Drain, so an ordinary
+            // volatile read on the far side of it is all either one needs.
+            if(Volatile.Read(ref this.Closed) != 0) {
                 Interlocked.Exchange(ref this.Busy, 0);
                 return false;
             }
@@ -122,12 +125,12 @@ namespace StarMon.AppService {
             Interlocked.Exchange(ref this.Closed, 1);
 
             int waited = 0;
-            while(Thread.VolatileRead(ref this.Busy) != 0 && waited < timeoutMs) {
+            while(Volatile.Read(ref this.Busy) != 0 && waited < timeoutMs) {
                 Thread.Sleep(10);
                 waited += 10;
             }
 
-            bool finished = Thread.VolatileRead(ref this.Busy) == 0;
+            bool finished = Volatile.Read(ref this.Busy) == 0;
 
             if(!finished)
                 Logger.Warning("Maintainer",
