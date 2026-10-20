@@ -204,7 +204,15 @@ namespace StarMon.Hardware.Platform {
 
             for(int i = 0; i < count; i++) {
 
-                if(asked[i] == actual[i])
+                // One level either side is the level that was asked for. On
+                // an HP 8DCF the level read back is the measured speed over a
+                // hundred, rounded down, so a fan asked for 30 that settles at
+                // 2998 rpm reads 29 - and every curve step on that board was
+                // reported as a write the firmware had ignored, when it had
+                // taken every one. A board that really ignores a write is
+                // nowhere near the request: the one in the device matrix is
+                // asked for 30 and stays at 0.
+                if(Math.Abs(asked[i] - actual[i]) <= 1)
                     continue;
 
                 // Clamped to the ceiling: asked for more than the board will

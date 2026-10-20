@@ -1055,6 +1055,22 @@ namespace StarMon.Test {
                     new byte[] { 48, 46 }, ceiling),
                 "and arriving is agreement");
 
+            // "asked for 26/26, the firmware reports 25/26".
+            //
+            // The third, from an HP 8DCF. The level that board reports is the
+            // measured speed divided by a hundred and rounded down, so a fan
+            // asked for 30 settles at 2998 rpm and reads 29, then 3011 and
+            // reads 30. Written and read back on the machine: the write had
+            // taken every time the warning said it had not.
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 26, 26 }, new byte[] { 25, 26 },
+                    new byte[] { 25, 26 }, ceiling),
+                "a fan settled one level under what was asked is a fan that took it");
+
+            SelfTest.Check(!Fan.DidNotTake(
+                    new byte[] { 30, 30 }, new byte[] { 31, 30 },
+                    new byte[] { 31, 30 }, ceiling),
+                "and so is one settled one level over");
 
             // A request above the ceiling answered by the ceiling is the
             // firmware doing its job
