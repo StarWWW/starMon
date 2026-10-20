@@ -28,8 +28,11 @@ namespace StarMon.External {
 
         // Hardware operations with a kernel driver
 
-        public const int ERROR_SERVICE_ALREADY_RUNNING = unchecked((int) 0x80070420);
-        public const int ERROR_SERVICE_EXISTS          = unchecked((int) 0x80070431);
+        // As GetLastError reports them, which is what they are compared with.
+        // These were the HRESULT forms (0x80070420, 0x80070431), which
+        // Marshal.GetLastWin32Error never returns, so neither ever matched.
+        public const int ERROR_SERVICE_ALREADY_RUNNING = 0x00000420;
+        public const int ERROR_SERVICE_EXISTS          = 0x00000431;
 
         public const uint OLS_TYPE = 40000;
 

@@ -89,6 +89,7 @@ namespace StarMon.Driver {
                 int errorCode = Marshal.GetLastWin32Error();
                 if(errorCode == Kernel32.ERROR_SERVICE_EXISTS) {
                     errorMessage = "Service already exists";
+                    AdvApi32.CloseServiceHandle(manager);
                     return false;
                 }
                 errorMessage = $"CreateService Error: {errorCode:X8}.";
