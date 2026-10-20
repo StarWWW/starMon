@@ -86,6 +86,21 @@ namespace StarMon.Hardware.Platform {
         // Parent class reference
         private Platform Platform;
 
+        // Serialises everything that starts, stops or steps the program.
+        //
+        // The steps run on the maintenance worker; Run and Terminate arrive
+        // from the window, the tray menu, the Omen key and the power events,
+        // each on a thread of its own. A step that had already worked out its
+        // level wrote it after a stop had released the fans, and then went on
+        // to read a program the stop had cleared away. So the program's level
+        // was the last thing the firmware was told, and it was held there by
+        // the countdown extension under a window saying Automatic.
+        //
+        // Nothing reached from inside the lock calls back into these methods:
+        // the status callback only reads the name, and the window's copy of it
+        // is posted rather than waited for.
+        private readonly object Sync = new object();
+
         // Constructs a fan program instance
         public FanProgram(
             Platform platform,
@@ -118,6 +133,8 @@ namespace StarMon.Hardware.Platform {
         // following a resume from suspend
         public bool Resume() {
 
+            lock(this.Sync) {
+
             // Fail if no program active
             // or if not suspended
             if(!this.IsEnabled || !this.IsSuspended)
@@ -132,10 +149,14 @@ namespace StarMon.Hardware.Platform {
             // Report success
             return true;
 
+            }
+
         }
 
         // Starts a fan program given its name
         public bool Run(string name, bool isAlternate = false) {
+
+            lock(this.Sync) {
 
             // Note: no need to terminate
             // the previous program first, if any
@@ -181,10 +202,14 @@ namespace StarMon.Hardware.Platform {
             // Report success
             return true;
 
+            }
+
         }
 
         // Suspend the running fan program
         public bool Suspend() {
+
+            lock(this.Sync) {
 
             // Fail if no program active
             // or if already suspended
@@ -210,10 +235,14 @@ namespace StarMon.Hardware.Platform {
             // Report success
             return true;
 
+            }
+
         }
 
         // Terminates the running fan program, if any is running
         public bool Terminate() {
+
+            lock(this.Sync) {
 
             // Fail if no program active
             if(!this.IsEnabled)
@@ -249,10 +278,14 @@ namespace StarMon.Hardware.Platform {
             // Report success
             return true;
 
+            }
+
         }
 
         // Updates the fan program, if any is running
         public bool Update() {
+
+            lock(this.Sync) {
 
             // Fail if no program active
             // or program is suspended
@@ -302,6 +335,8 @@ namespace StarMon.Hardware.Platform {
 
             // Report success
             return true;
+
+            }
 
         }
 #endregion

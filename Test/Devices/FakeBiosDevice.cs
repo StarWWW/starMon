@@ -50,9 +50,18 @@ namespace StarMon.Test.Devices {
 
         internal void ResetCounts() { Calls.Clear(); }
 
+        // Run on every call, before it is answered. What happens on another
+        // thread while a call is in flight is a question only something that
+        // can stop a call halfway can ask.
+        internal Action<string> OnCall;
+
         // Records the call, and applies whatever this board was declared to do
         // about it. Returns false where the caller should do nothing.
         private bool Enter(string call) {
+
+            Action<string> hook = OnCall;
+            if(hook != null)
+                hook(call);
 
             int n;
             Calls[call] = Calls.TryGetValue(call, out n) ? n + 1 : 1;

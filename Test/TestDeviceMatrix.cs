@@ -63,6 +63,9 @@ namespace StarMon.Test {
             TestAFirmwareThatAnswersWithNothing();
             TestAShortAnswerIsParsedRatherThanThrownOn();
 
+            SelfTest.Group("Device matrix: a fan program and the window at once");
+            TestAStoppedProgramStaysStopped();
+
             SelfTest.Group("Device matrix: the controller lock");
             TestLockHeldElsewhereDoesNotCrash();
 
@@ -984,6 +987,102 @@ namespace StarMon.Test {
 
                 } finally {
                     Config.FanProgram = previous;
+                }
+
+            }
+
+        }
+
+        // A program told to stop while one of its own steps is in flight.
+        //
+        // The steps run on the maintenance worker and the stop arrives from
+        // the window, the tray menu or the Omen key, on another thread. A step
+        // that had already worked out its level wrote it after the stop had
+        // released the fans, so the program's level was the last thing the
+        // firmware was told - and with the countdown kept extended, it stayed,
+        // under a window saying Automatic.
+        private static void TestAStoppedProgramStaysStopped() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+
+            using(new Installed(board)) {
+
+                System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                    new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+                steps[0] = new byte[] { 30, 30 };
+
+                FanProgramData program = new FanProgramData("Steady",
+                    BiosData.FanMode.Default,
+                    BiosData.GpuPowerLevel.Minimum, steps);
+
+                var previous = Config.FanProgram;
+                int previousInterval = Config.GpuPowerSetInterval;
+
+                try {
+
+                    Config.FanProgram =
+                        new System.Collections.Generic.SortedList<string, FanProgramData> {
+                            ["Steady"] = program };
+
+                    // The graphics power is written twice with a pause between,
+                    // which is the firmware's need and not this test's
+                    Config.GpuPowerSetInterval = 0;
+
+                    Platform platform = new Platform();
+
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    runner.Run("Steady");
+
+                    System.Threading.Thread stopper = null;
+
+                    // The stop is made while the step is on its way to the
+                    // fan-level write, and given a moment to finish
+                    board.Bios.OnCall = call => {
+                        if(call != "SetFanLevel" || stopper != null)
+                            return;
+                        stopper = new System.Threading.Thread(() => runner.Terminate());
+                        stopper.Start();
+                        stopper.Join(500);
+                    };
+
+                    string failure = null;
+
+                    try {
+                        runner.Update();
+                    } catch(Exception e) {
+                        failure = e.GetType().Name;
+                    } finally {
+                        board.Bios.OnCall = null;
+                    }
+
+                    if(stopper != null)
+                        stopper.Join(5000);
+
+                    SelfTest.Check(stopper != null,
+                        "the step reached the fan-level write");
+
+                    // The step went on with a program the stop had already
+                    // cleared away, and threw half-way through
+                    SelfTest.Check(failure == null,
+                        "the step in flight finishes rather than throwing"
+                            + (failure == null ? "" : " - " + failure));
+
+                    string last = null;
+                    foreach(string write in board.Bios.WriteLog)
+                        if(write.StartsWith("SetFanLevel=", StringComparison.Ordinal))
+                            last = write;
+
+                    SelfTest.Equal("SetFanLevel=255,255", last,
+                        "the last level the firmware was given is the release, "
+                            + "not the stopped program's");
+
+                    SelfTest.Check(!runner.IsEnabled, "and the program is stopped");
+
+                } finally {
+                    Config.FanProgram = previous;
+                    Config.GpuPowerSetInterval = previousInterval;
                 }
 
             }
