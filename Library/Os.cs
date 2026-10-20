@@ -226,6 +226,12 @@ namespace StarMon.Library {
             int size = 4;
             AdvApi32.AdjustTokenPrivileges(handle, 0, ref privileges, 4 + (12 * privileges.PrivilegeCount), ref privilegesOut, ref size);
 
+            // The privilege belongs to the process, not to this handle, so it
+            // stays enabled once the handle is closed; the handle was simply
+            // never closed
+            if(handle != IntPtr.Zero)
+                Kernel32.CloseHandle(handle);
+
         }
 
         // Removes a file on reboot
