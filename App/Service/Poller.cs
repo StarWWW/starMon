@@ -576,6 +576,15 @@ namespace StarMon.AppService {
                 reading.Throttle = Describe(flags);
             } catch { }
 
+            try {
+                int tjMax, offset;
+                if(Hardware.Cpu.CpuTemperature.GetTemperatureTarget(out tjMax, out offset)) {
+                    reading.CpuTjMax = tjMax;
+                    reading.CpuTccOffset = offset;
+                    reading.CpuThrottleTemperature = tjMax - offset;
+                }
+            } catch { }
+
             if(this.GetProgramName != null)
                 try { reading.ProgramName = this.GetProgramName() ?? ""; } catch { }
 

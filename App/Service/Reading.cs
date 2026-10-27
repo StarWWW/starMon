@@ -113,6 +113,12 @@ namespace StarMon.AppService {
         public string Uptime = "";
         public string Throttle = "";
 
+        // Where the processor throttles itself for heat: TjMax less the TCC
+        // activation offset the firmware set. -1 where it cannot be read.
+        public int CpuTjMax = -1;
+        public int CpuTccOffset = -1;
+        public int CpuThrottleTemperature = -1;
+
         // Machine identity. Static across a session, so the poller reads it
         // once and copies it into every reading rather than asking the
         // firmware and WMI for it sixty times a minute.

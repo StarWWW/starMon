@@ -267,6 +267,60 @@ namespace StarMon.Hardware.Cpu {
             }
         }
 
+        // The temperature at which the processor starts slowing itself down,
+        // and the two figures it is made from.
+        //
+        // The temperature target register carries TjMax in bits 23:16 and,
+        // in bits 29:24, the TCC activation offset: how many degrees under
+        // TjMax the thermal control circuit engages. The firmware sets that
+        // offset at boot - this board's F.08 BIOS defaults it to 3 - so the
+        // processor throttles at TjMax minus the offset, not at TjMax. The
+        // offset can also be changed at run time by tools like ThrottleStop
+        // where the BIOS leaves it unlocked, so it is read each time rather
+        // than cached the way TjMax is. Read only: nothing here writes it.
+        //
+        // Returns false on AMD, without the driver, or on an implausible
+        // value; the out parameters are then -1.
+        public static bool GetTemperatureTarget(out int tjMax, out int offset) {
+
+            tjMax = -1;
+            offset = -1;
+
+            EnsureDetected();
+            if(!LowLevel.HasMsr || DetectedVendor != Vendor.Intel)
+                return false;
+
+            try {
+                return LowLevel.ReadMsr(MSR_IA32_TEMPERATURE_TARGET, out uint eax, out _)
+                    && DecodeTemperatureTarget(eax, out tjMax, out offset);
+            } catch {
+                tjMax = -1;
+                offset = -1;
+                return false;
+            }
+
+        }
+
+        // The decoding of the temperature target register, apart from the
+        // read so it can be checked against known register values
+        public static bool DecodeTemperatureTarget(uint eax, out int tjMax, out int offset) {
+
+            tjMax = (int)((eax >> 16) & 0xFF);
+            offset = (int)((eax >> 24) & 0x3F);
+
+            // TjMax within the range the junction temperature is read against
+            // elsewhere, and an offset that leaves a temperature a running
+            // processor could reach
+            if(tjMax < 60 || tjMax > 130 || tjMax - offset < TempMin) {
+                tjMax = -1;
+                offset = -1;
+                return false;
+            }
+
+            return true;
+
+        }
+
         // Reads the temperature of every physical core (Intel only), in °C, by
         // pinning the calling thread to one logical processor of each core in turn
         // and reading its per-core Digital Thermal Sensor. Returns null when not

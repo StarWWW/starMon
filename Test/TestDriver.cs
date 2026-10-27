@@ -52,6 +52,7 @@ namespace StarMon.Test {
             SelfTest.Group("What this processor publishes");
 
             TestAmdTemperatureDecodesCorrectly();
+            TestTheThrottlePointIsTjMaxLessTheOffset();
             TestEveryProcessorReadingSaysWhyItIsAbsent();
             TestPerCoreFiguresAreOnePerLogicalProcessor();
 
@@ -139,6 +140,52 @@ namespace StarMon.Test {
                 "a core's figure is shown once for each logical processor on it, "
                     + "in the order the processors are numbered");
 
+        }
+
+        // Where an Intel processor throttles itself for heat.
+        //
+        // The temperature target register holds TjMax in bits 23:16 and the
+        // TCC activation offset in bits 29:24. This board's F.08 BIOS sets the
+        // offset to 3 by default, so the processor throttles three degrees
+        // under TjMax - and reading TjMax alone, which is all this application
+        // did, puts the throttle point in the wrong place.
+        //
+        // The raw values are built from the figures, so each case says what
+        // it is testing.
+        private static void TestTheThrottlePointIsTjMaxLessTheOffset() {
+
+            int tjMax, offset;
+
+            SelfTest.Check(StarMon.Hardware.Cpu.CpuTemperature.DecodeTemperatureTarget(
+                    Target(100, 3), out tjMax, out offset),
+                "a register carrying TjMax 100 and offset 3 decodes");
+            SelfTest.Equal(100, tjMax, "to TjMax 100");
+            SelfTest.Equal(3, offset, "and an offset of 3, so it throttles at 97 °C");
+
+            StarMon.Hardware.Cpu.CpuTemperature.DecodeTemperatureTarget(
+                Target(100, 0), out tjMax, out offset);
+            SelfTest.Equal(0, offset, "no offset leaves the throttle point at TjMax");
+
+            // The low bits hold the running-average time window, and bit 31
+            // is reserved; neither may leak into either figure
+            StarMon.Hardware.Cpu.CpuTemperature.DecodeTemperatureTarget(
+                Target(105, 10) | 0x8000007Fu, out tjMax, out offset);
+            SelfTest.Equal(105, tjMax, "the time window bits do not reach TjMax");
+            SelfTest.Equal(10, offset, "nor the offset");
+
+            SelfTest.Check(!StarMon.Hardware.Cpu.CpuTemperature.DecodeTemperatureTarget(
+                    0, out tjMax, out offset),
+                "a register that reads as nought is no reading");
+            SelfTest.Equal(-1, tjMax, "and gives no TjMax");
+
+            SelfTest.Check(!StarMon.Hardware.Cpu.CpuTemperature.DecodeTemperatureTarget(
+                    Target(60, 63), out tjMax, out offset),
+                "nor is an offset that would put the throttle point under freezing");
+
+        }
+
+        private static uint Target(int tjMax, int offset) {
+            return (uint) ((offset << 24) | (tjMax << 16));
         }
 
         // The one AMD reading in the application, and it cannot be exercised

@@ -1816,6 +1816,9 @@ namespace StarMon.Ui.Windows {
                 ApplyBlocks(model, reading, gpuTemp);
                 ApplySummary(reading, gpuTemp);
 
+                // So the thermal guard's threshold can be checked against it
+                this.SettingsModel.ThrottleTemperature = reading.CpuThrottleTemperature;
+
                 // Whether the Program segment can do anything. Checked against
                 // the configuration rather than against what is running, so
                 // the button is live when a program exists and disabled when
@@ -2147,7 +2150,8 @@ namespace StarMon.Ui.Windows {
                     .Add(Name("GuiMainDetClock"), "", Name("GuiTipCpuClock"))
                     .Add(Name("GuiMainDetThrottle"), "", Name("GuiTipThrottle"))
                     .Add(Name("GuiWpfCores"), "", Name("GuiTipCores"))
-                    .Add(Name("GuiWpfCoreClocks"), "", Name("GuiWpfCoreClockTip")));
+                    .Add(Name("GuiWpfCoreClocks"), "", Name("GuiWpfCoreClockTip"))
+                    .Add(Name("GuiWpfThrottlePoint"), "", Name("GuiTipThrottlePoint")));
 
                 // 2 — discrete graphics
                 model.Details.Add(new DetailGroupViewModel(Name("GuiWpfGraphics"))
@@ -2243,6 +2247,7 @@ namespace StarMon.Ui.Windows {
             Set(model, 1, 5, reading.Throttle);
             Set(model, 1, 6, Cores(reading.CpuCoreTemperatures));
             Set(model, 1, 7, CoreClocks(reading.CpuCoreClocks));
+            Set(model, 1, 8, ThrottlePoint(reading));
 
             Set(model, 2, 0, reading.GpuNvidiaPresent && reading.GpuNvidiaTemp > 0
                 ? reading.GpuNvidiaTemp + " °C" : "-");
@@ -2294,6 +2299,18 @@ namespace StarMon.Ui.Windows {
                 : reading.BatteryOnAc ? Name("GuiWpfBatAc") : Name("GuiWpfBatDc"));
 
             ApplyFanDetails(model, reading);
+
+        }
+
+        // Where the processor throttles itself for heat, with the two figures
+        // it comes from, so a reader can see that it is not simply TjMax
+        internal static string ThrottlePoint(Reading reading) {
+
+            if(reading.CpuThrottleTemperature <= 0)
+                return "-";
+
+            return string.Format(Name("GuiWpfThrottlePointValue"),
+                reading.CpuThrottleTemperature, reading.CpuTjMax, reading.CpuTccOffset);
 
         }
 

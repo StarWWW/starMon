@@ -171,6 +171,13 @@
                                 </DockPanel>
                                 <Slider Style="{StaticResource NumberSlider}"
                                         Minimum="80" Maximum="99" Value="{Binding ThermalThreshold}" ToolTip="{loc:Str GuiWpfTipThreshold}"/>
+                                <!-- Shown only while the threshold is at or past
+                                     the point the processor throttles itself -->
+                                <TextBlock Style="{StaticResource Micro}" Margin="0,8,0,0"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource Warning}"
+                                           Text="{Binding ThresholdNote}"
+                                           Visibility="{Binding ThresholdNote, Converter={StaticResource HideWhenEmpty}}"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>

@@ -108,6 +108,7 @@ namespace StarMon.Hardware {
             sb.AppendLine("  Temperature   : " + Cpu.CpuTemperature.TemperatureStatus);
             sb.AppendLine("  Per-core temp : " + Cpu.CpuTemperature.PerCoreStatus);
             sb.AppendLine("  Throttling    : " + Cpu.CpuTemperature.ThrottleStatus);
+            sb.AppendLine("  Throttles at  : " + ThrottlePoint());
             sb.AppendLine("  Package power : " + Cpu.CpuMetrics.PowerStatus);
             sb.AppendLine("  Power limits  : " + Cpu.CpuMetrics.PowerLimitStatus);
             sb.AppendLine("  Effective clock: " + Cpu.CpuMetrics.ClockStatus);
@@ -339,6 +340,20 @@ namespace StarMon.Hardware {
             sb.AppendLine("                  if a sensor cannot be read, EC automatic control takes over");
 
             return sb.ToString();
+        }
+
+        // Where the processor starts slowing itself down for heat, and how
+        // that figure comes about, or why it is not known
+        private static string ThrottlePoint() {
+
+            int tjMax, offset;
+            if(!Cpu.CpuTemperature.GetTemperatureTarget(out tjMax, out offset))
+                return Cpu.CpuTemperature.ThrottleStatus == "available"
+                    ? "not available — the temperature target register gave no plausible value"
+                    : Cpu.CpuTemperature.ThrottleStatus;
+
+            return (tjMax - offset) + "°C (TjMax " + tjMax + "°C, TCC offset " + offset + "°C)";
+
         }
 
         // Runs a step, ignoring any failure so the report always completes

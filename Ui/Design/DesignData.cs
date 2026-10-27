@@ -427,7 +427,8 @@ namespace StarMon.Ui.Design {
                 .Add("Frekans", "3.94 GHz")
                 .Add("Kısıtlama", "Termal")
                 .Add("Çekirdekler", "90 °C · 12")
-                .Add("Çekirdek frekansları", "2.20 - 4.10 · 12"));
+                .Add("Çekirdek frekansları", "2.20 - 4.10 · 12")
+                .Add("Kısıtlama noktası", "97 °C · TjMax 100 − 3"));
 
             model.Details.Add(new DetailGroupViewModel("EKRAN KARTI")
                 .Add("Sıcaklık", "91 °C")

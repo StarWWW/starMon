@@ -672,6 +672,9 @@ namespace StarMon.Library.Locale
                 ["GuiWpfPowerModeBalanced"] = "Balanced",
                 ["GuiWpfPowerModeSaver"] = "Best efficiency",
                 ["GuiWpfCoreClockTip"] = "The clock each logical processor is running at. One flat colour rather than the temperature bands: a core running slowly is not a core in trouble.",
+                ["GuiWpfThrottlePoint"] = "Throttle point",
+                ["GuiWpfThrottlePointValue"] = "{0} °C · TjMax {1} − {2}",
+                ["GuiWpfThresholdAboveThrottle"] = "The processor starts throttling itself at {0} °C. The threshold should sit below that; otherwise it has already slowed down by the time the guard raises the fans.",
 
                 // The chart's window and export
                 ["GuiWpfWindowShort"] = "2 min",
@@ -1047,6 +1050,7 @@ namespace StarMon.Library.Locale
                 ["GuiTipCpuClock"] = "The average frequency the active cores are running at, from the performance counters.",
                 ["GuiTipThrottle"] = "Whether the processor is being held back, and by what — heat or a power limit — or not at all.",
                 ["GuiTipCores"] = "The hottest logical core and how many there are; the strip on the dashboard shows each one.",
+                ["GuiTipThrottlePoint"] = "The temperature at which the processor starts slowing itself down for heat: TjMax less the TCC offset the BIOS set. Read only.",
                 ["GuiTipGpuTemp"] = "The graphics chip temperature, read through the NVIDIA driver.",
                 ["GuiTipGpuLoad"] = "How busy the graphics chip is right now.",
                 ["GuiTipGpuPower"] = "The board power the graphics card is drawing, measured through NVML.",

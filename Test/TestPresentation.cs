@@ -47,6 +47,10 @@ namespace StarMon.Test {
             TestBatteryFlowShowsDischarging();
             TestADriveThatStopsAnsweringIsNotShownAsLive();
 
+            SelfTest.Group("Presentation: the throttle point");
+            TestTheThrottlePointRowShowsWhereItComesFrom();
+            TestTheThresholdIsWarnedAboutAtTheThrottlePoint();
+
             SelfTest.Group("Presentation: fitting the screen");
             TestWindowFitsTheDisplaysThatBrokeIt();
 
@@ -54,6 +58,43 @@ namespace StarMon.Test {
             TestTheSelectorSeedsItselfBeforeAnyClick();
             TestAnAnswerFetchedBeforeTheClickNeverWins();
             TestRelaunchingBringsTheWindowUp();
+
+        }
+
+        // The Sensors row names the throttle point and the two figures it is
+        // made from, and says nothing it does not know
+        private static void TestTheThrottlePointRowShowsWhereItComesFrom() {
+
+            Reading reading = new Reading {
+                CpuTjMax = 100, CpuTccOffset = 3, CpuThrottleTemperature = 97
+            };
+
+            string row = WindowController.ThrottlePoint(reading);
+            SelfTest.Check(row.StartsWith("97"), "the row leads with the throttle point (" + row + ")");
+            SelfTest.Check(row.Contains("100") && row.Contains("3"),
+                "and shows TjMax and the offset it comes from");
+
+            SelfTest.Equal("-", WindowController.ThrottlePoint(new Reading()),
+                "an unread register shows a dash rather than a made-up figure");
+
+        }
+
+        // The guard exists to raise the fans before the processor slows
+        // itself down. A threshold at or past the throttle point is too late,
+        // and the Settings page says so.
+        private static void TestTheThresholdIsWarnedAboutAtTheThrottlePoint() {
+
+            SelfTest.Equal("", SettingsViewModel.ThresholdNoteFor(95, 97),
+                "the default threshold under a 97 °C throttle point is fine");
+
+            SelfTest.Check(SettingsViewModel.ThresholdNoteFor(97, 97).Length > 0,
+                "a threshold at the throttle point is warned about");
+
+            SelfTest.Check(SettingsViewModel.ThresholdNoteFor(99, 97).Contains("97"),
+                "and the warning names the throttle point");
+
+            SelfTest.Equal("", SettingsViewModel.ThresholdNoteFor(99, -1),
+                "nothing is said when the throttle point could not be read");
 
         }
 

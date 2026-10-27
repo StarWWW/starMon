@@ -180,11 +180,48 @@ namespace StarMon.Ui.ViewModels {
                 Library.Config.ThermalProtectionHighC = high;
                 Library.Config.ThermalProtectionLowC = high - ThermalHysteresisC;
                 Raise("ThermalThreshold");
+                Raise("ThresholdNote");
                 Raise("Dirty");
             }
         }
 
         private const int ThermalHysteresisC = 7;
+
+        // Where the processor throttles itself for heat, from the latest
+        // reading; -1 where it cannot be read
+        private int ThrottleTemperatureValue = -1;
+
+        public int ThrottleTemperature {
+            get { return this.ThrottleTemperatureValue; }
+            set {
+                if(this.ThrottleTemperatureValue == value) return;
+                this.ThrottleTemperatureValue = value;
+                Raise("ThrottleTemperature");
+                Raise("ThresholdNote");
+            }
+        }
+
+        // A warning under the threshold when it sits at or above the point
+        // where the processor throttles itself. The guard's job is to raise
+        // the fans before that happens; set at or past it, the processor has
+        // already slowed down by the time the fans are told. Empty when the
+        // threshold is below it, or when the throttle point is not known.
+        public string ThresholdNote {
+            get {
+                return ThresholdNoteFor(Library.Config.ThermalProtectionHighC,
+                    this.ThrottleTemperatureValue);
+            }
+        }
+
+        internal static string ThresholdNoteFor(int threshold, int throttle) {
+
+            if(throttle <= 0 || threshold < throttle)
+                return "";
+
+            return string.Format(Library.Config.Locale.Get("GuiWpfThresholdAboveThrottle"),
+                throttle);
+
+        }
 
         public bool ThrottleNotify {
             get { return Library.Config.ThrottleNotifyEnabled; }

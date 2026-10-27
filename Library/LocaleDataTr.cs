@@ -661,6 +661,9 @@ namespace StarMon.Library.Locale
                 ["GuiWpfPowerModeBalanced"] = "Dengeli",
                 ["GuiWpfPowerModeSaver"] = "En iyi verim",
                 ["GuiWpfCoreClockTip"] = "Her mantıksal çekirdeğin çalıştığı frekans. Sıcaklık bantları yerine tek renk: yavaş çalışan bir çekirdek sorunlu bir çekirdek değildir.",
+                ["GuiWpfThrottlePoint"] = "Kısıtlama noktası",
+                ["GuiWpfThrottlePointValue"] = "{0} °C · TjMax {1} − {2}",
+                ["GuiWpfThresholdAboveThrottle"] = "İşlemci {0} °C'de kendini kısmaya başlıyor. Eşik bunun altında olmalı; yoksa koruma fanları açtığında işlemci çoktan yavaşlamış olur.",
 
                 // Grafiğin penceresi ve dışa aktarımı
                 ["GuiWpfWindowShort"] = "2 dk",
@@ -1032,6 +1035,7 @@ namespace StarMon.Library.Locale
                 ["GuiTipCpuClock"] = "Etkin çekirdeklerin çalıştığı ortalama frekans; performans sayaçlarından.",
                 ["GuiTipThrottle"] = "İşlemcinin kısılıp kısılmadığı ve neyle — ısı mı, güç sınırı mı — yoksa hiç mi.",
                 ["GuiTipCores"] = "En sıcak mantıksal çekirdek ve toplam sayısı; gösterge panelindeki şerit her birini gösterir.",
+                ["GuiTipThrottlePoint"] = "İşlemcinin ısı nedeniyle kendini yavaşlatmaya başladığı sıcaklık: TjMax eksi BIOS'un ayarladığı TCC ofseti. Salt okunur.",
                 ["GuiTipGpuTemp"] = "Ekran kartı çip sıcaklığı; NVIDIA sürücüsü üzerinden okunur.",
                 ["GuiTipGpuLoad"] = "Ekran kartının şu an ne kadar meşgul olduğu.",
                 ["GuiTipGpuPower"] = "Ekran kartının çektiği kart gücü; NVML üzerinden ölçülür.",
