@@ -37,9 +37,9 @@
             <!-- A zone's colour swatch and its value. The swatch opens the
                  picker; the hex field beside it is for pasting a known value. -->
             <DataTemplate x:Key="ZoneSwatch">
-                <Grid Margin="0,0,0,10">
+                <Grid Margin="0,0,16,10">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="82"/>
+                        <ColumnDefinition Width="72"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="128"/>
                         <ColumnDefinition Width="*"/>
@@ -116,8 +116,17 @@
                 <StackPanel Margin="16,14,16,14">
                     <TextBlock Text="{loc:Str GuiWpfColour}" Style="{StaticResource Caption}"
                                Margin="0,0,0,12"/>
+                    <!-- Two to a row: the card is wide and four zones one
+                         under another ran past its foot, pushing the saved
+                         colours below a scroll bar -->
                     <ItemsControl ItemsSource="{Binding Zones}"
-                                  ItemTemplate="{StaticResource ZoneSwatch}"/>
+                                  ItemTemplate="{StaticResource ZoneSwatch}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Columns="2" VerticalAlignment="Top"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                    </ItemsControl>
 
                     <!-- The presets kept in the configuration file. Loaded into
                          the view model since it was written and shown by

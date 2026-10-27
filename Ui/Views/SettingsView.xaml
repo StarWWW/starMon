@@ -366,7 +366,8 @@
                                         MinWidth="0" Padding="12,6" Margin="8,0,0,0"
                                         IsEnabled="{Binding HasHotkey}" ToolTip="{loc:Str GuiWpfTipHotkeyClear}"/>
                                 <Button x:Name="CaptureHotkey" Style="{StaticResource GhostButton}"
-                                        MinWidth="0" Padding="12,6"
+                                        MinWidth="200" Padding="14,6"
+                                        HorizontalAlignment="Left"
                                         HorizontalContentAlignment="Left"
                                         Content="{Binding HotkeyText}" ToolTip="{loc:Str GuiWpfTipHotkeyCapture}"/>
                             </DockPanel>

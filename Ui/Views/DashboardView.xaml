@@ -202,6 +202,15 @@
                     <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,7,0,0">
                         <TextBlock Text="{Binding FanCpu.Figure}"
                                    Style="{StaticResource ValueLarge}"/>
+                        <!-- The second fan, where there is one. The firmware
+                             drives the two together, and the summary strip
+                             already shows the pair; a card showing only the
+                             first disagreed with it. -->
+                        <TextBlock Text="{Binding FanCpu.Second, StringFormat={}/{0}}"
+                                   Style="{StaticResource ValueLarge}"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   Visibility="{Binding FanCpu.Second,
+                                                Converter={StaticResource HideWhenEmpty}}"/>
                         <TextBlock Text="{Binding FanCpu.Unit}" Style="{StaticResource Micro}"
                                    Margin="3,0,0,3" VerticalAlignment="Bottom"/>
                         <ContentControl x:Name="SparkFanHost" Width="66" Height="24"

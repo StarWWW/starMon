@@ -74,32 +74,37 @@
 
 <!--#region Buttons -->
 
-    <!-- The shared button chrome. The two variants below differ only in their
-         resting fill and text colour, so the geometry, the states and the
-         focus ring are defined once. -->
+    <!-- The shared button chrome. The variants below differ only in their
+         fill, edge and text colour, so the geometry, the states and the focus
+         ring are defined once.
+
+         A button is a raised surface: its edge is drawn a little lighter
+         along the top than along the bottom, the way Windows 11 draws its
+         own, so it reads as standing up off the card rather than as a flat
+         rectangle printed on it. -->
     <ControlTemplate x:Key="ButtonChrome" TargetType="ButtonBase">
         <Grid>
             <Border x:Name="Back"
                     Background="{TemplateBinding Background}"
                     BorderBrush="{TemplateBinding BorderBrush}"
                     BorderThickness="1"
-                    CornerRadius="{StaticResource RadiusControl}"
+                    CornerRadius="6"
                     SnapsToDevicePixels="True"/>
-            <!-- The interaction wash rides above the fill so a primary and a
-                 ghost button lighten by the same amount on hover -->
+            <!-- The interaction wash rides above the fill so every variant
+                 lightens by the same amount on hover -->
             <Border x:Name="Wash"
                     Background="{StaticResource Hover}"
-                    CornerRadius="{StaticResource RadiusControl}"
+                    CornerRadius="6"
                     Opacity="0"/>
             <Border x:Name="Ring"
                     BorderBrush="{StaticResource Focus}"
                     BorderThickness="2"
-                    CornerRadius="{StaticResource RadiusControl}"
-                    Margin="-2"
+                    CornerRadius="8"
+                    Margin="-3"
                     Opacity="0"/>
             <ContentPresenter x:Name="Content"
                               Margin="{TemplateBinding Padding}"
-                              HorizontalAlignment="Center"
+                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                               VerticalAlignment="Center"
                               RecognizesAccessKey="True"/>
         </Grid>
@@ -129,16 +134,12 @@
                     </BeginStoryboard>
                 </Trigger.ExitActions>
             </Trigger>
-            <!-- Pressed swaps the wash for a dark one and nudges the label
-                 down a pixel: the button reads as depressed, not just tinted -->
+            <!-- Pressed swaps the wash for a dark one and dims the label a
+                 little, the way a Windows 11 button answers a press -->
             <Trigger Property="IsPressed" Value="True">
                 <Setter TargetName="Wash" Property="Background" Value="{StaticResource Pressed}"/>
                 <Setter TargetName="Wash" Property="Opacity" Value="1"/>
-                <Setter TargetName="Content" Property="RenderTransform">
-                    <Setter.Value>
-                        <TranslateTransform Y="1"/>
-                    </Setter.Value>
-                </Setter>
+                <Setter TargetName="Content" Property="Opacity" Value="0.8"/>
             </Trigger>
             <!-- Keyboard focus only. A ring drawn on every click is noise; a
                  ring drawn when tabbing to the control is the whole point. -->
@@ -146,58 +147,67 @@
                 <Setter TargetName="Ring" Property="Opacity" Value="1"/>
             </Trigger>
             <Trigger Property="IsEnabled" Value="False">
-                <Setter Property="Opacity" Value="0.38"/>
+                <Setter Property="Opacity" Value="0.4"/>
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>
 
-    <!-- The default button: quiet, on the card plane. Most buttons are this.
+    <!-- The edge of a raised neutral surface: lighter along the top -->
+    <LinearGradientBrush x:Key="RaisedEdge" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0.0" Color="#FF4A505D"/>
+        <GradientStop Offset="0.3" Color="#FF3B404B"/>
+        <GradientStop Offset="1.0" Color="#FF30343D"/>
+    </LinearGradientBrush>
 
-         The fill sits a shade LIGHTER than the card it is on, not darker. It
-         used to take the inset colour, which is what a plot area or a well is
-         painted in — so every button read as a hole cut into the card rather
-         than as a control raised off it. A thing to be pressed has to look
-         like it is standing up. -->
+    <!-- The default button: a step lighter than the card it sits on, with
+         the raised edge. Most buttons are this. -->
     <Style x:Key="GhostButton" TargetType="Button">
         <Setter Property="Template" Value="{StaticResource ButtonChrome}"/>
-        <Setter Property="Background" Value="#FF31363F"/>
-        <Setter Property="BorderBrush" Value="#FF434A57"/>
+        <Setter Property="Background" Value="#FF2D313A"/>
+        <Setter Property="BorderBrush" Value="{StaticResource RaisedEdge}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimary}"/>
         <Setter Property="FontFamily" Value="{StaticResource FontText}"/>
         <Setter Property="FontSize" Value="{StaticResource SizeBody}"/>
         <Setter Property="FontWeight" Value="SemiBold"/>
-        <Setter Property="Padding" Value="16,8"/>
-        <Setter Property="MinWidth" Value="96"/>
+        <Setter Property="Padding" Value="16,7"/>
+        <Setter Property="MinWidth" Value="72"/>
+        <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
     </Style>
 
-    <!-- One primary button per view, at most. White text on the accent, and a
-         edge a shade deeper than the fill so it reads as a solid object rather
-         than as a flat patch of colour. -->
+    <!-- One primary button per view, at most: the accent, with an edge that
+         is lighter at the top and deeper at the bottom so it reads as a solid
+         key rather than a flat patch of colour -->
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
         <Setter Property="Background" Value="{StaticResource Accent}"/>
-        <Setter Property="BorderBrush" Value="#FF7A4DE8"/>
+        <Setter Property="BorderBrush">
+            <Setter.Value>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
+                    <GradientStop Offset="0.0" Color="#FFA585F9"/>
+                    <GradientStop Offset="0.3" Color="#FF8B5CF6"/>
+                    <GradientStop Offset="1.0" Color="#FF6A3FD6"/>
+                </LinearGradientBrush>
+            </Setter.Value>
+        </Setter>
         <Setter Property="Foreground" Value="#FFFFFFFF"/>
     </Style>
 
     <!-- A destructive or halting action: stop the fan program, delete a
-         saved one. Carries a faint wash of its own colour rather than being
-         an outline on nothing — an outline-only button beside two filled ones
-         reads as disabled. -->
+         saved one. The neutral raised button with its label in red, so it
+         stands with the buttons beside it and still says what it does. -->
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
-        <Setter Property="Background" Value="#1FD03B3B"/>
-        <Setter Property="BorderBrush" Value="#66D03B3B"/>
-        <Setter Property="Foreground" Value="#FFE87878"/>
+        <Setter Property="Foreground" Value="#FFF08A8A"/>
     </Style>
 
-    <!-- Unbounded buttons: the title-bar minimise/close glyphs, and the small
-         icon affordances beside a card heading -->
+    <!-- Unbounded buttons: the small icon affordances beside a card heading -->
     <Style x:Key="IconButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
         <Setter Property="Background" Value="Transparent"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
         <Setter Property="MinWidth" Value="0"/>
+        <Setter Property="MinHeight" Value="0"/>
         <Setter Property="Width" Value="32"/>
         <Setter Property="Height" Value="28"/>
         <Setter Property="Padding" Value="0"/>
@@ -268,8 +278,18 @@
                             </Trigger.ExitActions>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Opacity" Value="0.38"/>
+                            <Setter Property="Opacity" Value="0.45"/>
                         </Trigger>
+                        <!-- Selected in a group that cannot be used: drawn
+                             neutral, since the accent at reduced opacity reads
+                             as a muddy purple that looks like a fault -->
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsEnabled" Value="False"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Fill" Property="Background" Value="#FF3A3F4A"/>
+                        </MultiTrigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
@@ -487,45 +507,64 @@
         </Setter>
     </Style>
 
-    <!-- A setting that is on or off, where the state matters more than the
-         label: automatic fan control, run at startup, follow power plan -->
+    <!-- A setting that is on or off, drawn the way Windows 11 draws its own
+         toggle switch, since that is the one every user already reads at a
+         glance: off is an outlined track with a small knob, on is a filled
+         track with a larger white knob. The off state is drawn rather than
+         left as a dark hollow, so a column of switches that are all off still
+         reads as a column of controls. -->
     <Style x:Key="Switch" TargetType="ToggleButton">
         <Setter Property="Width" Value="40"/>
-        <Setter Property="Height" Value="22"/>
+        <Setter Property="Height" Value="20"/>
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ToggleButton">
-                    <Grid>
+                    <Grid Background="Transparent">
+                        <Border x:Name="Ring"
+                                BorderBrush="{StaticResource Focus}"
+                                BorderThickness="2"
+                                CornerRadius="13"
+                                Margin="-3"
+                                Opacity="0"/>
                         <Border x:Name="Track"
-                                Background="{StaticResource Inset}"
-                                BorderBrush="{StaticResource CardBorder}"
+                                Background="#14FFFFFF"
+                                BorderBrush="#FF8A92A1"
                                 BorderThickness="1"
-                                CornerRadius="{StaticResource RadiusPill}"/>
+                                CornerRadius="10"/>
                         <!-- The knob travels by its own Margin rather than by
                              a RenderTransform: a Setter can only retarget a
                              named element of the template, and the transform
                              inside one is not that, so the resting position of
                              an already-checked switch could not be set. -->
                         <Ellipse x:Name="Knob"
-                                 Width="16" Height="16"
-                                 Fill="{StaticResource TextMuted}"
+                                 Width="12" Height="12"
+                                 Fill="#FFC5CAD3"
                                  HorizontalAlignment="Left"
-                                 Margin="3,0,0,0"/>
+                                 VerticalAlignment="Center"
+                                 Margin="4,0,0,0"/>
                     </Grid>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="#22FFFFFF"/>
+                            <Setter TargetName="Knob" Property="Width" Value="14"/>
+                            <Setter TargetName="Knob" Property="Height" Value="14"/>
+                            <Setter TargetName="Knob" Property="Margin" Value="3,0,0,0"/>
+                        </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Track" Property="Background" Value="{StaticResource Accent}"/>
                             <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Accent}"/>
                             <Setter TargetName="Knob" Property="Fill" Value="#FFFFFFFF"/>
-                            <Setter TargetName="Knob" Property="Margin" Value="21,0,0,0"/>
+                            <Setter TargetName="Knob" Property="Width" Value="14"/>
+                            <Setter TargetName="Knob" Property="Height" Value="14"/>
+                            <Setter TargetName="Knob" Property="Margin" Value="23,0,0,0"/>
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
                                         <ThicknessAnimation Storyboard.TargetName="Knob"
                                                             Storyboard.TargetProperty="Margin"
-                                                            From="3,0,0,0" To="21,0,0,0"
+                                                            From="4,0,0,0" To="23,0,0,0"
                                                             FillBehavior="Stop"
                                                             Duration="{StaticResource DurationState}"
                                                             EasingFunction="{StaticResource Ease}"/>
@@ -537,7 +576,7 @@
                                     <Storyboard>
                                         <ThicknessAnimation Storyboard.TargetName="Knob"
                                                             Storyboard.TargetProperty="Margin"
-                                                            From="21,0,0,0" To="3,0,0,0"
+                                                            From="23,0,0,0" To="4,0,0,0"
                                                             FillBehavior="Stop"
                                                             Duration="{StaticResource DurationState}"
                                                             EasingFunction="{StaticResource Ease}"/>
@@ -545,8 +584,19 @@
                                 </BeginStoryboard>
                             </Trigger.ExitActions>
                         </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsChecked" Value="True"/>
+                                <Condition Property="IsMouseOver" Value="True"/>
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Track" Property="Background" Value="#FF9D74F8"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="#FF9D74F8"/>
+                            <Setter TargetName="Knob" Property="Width" Value="16"/>
+                            <Setter TargetName="Knob" Property="Height" Value="16"/>
+                            <Setter TargetName="Knob" Property="Margin" Value="21,0,0,0"/>
+                        </MultiTrigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource Focus}"/>
+                            <Setter TargetName="Ring" Property="Opacity" Value="1"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.38"/>
@@ -570,18 +620,22 @@
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Thumb">
-                    <Grid Width="18" Height="18">
-                        <!-- A halo that only appears on hover, so the thumb is
-                             small at rest and easy to grab in motion -->
-                        <Ellipse x:Name="Halo" Fill="{StaticResource AccentFaint}" Opacity="0"/>
-                        <Ellipse Width="12" Height="12" Fill="{StaticResource TextPrimary}"/>
+                    <!-- The Windows 11 thumb: a dark ring with an accent dot
+                         in it that grows under the pointer and shrinks while
+                         held, so the thumb answers being reached for -->
+                    <Grid Width="20" Height="20" Background="Transparent">
+                        <Ellipse Fill="#FF3A3F4A" Stroke="#FF4A505D" StrokeThickness="1"/>
+                        <Ellipse x:Name="Dot" Width="10" Height="10"
+                                 Fill="{StaticResource Accent}"/>
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Halo" Property="Opacity" Value="1"/>
+                            <Setter TargetName="Dot" Property="Width" Value="13"/>
+                            <Setter TargetName="Dot" Property="Height" Value="13"/>
                         </Trigger>
                         <Trigger Property="IsDragging" Value="True">
-                            <Setter TargetName="Halo" Property="Opacity" Value="1"/>
+                            <Setter TargetName="Dot" Property="Width" Value="8"/>
+                            <Setter TargetName="Dot" Property="Height" Value="8"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
