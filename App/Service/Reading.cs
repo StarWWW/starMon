@@ -118,6 +118,14 @@ namespace StarMon.AppService {
         public int CpuTjMax = -1;
         public int CpuTccOffset = -1;
         public int CpuThrottleTemperature = -1;
+        // Whether the processor is actually being held back.
+        //
+        // Throttle above is a description for a detail row, and it is never
+        // empty once the processor has answered: when nothing is holding it
+        // back it says so, in words. The summary strip read "not empty" as
+        // "throttling", so its badge was lit on every page of every machine
+        // whose processor could be asked — with a tooltip saying "None".
+        public bool IsThrottling;
 
         // Machine identity. Static across a session, so the poller reads it
         // once and copies it into every reading rather than asking the

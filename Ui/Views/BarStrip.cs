@@ -19,8 +19,7 @@ namespace StarMon.Ui.Views {
     // colouring are parameters now rather than constants.
     //
     // Drawn rather than assembled: twenty rectangles redrawn each reading are
-    // far cheaper as geometry than as twenty framework elements, and markup
-    // cannot name a type from this assembly.
+    // far cheaper as geometry than as twenty framework elements.
     public sealed class BarStrip : FrameworkElement {
 
         private double[] ValuesField = new double[0];

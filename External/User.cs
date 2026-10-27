@@ -41,6 +41,7 @@ namespace StarMon.External {
         // GetSystemMetrics indices
         public const int SM_CXSCREEN = 0; // Primary display width, in pixels
         public const int SM_CYSCREEN = 1; // Primary display height, in pixels
+        public const int SM_CXPADDEDBORDER = 92; // Padding around a sizing frame, in pixels
 
         // Shutdown reason flags
         public const uint SHTDN_REASON_FLAG_PLANNED   = 0x80000000;

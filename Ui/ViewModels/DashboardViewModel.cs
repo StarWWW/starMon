@@ -32,12 +32,7 @@ namespace StarMon.Ui.ViewModels {
             this.Cpu = new ReadingViewModel(Text("GuiWpfCpu"));
             this.Gpu = new ReadingViewModel(Text("GuiWpfGpu"));
             this.FanCpu = new ReadingViewModel(Text("GuiWpfFans"));
-            this.FanGpu = new ReadingViewModel(Text("GuiWpfFans"));
             this.Battery = new ReadingViewModel(Text("GuiWpfBattery"));
-
-            this.Cards = new ObservableCollection<ReadingViewModel> {
-                this.Cpu, this.Gpu, this.FanCpu, this.FanGpu, this.Battery
-            };
 
             this.Details = new ObservableCollection<DetailGroupViewModel>();
 
@@ -49,45 +44,45 @@ namespace StarMon.Ui.ViewModels {
             //
             // The captions are set here; the values arrive with the first
             // reading, and until then a row honestly shows a dash.
-            this.CpuBlock = new DetailGroupViewModel(Text("GuiWpfCpu"))
-                .Add(Text("GuiWpfRowLoad"), "-", Text("GuiTipCpuLoad"))
-                .Add(Text("GuiWpfRowPower"), "-", Text("GuiTipCpuPower"))
-                .Add(Text("GuiWpfRowLimits"), "-", Text("GuiTipCpuLimit"))
-                .Add(Text("GuiWpfRowClock"), "-", Text("GuiTipCpuClock"));
+            this.CpuBlock = DetailGroupViewModel.Keyed("GuiWpfCpu")
+                .AddKeyed("GuiWpfRowLoad", "-", "GuiTipCpuLoad")
+                .AddKeyed("GuiWpfRowPower", "-", "GuiTipCpuPower")
+                .AddKeyed("GuiWpfRowLimits", "-", "GuiTipCpuLimit")
+                .AddKeyed("GuiWpfRowClock", "-", "GuiTipCpuClock");
 
-            this.GpuBlock = new DetailGroupViewModel(Text("GuiWpfGpu"))
-                .Add(Text("GuiWpfRowLoad"), "-", Text("GuiTipGpuLoad"))
-                .Add(Text("GuiWpfRowPower"), "-", Text("GuiTipGpuPower"))
-                .Add(Text("GuiWpfRowClock"), "-", Text("GuiTipGpuClock"))
-                .Add(Text("GuiWpfRowMemClock"), "-", Text("GuiWpfTipGpuMemClock"))
-                .Add(Text("GuiWpfRowVram"), "-", Text("GuiTipVram"))
-                .Add(Text("GuiWpfRowTgp"), "-", Text("GuiWpfTipGpuPower"));
+            this.GpuBlock = DetailGroupViewModel.Keyed("GuiWpfGpu")
+                .AddKeyed("GuiWpfRowLoad", "-", "GuiTipGpuLoad")
+                .AddKeyed("GuiWpfRowPower", "-", "GuiTipGpuPower")
+                .AddKeyed("GuiWpfRowClock", "-", "GuiTipGpuClock")
+                .AddKeyed("GuiWpfRowMemClock", "-", "GuiWpfTipGpuMemClock")
+                .AddKeyed("GuiWpfRowVram", "-", "GuiTipVram")
+                .AddKeyed("GuiWpfRowTgp", "-", "GuiWpfTipGpuPower");
 
-            this.CoolingBlock = new DetailGroupViewModel(Text("GuiWpfFans"))
-                .Add(Text("GuiWpfRowFanCpu"), "-", Text("GuiWpfTipFanLine"))
-                .Add(Text("GuiWpfRowFanGpu"), "-", Text("GuiWpfTipFanLine"))
-                .Add(Text("GuiWpfRowHottest"), "-", Text("GuiWpfTipHottest"))
-                .Add(Text("GuiWpfRowMode"), "-", Text("GuiWpfTipPerfMode"))
-                .Add(Text("GuiWpfRowCeiling"), "-", Text("GuiWpfTipCeiling"))
+            this.CoolingBlock = DetailGroupViewModel.Keyed("GuiWpfFans")
+                .AddKeyed("GuiWpfRowFanCpu", "-", "GuiWpfTipFanLine")
+                .AddKeyed("GuiWpfRowFanGpu", "-", "GuiWpfTipFanLine")
+                .AddKeyed("GuiWpfRowHottest", "-", "GuiWpfTipHottest")
+                .AddKeyed("GuiWpfRowMode", "-", "GuiWpfTipPerfMode")
+                .AddKeyed("GuiWpfRowCeiling", "-", "GuiWpfTipCeiling")
                 // The failsafe timer. When it runs out the Embedded Controller
                 // takes the fans back, which is the entire explanation for a
                 // manual speed reverting on its own, and there has never been
                 // anywhere to watch it happen.
-                .Add(Text("GuiWpfRowCountdown"), "-", Text("GuiTipCountdown"))
-                .Add(Text("GuiWpfRowGuard"), "-", Text("GuiWpfTipProtection"));
+                .AddKeyed("GuiWpfRowCountdown", "-", "GuiTipCountdown")
+                .AddKeyed("GuiWpfRowGuard", "-", "GuiWpfTipProtection");
 
             // Not "battery": the block carries the machine's whole power and
             // throughput picture. The disk and network meters had been written
             // and never called at all, so the panel could say how hot the
             // drive was running and never how hard.
-            this.PowerBlock = new DetailGroupViewModel(Text("GuiWpfSystemBlock"))
-                .Add(Text("GuiWpfRowCharge"), "-", Text("GuiWpfTipCharge"))
-                .Add(Text("GuiWpfRowFlow"), "-", Text("GuiTipBatDraw"))
-                .Add(Text("GuiWpfRowHealth"), "-", Text("GuiTipBatHealth"))
-                .Add(Text("GuiWpfRowPlan"), "-", Text("GuiWpfTipPlanLine"))
-                .Add(Text("GuiWpfRowMemory"), "-", Text("GuiTipMemUsed"))
-                .Add(Text("GuiWpfRowDisk"), "-", Text("GuiTipDiskRate"))
-                .Add(Text("GuiWpfRowNetwork"), "-", Text("GuiTipNetRate"));
+            this.PowerBlock = DetailGroupViewModel.Keyed("GuiWpfSystemBlock")
+                .AddKeyed("GuiWpfRowCharge", "-", "GuiWpfTipCharge")
+                .AddKeyed("GuiWpfRowFlow", "-", "GuiTipBatDraw")
+                .AddKeyed("GuiWpfRowHealth", "-", "GuiTipBatHealth")
+                .AddKeyed("GuiWpfRowPlan", "-", "GuiWpfTipPlanLine")
+                .AddKeyed("GuiWpfRowMemory", "-", "GuiTipMemUsed")
+                .AddKeyed("GuiWpfRowDisk", "-", "GuiTipDiskRate")
+                .AddKeyed("GuiWpfRowNetwork", "-", "GuiTipNetRate");
 
             // The series, in the order they take their palette slots in.
             // Temperatures first, because they are what the chart is mostly
@@ -116,15 +111,24 @@ namespace StarMon.Ui.ViewModels {
 
         public HistoryViewModel History { get; private set; }
 
-        // The stat cards along the top, in a fixed order. A collection rather
-        // than five named slots in the markup, so the row lays itself out and
-        // a machine without one of the sensors does not leave a hole.
-        public ObservableCollection<ReadingViewModel> Cards { get; private set; }
+        // Renames everything this model was handed as a string, after the
+        // language has changed. The markup's own captions follow on their own;
+        // these were read once, when the model was built.
+        public void Relabel() {
+
+            this.CpuBlock.Relabel();
+            this.GpuBlock.Relabel();
+            this.CoolingBlock.Relabel();
+            this.PowerBlock.Relabel();
+
+            Raise("ProgramLabel");
+            Raise("GpuPowerNote");
+
+        }
 
         public ReadingViewModel Cpu { get; private set; }
         public ReadingViewModel Gpu { get; private set; }
         public ReadingViewModel FanCpu { get; private set; }
-        public ReadingViewModel FanGpu { get; private set; }
         public ReadingViewModel Battery { get; private set; }
 
         // One temperature per logical processor, for the strip drawn along the
@@ -413,12 +417,40 @@ namespace StarMon.Ui.ViewModels {
     // A named group of detail rows
     public sealed class DetailGroupViewModel : Observable {
 
+        private string CaptionValue;
+
         public DetailGroupViewModel(string caption) {
-            this.Caption = caption;
+            this.CaptionValue = caption;
             this.Rows = new ObservableCollection<DetailRowViewModel>();
         }
 
-        public string Caption { get; private set; }
+        // A group whose caption and rows are named by locale key, so that a
+        // language change can rename them in place.
+        //
+        // The groups used to be built from strings looked up once. Most of the
+        // interface follows a language change on its own, through bindings,
+        // but these were handed a string at construction — so switching the
+        // language from the tray menu left the dashboard's four blocks and the
+        // cooling page's table in the language they had been built in, beside
+        // headings that had already moved.
+        public static DetailGroupViewModel Keyed(string captionKey) {
+            DetailGroupViewModel group = new DetailGroupViewModel(Text(captionKey));
+            group.CaptionKey = captionKey;
+            return group;
+        }
+
+        private static string Text(string key) {
+            return Config.Locale.Get(key);
+        }
+
+        // The locale key the caption comes from, or null for a literal one
+        public string CaptionKey { get; private set; }
+
+        public string Caption {
+            get { return this.CaptionValue; }
+            private set { Set(ref this.CaptionValue, value); }
+        }
+
         public ObservableCollection<DetailRowViewModel> Rows { get; private set; }
 
         public DetailGroupViewModel Add(string name, string value) {
@@ -433,20 +465,56 @@ namespace StarMon.Ui.ViewModels {
             return this;
         }
 
+        // A row named by locale keys rather than by strings, so it can follow
+        // a language change
+        public DetailGroupViewModel AddKeyed(string nameKey, string value, string tipKey) {
+            this.Rows.Add(DetailRowViewModel.Keyed(nameKey, value, tipKey));
+            return this;
+        }
+
+        // Reads the caption and every keyed row's name and tip again, in
+        // whatever language is now in force
+        public void Relabel() {
+
+            if(this.CaptionKey != null)
+                this.Caption = Text(this.CaptionKey);
+
+            foreach(DetailRowViewModel row in this.Rows)
+                row.Relabel();
+
+        }
+
     }
 
     public sealed class DetailRowViewModel : Observable {
 
+        private string NameValue;
         private string ValueText;
         private string TipText;
 
         public DetailRowViewModel(string name, string value, string tip = "") {
-            this.Name = name;
+            this.NameValue = name;
             this.ValueText = value;
             this.Tip = tip;
         }
 
-        public string Name { get; private set; }
+        public static DetailRowViewModel Keyed(string nameKey, string value, string tipKey) {
+            DetailRowViewModel row = new DetailRowViewModel(
+                Config.Locale.Get(nameKey), value,
+                string.IsNullOrEmpty(tipKey) ? "" : Config.Locale.Get(tipKey));
+            row.NameKey = nameKey;
+            row.TipKey = tipKey;
+            return row;
+        }
+
+        // The locale keys the name and tip come from, or null for literals
+        public string NameKey { get; private set; }
+        public string TipKey { get; private set; }
+
+        public string Name {
+            get { return this.NameValue; }
+            private set { Set(ref this.NameValue, value); }
+        }
 
         // What this reading is, shown on hover.
         //
@@ -462,12 +530,29 @@ namespace StarMon.Ui.ViewModels {
         // the next page to be written.
         public string Tip {
             get { return string.IsNullOrEmpty(this.TipText) ? null : this.TipText; }
-            set { this.TipText = value ?? ""; }
+            set {
+                string tip = value ?? "";
+                if(tip == this.TipText)
+                    return;
+                this.TipText = tip;
+                Raise("Tip");
+            }
         }
 
         public string Value {
             get { return this.ValueText; }
             set { Set(ref this.ValueText, value); }
+        }
+
+        // Re-reads the name and tip from their keys, where they have them
+        public void Relabel() {
+
+            if(this.NameKey != null)
+                this.Name = Config.Locale.Get(this.NameKey);
+
+            if(!string.IsNullOrEmpty(this.TipKey))
+                this.Tip = Config.Locale.Get(this.TipKey);
+
         }
 
     }

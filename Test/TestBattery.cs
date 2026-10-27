@@ -130,6 +130,13 @@ namespace StarMon.Test {
             SelfTest.Equal(96, Battery.Sanitise(1, true, true),
                 "and so is a near-empty one while charging");
 
+            // Startup case: LastGoodPercent is unseeded (-1)
+            Battery.ResetLastGoodPercent();
+            SelfTest.Equal(0, Battery.Sanitise(0, true, false),
+                "an empty reading at startup on mains returns 0 but does not poison LastGoodPercent");
+            SelfTest.Equal(96, Battery.Sanitise(96, true, false),
+                "a subsequent good reading is accepted");
+
         }
 
         // A drop no battery can physically make between two readings a second

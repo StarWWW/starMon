@@ -113,30 +113,6 @@ namespace StarMon.Library {
             height = User32.GetSystemMetrics(User32.SM_CYSCREEN);
         }
 
-        // The face colour of a button (was SystemColors.Control), as ARGB
-        public static int GetControlColorArgb() {
-            return GetSysColorArgb(User32.COLOR_BTNFACE);
-        }
-
-        // Disabled text (was SystemColors.GrayText), as ARGB
-        public static int GetGrayTextColorArgb() {
-            return GetSysColorArgb(User32.COLOR_GRAYTEXT);
-        }
-
-        // Retrieves a Windows system colour as an ARGB integer (0xFFRRGGBB).
-        //
-        // GetSysColor hands back a COLORREF, which is 0x00BBGGRR — the red and
-        // blue bytes the opposite way round from the ARGB the rest of the code
-        // works in — so the two are swapped here rather than left to surprise a
-        // caller. The alpha byte is forced opaque, as a system colour has none.
-        private static int GetSysColorArgb(int index) {
-            int colorref = User32.GetSysColor(index);
-            int r = colorref & 0xFF;
-            int g = (colorref >> 8) & 0xFF;
-            int b = (colorref >> 16) & 0xFF;
-            return unchecked((int) 0xFF000000) | (r << 16) | (g << 8) | b;
-        }
-
         // Re-applies Windows color settings
         public static void ReloadColorSettings() {
 

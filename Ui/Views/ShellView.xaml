@@ -79,9 +79,10 @@
             ToolTipService.BetweenShowDelay="200">
         <Grid>
             <Grid.RowDefinitions>
-                <RowDefinition Height="40"/>  <!-- title bar, tabs in it  -->
-                <RowDefinition Height="34"/>  <!-- the summary strip      -->
-                <RowDefinition Height="*"/>   <!-- the section itself     -->
+                <RowDefinition Height="40"/>   <!-- title bar, tabs in it  -->
+                <RowDefinition Height="34"/>   <!-- the summary strip      -->
+                <RowDefinition Height="Auto"/> <!-- a notice, when there is one -->
+                <RowDefinition Height="*"/>    <!-- the section itself     -->
             </Grid.RowDefinitions>
 
             <!-- The tabs live in the title bar rather than in a strip of their
@@ -98,8 +99,9 @@
 
                     <StackPanel DockPanel.Dock="Left" Orientation="Horizontal"
                                 Margin="18,0,14,0" VerticalAlignment="Center">
-                        <Border Width="14" Height="14" CornerRadius="4"
-                                Background="{StaticResource BrandStroke}" Margin="0,0,9,0"/>
+                        <Path Width="16" Height="16" Stretch="Fill" Margin="0,0,9,0"
+                              Data="M 8,0 L 16,8 L 8,16 L 0,8 Z"
+                              Fill="{StaticResource BrandMark}"/>
                         <TextBlock Text="StarMon" Style="{StaticResource Body}"
                                    Foreground="{StaticResource TextPrimary}"
                                    FontWeight="SemiBold" VerticalAlignment="Center"/>
@@ -110,6 +112,13 @@
                         <Button x:Name="ButtonMinimise" Content="&#xE921;"
                                 Style="{StaticResource CaptionButton}"
                                 ToolTip="{loc:Str GuiWpfTipMinimise}"/>
+                        <!-- The window can be made larger now and the pages use
+                             the room, so it can be maximised like any other.
+                             The glyph and the tip follow the state; see
+                             IsMaximised in the code-behind. -->
+                        <Button x:Name="ButtonMaximise" Content="&#xE922;"
+                                Style="{StaticResource CaptionButton}"
+                                ToolTip="{loc:Str GuiWpfTipMaximise}"/>
                         <Button x:Name="ButtonClose" Content="&#xE8BB;"
                                 Style="{StaticResource CloseButton}"
                                 ToolTip="{loc:Str GuiWpfTipClose}"/>
@@ -234,8 +243,38 @@
                 </DockPanel>
             </Border>
 
+            <!-- Something the application has to say about the machine as a
+                 whole: that the driver would not load, and why. On every page,
+                 because it explains every page — the fan controls that do
+                 nothing, the keyboard that will not change colour. -->
+            <Border Grid.Row="2" x:Name="NoticeBar"
+                    Background="#1FFAB219" BorderBrush="#40FAB219"
+                    BorderThickness="0,0,0,1"
+                    Visibility="{Binding HasNotice, Converter={StaticResource ShowWhen}}">
+                <DockPanel Margin="19,9,10,10">
+                    <Button x:Name="ButtonDismissNotice" DockPanel.Dock="Right"
+                            Style="{StaticResource CaptionButton}"
+                            Width="32" Height="28" VerticalAlignment="Top"
+                            Content="&#xE711;"
+                            ToolTip="{loc:Str GuiWpfTipDismiss}"/>
+                    <TextBlock DockPanel.Dock="Left" Text="&#xE7BA;"
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="16" Foreground="{StaticResource Warning}"
+                               VerticalAlignment="Top" Margin="0,1,12,0"/>
+                    <StackPanel>
+                        <TextBlock Text="{Binding NoticeTitle}" Style="{StaticResource Body}"
+                                   Foreground="{StaticResource TextPrimary}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding NoticeText}" Style="{StaticResource Micro}"
+                                   Foreground="{StaticResource TextSecondary}"
+                                   TextWrapping="Wrap" MaxHeight="48"
+                                   TextTrimming="CharacterEllipsis" Margin="0,3,0,0"
+                                   ToolTip="{Binding NoticeText}"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+
             <!-- The section itself -->
-            <ContentControl Grid.Row="2" x:Name="SectionHost"/>
+            <ContentControl Grid.Row="3" x:Name="SectionHost"/>
 
         </Grid>
     </Border>

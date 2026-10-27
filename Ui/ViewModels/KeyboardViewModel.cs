@@ -82,6 +82,26 @@ namespace StarMon.Ui.ViewModels {
 
     }
 
+    // One saved colour preset, as a button shows it.
+    //
+    // The key is the name the configuration file stores it under and the
+    // caption is what the button says. They differ for the two presets this
+    // application ships, which are stored as DefaultRed and DefaultWhite so a
+    // translation can name them — and which the panel and the tray menu both
+    // showed as exactly that, while the locale files carried "Omen Red" and
+    // "Omen Kırmızı" for them that nothing ever read.
+    public sealed class PresetViewModel {
+
+        public PresetViewModel(string key, string caption) {
+            this.Key = key ?? "";
+            this.Caption = string.IsNullOrEmpty(caption) ? this.Key : caption;
+        }
+
+        public string Key { get; private set; }
+        public string Caption { get; private set; }
+
+    }
+
     // The animated backlight modes, as the segmented selector offers them
     public enum BacklightMode {
         Static,
@@ -121,17 +141,53 @@ namespace StarMon.Ui.ViewModels {
                 this.Zones.Add(new ZoneViewModel(Text("GuiWpfZoneAll")));
             }
 
-            this.Presets = new ObservableCollection<string>();
+            this.Presets = new ObservableCollection<PresetViewModel>();
 
             // The row of presets appears only when there are some, and the
             // collection is filled after the panel is built — so the view has
             // to be told when that happens
             this.Presets.CollectionChanged += delegate { Raise("HasPresets"); };
 
+            this.SavePresetCommand = new RelayCommand(
+                () => {
+                    Action<string> handler = this.SavePresetRequested;
+                    if(handler != null)
+                        handler(this.NewPresetNameValue.Trim());
+                },
+                () => this.HasColour && this.NewPresetNameValue.Trim().Length > 0);
+
+        }
+
+        // Saving the colours the zones have now as a preset of their own.
+        //
+        // The presets could be applied from here and from the tray menu, and
+        // made nowhere but in the configuration file by hand — in the zones'
+        // firmware order, as hexadecimal, with the application closed. The
+        // view model says what was asked for; the controller writes it.
+        public RelayCommand SavePresetCommand { get; private set; }
+        public event Action<string> SavePresetRequested;
+        public event Action<string> DeletePresetRequested;
+
+        private string NewPresetNameValue = "";
+
+        public string NewPresetName {
+            get { return this.NewPresetNameValue; }
+            set { Set(ref this.NewPresetNameValue, value ?? ""); }
+        }
+
+        public void RequestDeletePreset(string key) {
+            Action<string> handler = this.DeletePresetRequested;
+            if(handler != null && !string.IsNullOrEmpty(key))
+                handler(key);
+        }
+
+        // After a language change: the idle caption is composed, not bound
+        public void Relabel() {
+            Raise("IdleOffCaption");
         }
 
         public ObservableCollection<ZoneViewModel> Zones { get; private set; }
-        public ObservableCollection<string> Presets { get; private set; }
+        public ObservableCollection<PresetViewModel> Presets { get; private set; }
 
         // Whether the configuration file carries any saved colour presets.
         //
@@ -252,13 +308,6 @@ namespace StarMon.Ui.ViewModels {
         public bool? IsIsoBody {
             get { return this.IsIsoBodyValue; }
             set { Set(ref this.IsIsoBodyValue, value); }
-        }
-
-        // Applies one colour to every zone, which is what a preset and the
-        // single-zone case both do
-        public void SetAll(Color colour) {
-            foreach(ZoneViewModel zone in this.Zones)
-                zone.Colour = colour;
         }
 
     }

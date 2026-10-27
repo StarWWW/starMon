@@ -379,10 +379,18 @@ namespace StarMon.Ui.Views {
             if(readings.Count == 0)
                 return;
 
+            // When the sample was taken, at the head of the stack. The plot
+            // says how long ago in its shape; this says at what time, which is
+            // what gets written down or compared against something else.
+            DateTime at = buffer.TimeAt(wanted);
+            string time = at > DateTime.MinValue
+                ? at.ToString("HH:mm:ss", CultureInfo.InvariantCulture) : null;
+
             // The stack goes on whichever side of the line has room, so it
             // never runs off the plot when the pointer is near an edge
             const double boxWidth = 62, lineHeight = 14;
-            double boxHeight = readings.Count * lineHeight + 8;
+            int lines = readings.Count + (time != null ? 1 : 0);
+            double boxHeight = lines * lineHeight + 8;
 
             double boxX = x + 10;
             if(boxX + boxWidth > plotRight)
@@ -400,6 +408,22 @@ namespace StarMon.Ui.Views {
             context.DrawRoundedRectangle(plate, this.GridPen,
                 new Rect(boxX, boxY, boxWidth, boxHeight), 4, 4);
 
+            int first = 0;
+
+            if(time != null) {
+
+                FormattedText stamp = new FormattedText(time,
+                    CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                    this.LabelFace, 10, this.MutedBrush, Dpi.For(this)) {
+                    TextAlignment = TextAlignment.Right,
+                    MaxTextWidth = boxWidth - 10
+                };
+
+                context.DrawText(stamp, new Point(boxX + 5, boxY + 4));
+                first = 1;
+
+            }
+
             for(int i = 0; i < readings.Count; i++) {
 
                 FormattedText text = new FormattedText(readings[i].Text,
@@ -414,7 +438,7 @@ namespace StarMon.Ui.Views {
                 // at the right edge put every reading outside the plate, which
                 // is why the plate looked empty with the numbers beside it.
                 context.DrawText(text, new Point(boxX + 5,
-                    boxY + 4 + i * lineHeight));
+                    boxY + 4 + (i + first) * lineHeight));
 
             }
 

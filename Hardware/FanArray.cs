@@ -186,7 +186,13 @@ namespace StarMon.Hardware.Platform {
         // so manual levels a previous session left in force read as automatic
         // to FanControl.Identify, which calls this the deciding signal.
         public bool GetManual() {
+
+            // Read, not remembered. Every other getter here asks the register
+            // first; this one handed back whatever the component last held,
+            // which is only ever what this application last wrote — so a
+            // reading could not see the toggle as the firmware has it.
             this.Manual.Update();
+
             return this.Manual.GetValue() == (byte) PlatformData.FanManual.On;
         }
 

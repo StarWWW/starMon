@@ -282,9 +282,6 @@ namespace StarMon.Library
         public const int GuiColorWarmDark = unchecked((int)0xFFFF0802); // Red
         public const int GuiColorWarmLite = unchecked((int)0xFFAC02FF); // Orange
 
-        // Two additional colors for the RTF text box with better readability
-        public const int GuiColorTextBlue = unchecked((int)0xFF4182C9); // Blue
-        public const int GuiColorTextTeal = unchecked((int)0xFF0C9D7A); // Teal
 
         // The keyboard's unlit colour, the four zone placeholder colours and
         // the colour picker's sixteen custom slots all belonged to the Windows

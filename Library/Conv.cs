@@ -13,16 +13,9 @@ namespace StarMon.Library {
 #region Data
         // Formatting sequences for rich-text fields
         public const string RTF_CF1 = "\\cf1 ";             // Font 1
-        public const string RTF_CF2 = "\\cf2 ";             // Font 2
         public const string RTF_CF3 = "\\cf3 ";             // Font 3
         public const string RTF_CF4 = "\\cf4 ";             // Font 4
         public const string RTF_CF5 = "\\cf5 ";             // Font 5
-        public const string RTF_CF6 = "\\cf6 ";             // Font 6
-        public const string RTF_LINE = "\\line ";           // New line
-        public const string RTF_STRIKE0 = "\\strike0 ";     // Strikethrough end
-        public const string RTF_STRIKE1 = "\\strike ";      // Strikethrough begin
-        public const string RTF_SUB1 = "\\sub ";            // Subscript begin
-        public const string RTF_SUBSUP0 = "\\nosupersub ";  // Subscript and superscript end
 
         // Special Unicode characters
         public enum SpecialChar : uint {
@@ -283,11 +276,6 @@ namespace StarMon.Library {
                 return ((uint) color & 0xFF000000) >> 24;
         }
 
-        // Adds maximum opacity to an ARGB or ABGR color value
-        public static int GetColorMaxAlpha(int color) {
-            return color | unchecked((int) 0xFF000000);
-        }
-
         // Removes opacity from an ARGB or ABGR color value
         public static int GetColorNoAlpha(int color) {
             return color & unchecked((int) 0x00FFFFFF);
@@ -301,13 +289,6 @@ namespace StarMon.Library {
         // Gets the color value as a hexadecimal string, opacity is discarded
         public static string GetColorString(int color) {
             return Conv.GetString((uint) Conv.GetColorNoAlpha(color), 6, 16);
-        }
-
-        // Gets the color value as a rich-text field string, opacity is discarded
-        public static string GetColorStringRtf(int color) {
-            return "\\red" + GetString((uint) GetColorComponent(color, 2), 1, 10)
-                + "\\green" + GetString((uint) GetColorComponent(color, 1), 1, 10)
-                + "\\blue" + GetString((uint) GetColorComponent(color, 0), 1, 10) + ";";
         }
 
         // Returns the parameter unless out of bounds, in which case returns the bound
@@ -325,27 +306,6 @@ namespace StarMon.Library {
         // Converts a byte or word to a string, using the given numerical base and alignment
         public static string GetString(uint value, int padding = 2, int nbase = 16) {
             return Convert.ToString(value, nbase).PadLeft(padding, '0');
-        }
-
-        // Gets a Unicode string escaped for rich-text format
-        public static string GetUnicodeStringRtf(string text) {
-
-            // Process each character in the string
-            string output = "";
-            foreach(char c in text)
-
-                // Leave basic ASCII intact
-                // (including control sequences)
-                if(c <= 0x7F)
-                    output += c;
-
-                // Escape the rest of Unicode characters
-                else
-                    output += "\\u" + Convert.ToUInt32(c) + "?";
-
-            // Return the resulting escaped string
-            return output;
-
         }
 
         // Converts a binary, decimal or hexadecimal string argument to a word value

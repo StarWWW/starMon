@@ -53,6 +53,7 @@ namespace StarMon.Ui.Views {
         public event Action<Section> SectionSelected;
 
         public event Action Minimising;
+        public event Action MaximiseToggled;
         public event Action Closing;
 
         public ShellView() {
@@ -69,12 +70,19 @@ namespace StarMon.Ui.Views {
             Register(this.NavAbout, Section.About);
 
             this.ButtonMinimise.Click += (s, e) => Raise(this.Minimising);
+            this.ButtonMaximise.Click += (s, e) => Raise(this.MaximiseToggled);
             this.ButtonClose.Click += (s, e) => Raise(this.Closing);
+
+            this.ButtonDismissNotice.Click += delegate {
+                if(this.Summary != null)
+                    this.Summary.DismissNotice();
+            };
 
             // The window buttons sit in the caption region too, so they need
             // the same exemption the tabs do or the chrome swallows their
             // clicks and the window drags instead
             WindowChrome.SetIsHitTestVisibleInChrome(this.ButtonMinimise, true);
+            WindowChrome.SetIsHitTestVisibleInChrome(this.ButtonMaximise, true);
             WindowChrome.SetIsHitTestVisibleInChrome(this.ButtonClose, true);
 
             // The strip's trends are drawn controls, so they are placed from
@@ -85,6 +93,28 @@ namespace StarMon.Ui.Views {
             this.DataContextChanged += OnDataContextChanged;
 
         }
+
+        // Whether the window is maximised, so the middle caption button shows
+        // the glyph for what pressing it will do: restore when maximised,
+        // maximise otherwise — the convention every other window follows
+        public bool IsMaximised {
+            get { return this.IsMaximisedValue; }
+            set {
+                this.IsMaximisedValue = value;
+                this.ButtonMaximise.Content = value ? "\uE923" : "\uE922";
+
+                // Bound rather than assigned, the way {loc:Str} does it, so
+                // the tip follows a change of language too
+                this.ButtonMaximise.SetBinding(ToolTipProperty,
+                    new System.Windows.Data.Binding(
+                        "[" + (value ? "GuiWpfTipRestore" : "GuiWpfTipMaximise") + "]") {
+                        Source = Loc.Strings.Current,
+                        Mode = System.Windows.Data.BindingMode.OneWay
+                    });
+            }
+        }
+
+        private bool IsMaximisedValue;
 
         private void Register(ToggleButton button, Section section) {
 
@@ -107,8 +137,7 @@ namespace StarMon.Ui.Views {
         // The summary strip's trends. They are pushed into the drawn controls
         // rather than bound, for the reason every drawn control here is
         // pushed to: a FrameworkElement that renders its own geometry has no
-        // dependency property for a binding to target, and giving it one would
-        // mean naming this type in markup.
+        // dependency property for a binding to target.
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e) {
 
             SummaryViewModel old = e.OldValue as SummaryViewModel;

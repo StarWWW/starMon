@@ -574,6 +574,7 @@ namespace StarMon.AppService {
                 Hardware.Cpu.CpuTemperature.ThrottleFlags flags =
                     Hardware.Cpu.CpuTemperature.GetThrottleStatus();
                 reading.Throttle = Describe(flags);
+                reading.IsThrottling = IsHeldBack(flags);
             } catch { }
 
             try {
@@ -831,6 +832,16 @@ namespace StarMon.AppService {
                         ? Config.Locale.Get("GuiWpfSensorProbe") + " " + register.Substring(3)
                         : register;
             }
+
+        }
+
+        // Whether the flags say the processor is being held back at all —
+        // the question the summary strip's badge answers, which the
+        // description above cannot, because "none" is a description too
+        internal static bool IsHeldBack(Hardware.Cpu.CpuTemperature.ThrottleFlags flags) {
+
+            return (flags & (Hardware.Cpu.CpuTemperature.ThrottleFlags.Thermal
+                | Hardware.Cpu.CpuTemperature.ThrottleFlags.PowerLimit)) != 0;
 
         }
 

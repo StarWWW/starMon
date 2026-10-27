@@ -26,6 +26,8 @@ A read-through of this codebase in August 2026 found eighteen defects. **Thirtee
 
 None of them could be found by using the application. All of them were found by reading it and asking *what does this do on a machine unlike this one*.
 
+A second read-through in September 2026 took in the interface as well, and found the same shape again: a throttling badge lit on every page of every machine, a battery row blank for exactly as long as the machine was on battery, a CSV export button wired to nothing, a component that could never again read zero once it had read anything — so an expired failsafe countdown and a stopped fan both went on reporting their last value — and a driver failure explained in a sentence the application wrote and then showed to nobody. Each looked like a decision somebody had made.
+
 So the rule that governs everything below: **a difference between boards is not an edge case here — it is the ordinary case, and the development machine is the exception.** When you write something that indexes the second fan, reads the fourth colour zone, or believes a firmware answered, ask what happens on the board that has one fan, one zone, and does not answer.
 
 ---
@@ -106,10 +108,11 @@ The largest layer and the one with the most rules.
 
 Four concrete links: `EcComponent` (a register), `WmiBiosTemperatureComponent`, `MsrCpuTemperatureComponent` (the processor's own sensor) and `NvapiGpuTemperatureComponent` (the card's own).
 
-Two things in the base class are load-bearing:
+Three things in the base class are load-bearing:
 
 - **`TryRead` exists apart from `Read`** because a failed controller read hands back zero, which is indistinguishable from a register that genuinely holds zero. Links that cannot tell the two apart keep reporting success; the ones that can, do not.
 - **A reading above the component's `Constraint` is discarded, not clamped.** The previous value stands. This is what stops an implausible number reaching the fan curve, and it is why a *frozen* sensor is a separate problem from an absent one.
+- **A lone zero is held off once, and a second one is believed.** A zero between two readings is a glitch; two in a row is the register saying zero. The hold used to be keyed on the previous value, which the hold itself kept non-zero — so once a component had read anything, it never read zero again. The failsafe countdown froze at its last second, a stopped fan went on reporting the speed it had been turning at, and a switch put back to zero read as still set. `TestComponent` scripts both sequences.
 
 **`Platform.cs`** is the assembled machine — sensors, fans, the system component — built from what the board reports rather than from constants.
 
@@ -149,6 +152,12 @@ Deliberately given no reference back to the application, so it cannot start doin
 ### `Ui/`
 
 `Ui/Windows/WindowController.cs` is the seam: it applies a `Reading` to the view models and turns property changes back into hardware requests. `IsApplyingReading` is what stops those being the same event — without it, writing a reading into the view model raises the same notification a click does, and the window answers the hardware by asking it for the state it just reported, once a second, forever.
+
+Three more things about the interface that are not visible from its markup:
+
+- **The shell is sized to the window.** Pages are laid out for 1000 × 760 and never smaller: `MainWindow.ShellSize` lays the shell out at the window's own size divided by whatever scale keeps it at least the design size, and the surrounding `Viewbox` — which only ever scales down — divides it back. A large window gets larger pages; a small one gets the whole design, shrunk evenly.
+- **Strings handed to a view model at construction do not follow a language change on their own.** Markup binds through `{loc:Str}` and moves by itself; the detail groups are built from locale *keys* (`DetailGroupViewModel.Keyed`, `AddKeyed`) and `WindowController.OnLocaleChanged` asks every model to `Relabel`. A group built from plain strings stays in the language it was built in.
+- **The summary strip carries a notice** for something about the machine as a whole. It is how the driver's failure to load — memory integrity, the vulnerable-driver list, a missing elevation, as `CodeIntegrity.Explain` words it — reaches the user, rather than the fan controls simply doing nothing.
 
 ---
 
@@ -289,6 +298,8 @@ The two workers are separate on purpose: they run at different cadences and a sl
 
 Anything touching a window or the tray icon from a worker goes through `GuiTray.OnUiThread`. `SetNotifyText`, `ShowBalloonTip` and the backlight state notification marshal themselves.
 
+The keyboard is the one piece of state both sides *write*: the effects, the temperature colour and the idle switch-off advance on the maintenance worker, while the window and the tray menu change the same mode and colours from the dispatcher. Everything that decides what colour the keyboard is goes through `GuiTray.KbdLock`. Without it, switching a colour cycle off put the original colour back and then had the step already running on the worker paint over it.
+
 The capability probe deserves its own note: it asks the firmware about two dozen features in turn and is not instant, so it runs off the dispatcher with the panel saying it is working. Anything that walks `FeatureSupport.GetAll()` for the first time is doing that work wherever it stands.
 
 ---
@@ -358,6 +369,6 @@ The order matters. A fix written before the scenario is a fix for a board nobody
 - **Comments say why.** What the code does is readable from the code. The comment is for the reason it is not the obvious thing, and most of them name the failure that made it so.
 - **A comment that is no longer true is a defect.** Three were found in one read-through: an overflow guard that did not prevent an overflow, a parameter described as removed that was still in the signature, a "hidden on this device" list that included things hidden on all devices. Each was harmless and each would have misled the next reader.
 - **Nothing silently invents a number.** Where a value cannot be read, it is absent, and absence is reported as absence — not as zero, which reads as a probe at absolute cold.
-- **Anything hard to reproduce gets a pure function.** Each of these produces a *believable* wrong answer rather than an obvious one, and each is tested directly: `LowLevel.Translate`, `CpuTemperature.DecodeAmdTctl`, `WindowController.ShouldFollowReading`, `GuiFilter.ShouldRaiseWindow`, `Os.ShouldRepairTask`, `Fan.DidNotTake`, `Bios.Fit`, `Battery.IsFalseCritical`, `AcpiThermal.ToCelsius`, `Poller.PickGraphicsName`, `HpBiosSettings.ClassifyBody`, `Identity.Decide`, `FanProgram.StepLevel`, `MainWindow.FitTo`.
+- **Anything hard to reproduce gets a pure function.** Each of these produces a *believable* wrong answer rather than an obvious one, and each is tested directly: `LowLevel.Translate`, `CpuTemperature.DecodeAmdTctl`, `WindowController.ShouldFollowReading`, `GuiFilter.ShouldRaiseWindow`, `Os.ShouldRepairTask`, `Fan.DidNotTake`, `Bios.Fit`, `Battery.IsFalseCritical`, `AcpiThermal.ToCelsius`, `Poller.PickGraphicsName`, `HpBiosSettings.ClassifyBody`, `Identity.Decide`, `FanProgram.StepLevel`, `MainWindow.FitTo`, `MainWindow.ShellSize`, `FanCurveEditor.LevelAt`, `Poller.IsHeldBack`, `WindowController.BatteryFlow`.
 - **Anything that means "recently" takes its clock as a parameter.** Both sides of the window can then be checked without waiting for one, and the tick counter wrapping every twenty-five days is tested rather than hoped about.
 - **Write the scenario before the fix.** See §11.

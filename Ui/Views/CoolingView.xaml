@@ -116,9 +116,9 @@
                                VerticalAlignment="Center" Margin="16,0,0,0"/>
                 </DockPanel>
 
-                <!-- The editor is placed into EditorHost from the code-behind:
-                     markup here cannot name a type from this assembly, for the
-                     reason set out at the top of Ui/Views/Cards.xaml -->
+                <!-- The editor is placed into EditorHost from the code-behind,
+                     the way every drawn control here is; see the note at the
+                     top of Ui/Views/Cards.xaml -->
                 <Border Grid.Row="1" Style="{StaticResource InsetSurface}">
                     <ContentControl x:Name="EditorHost" Margin="4"/>
                 </Border>

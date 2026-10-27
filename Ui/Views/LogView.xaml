@@ -84,11 +84,8 @@
                           IsChecked="{Binding ShowEc}" ToolTip="{loc:Str GuiWpfTipFilterEc}"/>
             </WrapPanel>
 
-            <!-- The hint is an overlay bound to the box's own emptiness
-                 rather than an attached property, because an attached
-                 property would be a type from this assembly named in markup,
-                 and that forces a markup-compilation pass this project cannot
-                 run. See the note at the top of Ui/Views/Cards.xaml. -->
+            <!-- The hint is an overlay bound to the box's own emptiness, the
+                 same pattern every search and name box in the window uses -->
             <Grid Grid.Column="1">
 
                 <TextBox x:Name="SearchBox" Style="{StaticResource Field}"

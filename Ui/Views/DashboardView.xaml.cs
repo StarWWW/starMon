@@ -32,9 +32,8 @@ namespace StarMon.Ui.Views {
             InitializeComponent();
 
             // The drawn controls are placed here rather than named in the
-            // markup: XAML that names a type from this same assembly forces
-            // a second markup-compilation pass, which this project cannot run.
-            // The reasoning is written out at the top of Ui/Views/Cards.xaml.
+            // markup, the pattern every view follows; the history of it is
+            // at the top of Ui/Views/Cards.xaml.
             this.ChartHost.Content = this.Chart;
             this.CoreTempHost.Content = this.CoreTemps;
             this.CoreClockHost.Content = this.CoreClocks;
@@ -67,8 +66,10 @@ namespace StarMon.Ui.Views {
 
         private void OnDataContextChanged(object sender, DependencyPropertyChangedEventArgs e) {
 
-            if(this.Model != null)
+            if(this.Model != null) {
                 this.Model.PropertyChanged -= OnModelChanged;
+                this.Model.History.ExportRequested -= OnExportRequested;
+            }
 
             this.Model = e.NewValue as DashboardViewModel;
             this.Chart.Buffer = this.Model != null ? this.Model.History.Buffer : null;
@@ -78,8 +79,42 @@ namespace StarMon.Ui.Views {
 
             this.Model.PropertyChanged += OnModelChanged;
 
+            // The chart's export button. The view model has built the CSV
+            // since it was written and raised this event into nothing: no view
+            // listened, so the button was live, clickable and did nothing.
+            this.Model.History.ExportRequested += OnExportRequested;
+
             ApplyCores();
             RefreshChart();
+
+        }
+
+        // Where the history goes is a window's business, the same division the
+        // log's export follows
+        private void OnExportRequested(string csv) {
+
+            Microsoft.Win32.SaveFileDialog dialog = new Microsoft.Win32.SaveFileDialog {
+                FileName = "StarMon-history-" + System.DateTime.Now.ToString("yyyyMMdd-HHmmss"),
+                DefaultExt = ".csv",
+                Filter = "CSV (*.csv)|*.csv|Text (*.txt)|*.txt"
+            };
+
+            if(dialog.ShowDialog(Window.GetWindow(this)) != true)
+                return;
+
+            try {
+
+                // With a byte-order mark, so a spreadsheet opening the file
+                // reads the degree sign in the column headings as one
+                System.IO.File.WriteAllText(dialog.FileName, csv,
+                    new System.Text.UTF8Encoding(true));
+
+                Library.Logger.Gui("Window", "History exported", dialog.FileName);
+
+            } catch(System.Exception error) {
+                Library.Logger.Error("Window", "Writing the exported history failed",
+                    error.Message);
+            }
 
         }
 

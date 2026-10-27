@@ -29,9 +29,15 @@
         <Border Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3"
                 Style="{StaticResource CardSurface}">
             <StackPanel Orientation="Horizontal" Margin="18,16,18,16">
-                <Border Width="44" Height="44" CornerRadius="12"
-                        Background="{StaticResource BrandStroke}" Margin="0,0,16,0"
-                        VerticalAlignment="Center"/>
+                <Grid Width="48" Height="48" Margin="0,0,16,0" VerticalAlignment="Center">
+                    <Path Stretch="Fill" Data="M 24,0 L 48,24 L 24,48 L 0,24 Z"
+                          Fill="{StaticResource BrandMark}"/>
+                    <!-- A quiet inner facet, so the mark reads as cut rather
+                         than flat at the one size it is shown large -->
+                    <Path Width="24" Height="24" Stretch="Fill"
+                          Data="M 12,0 L 24,12 L 12,24 L 0,12 Z"
+                          Fill="#33FFFFFF"/>
+                </Grid>
                 <StackPanel VerticalAlignment="Center">
                     <TextBlock Text="StarMon" Style="{StaticResource Display}"/>
                     <TextBlock Style="{StaticResource Body}" Margin="0,3,0,0"
@@ -73,17 +79,51 @@
             </StackPanel>
         </Border>
 
-        <Border Grid.Row="1" Grid.Column="2" Style="{StaticResource CardSurface}"
-                Margin="0,12,0,0" VerticalAlignment="Top">
-            <StackPanel Margin="16,13,16,14">
-                <TextBlock Text="{loc:Str GuiWpfLicenceCaption}"
-                           Style="{StaticResource Caption}" Margin="0,0,0,7"/>
-                <Border Style="{StaticResource Rule}" Margin="0,0,0,9"/>
-                <TextBlock Style="{StaticResource Micro}"
-                           TextWrapping="Wrap" LineHeight="17"
-                           Text="{loc:Str GuiWpfLicence}"/>
-            </StackPanel>
-        </Border>
+        <StackPanel Grid.Row="1" Grid.Column="2" Margin="0,12,0,0" VerticalAlignment="Top">
+
+            <!-- Where the application keeps its things. The configuration
+                 file, the log and the folder they sit in are what a bug report
+                 asks for and what a user moving the application has to find,
+                 and the only way to them was knowing already. Shown in
+                 Explorer rather than opened: the file is rewritten by the
+                 running application, so an editor open on it loses its
+                 changes the next time a setting moves. -->
+            <Border Style="{StaticResource CardSurface}">
+                <StackPanel Margin="16,13,16,14">
+                    <TextBlock Text="{loc:Str GuiWpfFilesCaption}"
+                               Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                    <Border Style="{StaticResource Rule}" Margin="0,0,0,10"/>
+                    <WrapPanel>
+                        <Button x:Name="ShowConfig" Content="{loc:Str GuiWpfShowConfig}"
+                                Style="{StaticResource GhostButton}"
+                                MinWidth="0" Padding="12,6" Margin="0,0,8,8"
+                                ToolTip="{loc:Str GuiWpfTipShowConfig}"/>
+                        <Button x:Name="ShowLog" Content="{loc:Str GuiWpfShowLog}"
+                                Style="{StaticResource GhostButton}"
+                                MinWidth="0" Padding="12,6" Margin="0,0,8,8"
+                                ToolTip="{loc:Str GuiWpfTipShowLog}"/>
+                        <Button x:Name="OpenHomepage" Content="{loc:Str GuiWpfHomepage}"
+                                Style="{StaticResource GhostButton}"
+                                MinWidth="0" Padding="12,6" Margin="0,0,8,8"
+                                ToolTip="{loc:Str GuiWpfTipHomepage}"/>
+                    </WrapPanel>
+                    <TextBlock x:Name="ConfigPath" Style="{StaticResource Micro}"
+                               TextWrapping="Wrap" Margin="0,2,0,0"/>
+                </StackPanel>
+            </Border>
+
+            <Border Style="{StaticResource CardSurface}" Margin="0,12,0,0">
+                <StackPanel Margin="16,13,16,14">
+                    <TextBlock Text="{loc:Str GuiWpfLicenceCaption}"
+                               Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                    <Border Style="{StaticResource Rule}" Margin="0,0,0,9"/>
+                    <TextBlock Style="{StaticResource Micro}"
+                               TextWrapping="Wrap" LineHeight="17"
+                               Text="{loc:Str GuiWpfLicence}"/>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
 
     </Grid>
 </UserControl>

@@ -248,9 +248,9 @@ namespace StarMon.Ui.Design {
             // The saved-colour row is only drawn when the configuration file
             // has presets, so the surface has to carry some or the row goes
             // unlooked-at
-            model.Presets.Add("Gündüz");
-            model.Presets.Add("Gece");
-            model.Presets.Add("Oyun");
+            model.Presets.Add(new PresetViewModel("Gündüz", "Gündüz"));
+            model.Presets.Add(new PresetViewModel("Gece", "Gece"));
+            model.Presets.Add(new PresetViewModel("Oyun", "Oyun"));
 
             model.IsBacklightOn = true;
             model.Mode = BacklightMode.Cycle;

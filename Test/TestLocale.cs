@@ -462,9 +462,14 @@ namespace StarMon.Test {
                 SelfTest.Equal(LocaleData.Language.Override, Config.ResolveLanguage(),
                     "an unknown language falls back rather than throwing");
 
+                // Empty is Auto, as the tray menu has always ticked it: the
+                // language Windows is set to, Turkish or otherwise English
                 Config.Language = "";
-                SelfTest.Equal(LocaleData.Language.Override, Config.ResolveLanguage(),
-                    "an empty language falls back rather than throwing");
+                SelfTest.Equal(System.Globalization.CultureInfo.CurrentUICulture
+                        .TwoLetterISOLanguageName == "tr"
+                        ? LocaleData.Language.Turkish : LocaleData.Language.Override,
+                    Config.ResolveLanguage(),
+                    "an empty language follows Windows rather than throwing");
 
                 Config.Language = "Auto";
                 LocaleData.Language auto = Config.ResolveLanguage();
