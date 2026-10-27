@@ -22,7 +22,7 @@ param(
     [switch] $Test,
     [string[]] $Render,
     [string] $Configuration = "Release",
-    [string] $Version = "1.4.0.0",
+    [string] $Version = "1.4.1.0",
     [string] $VersionWord = "Release"
 )
 
