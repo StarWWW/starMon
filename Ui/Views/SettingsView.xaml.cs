@@ -3,7 +3,9 @@
 
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Automation;
 using System.Windows.Input;
+using System.Windows.Media;
 using StarMon.Ui.ViewModels;
 
 namespace StarMon.Ui.Views {
@@ -27,6 +29,44 @@ namespace StarMon.Ui.Views {
                 if(model != null)
                     model.SetHotkey(0, 0);
             };
+
+            this.DataContextChanged += (s, e) => BuildSwatches();
+
+        }
+
+        // One dot per accent, in the accent's own colour. Made here rather
+        // than in markup because markup cannot list the accents without
+        // naming a type from this assembly. The one in use is ticked once,
+        // before the handler is attached, so building the row does not read
+        // as a choice; choosing rebuilds the whole window, this row with it.
+        private void BuildSwatches() {
+
+            this.AccentSwatches.Children.Clear();
+
+            SettingsViewModel model = DataContext as SettingsViewModel;
+            if(model == null)
+                return;
+
+            foreach(string accent in Shell.ThemePalette.Accents) {
+
+                SolidColorBrush fill = new SolidColorBrush(Shell.ThemePalette.AccentOf(accent));
+                fill.Freeze();
+
+                RadioButton swatch = new RadioButton {
+                    Style = (Style) FindResource("Swatch"),
+                    Background = fill,
+                    GroupName = "ThemeAccent",
+                    IsChecked = accent == model.ThemeAccent,
+                    ToolTip = Library.Config.Locale.Get("GuiWpfAccent" + accent)
+                };
+                AutomationProperties.SetName(swatch, (string) swatch.ToolTip);
+
+                string chosen = accent;
+                swatch.Checked += delegate { model.ThemeAccent = chosen; };
+
+                this.AccentSwatches.Children.Add(swatch);
+
+            }
 
         }
 

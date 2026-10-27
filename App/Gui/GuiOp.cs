@@ -313,8 +313,13 @@ namespace StarMon.AppGui {
 
             } else {
 
-                // Just toggle the main form
-                Context.ToggleFormMain();
+                // Bring the window up. Shown, restored if minimised, and put
+                // in front if it was behind something - but never hidden: a
+                // key that sometimes opened the window and sometimes made it
+                // vanish depended on a state the user could not always see,
+                // a window buried under another one counting as "shown".
+                // Hiding it is what the close button and the tray icon are for.
+                Context.ShowFormMain();
 
             }
 

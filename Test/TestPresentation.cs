@@ -4,6 +4,7 @@
 using System;
 using System.Globalization;
 using System.Windows;
+using System.Windows.Media;
 using StarMon.AppService;
 using StarMon.Hardware;
 using StarMon.Library;
@@ -56,11 +57,167 @@ namespace StarMon.Test {
 
             SelfTest.Group("Presentation: fitting the screen");
             TestWindowFitsTheDisplaysThatBrokeIt();
+            TestTheWindowOpensWhereItWasLeft();
+            TestAPlacementOffEveryScreenIsIgnored();
+            TestDigitKeysNameTheTabs();
+
+            SelfTest.Group("Presentation: the colour theme");
+            TestTheDefaultThemeIsTheOneThatShipped();
+            TestAnotherAccentReplacesEveryAccentColour();
+            TestTheNightSurfaceDarkensTheCardsAndLeavesStatusAlone();
+            TestAThemeNameFromNowhereFallsBackToTheDefault();
 
             SelfTest.Group("Presentation: following the machine");
             TestTheSelectorSeedsItselfBeforeAnyClick();
             TestAnAnswerFetchedBeforeTheClickNeverWins();
             TestRelaunchingBringsTheWindowUp();
+
+        }
+
+        // A placement round-trips through its text, maximised or not
+        private static void TestTheWindowOpensWhereItWasLeft() {
+
+            Rect desktop = new Rect(0, 0, 1920, 1040);
+            Rect bounds;
+            bool maximised;
+
+            string text = MainWindow.FormatPlacement(new Rect(120, 80, 1000, 760), false);
+            SelfTest.Equal("120,80,1000,760", text, "a placement is written in plain invariant numbers");
+
+            SelfTest.Check(MainWindow.ParsePlacement(text, desktop, 640, 480, out bounds, out maximised)
+                    && bounds == new Rect(120, 80, 1000, 760) && !maximised,
+                "and read back as the same place and size");
+
+            SelfTest.Check(MainWindow.ParsePlacement(
+                    MainWindow.FormatPlacement(new Rect(10, 10, 900, 700), true),
+                    desktop, 640, 480, out bounds, out maximised) && maximised,
+                "a window left maximised opens maximised");
+
+            SelfTest.Check(MainWindow.ParsePlacement("-1900,40,1000,760", new Rect(-1920, 0, 3840, 1080),
+                    640, 480, out bounds, out maximised),
+                "a place on a second screen to the left is kept while that screen is there");
+
+        }
+
+        // A window that would open somewhere it cannot be reached is opened
+        // centred instead
+        private static void TestAPlacementOffEveryScreenIsIgnored() {
+
+            Rect desktop = new Rect(0, 0, 1920, 1040);
+            Rect bounds;
+            bool maximised;
+
+            SelfTest.Check(!MainWindow.ParsePlacement("-1900,40,1000,760", desktop, 640, 480,
+                    out bounds, out maximised),
+                "a place on a monitor since unplugged");
+
+            SelfTest.Check(!MainWindow.ParsePlacement("200,1030,1000,760", desktop, 640, 480,
+                    out bounds, out maximised),
+                "a title bar below the bottom of the desktop");
+
+            SelfTest.Check(!MainWindow.ParsePlacement("0,0,300,200", desktop, 640, 480,
+                    out bounds, out maximised),
+                "a size below the window's minimum");
+
+            SelfTest.Check(!MainWindow.ParsePlacement("0,0,2560,1400", desktop, 640, 480,
+                    out bounds, out maximised),
+                "a size from a larger display than this one");
+
+            foreach(string text in new[] { "", "garbage", "1,2,3", "1,2,800,600,min", "a,b,c,d" })
+                SelfTest.Check(!MainWindow.ParsePlacement(text, desktop, 640, 480,
+                        out bounds, out maximised),
+                    "a malformed placement: \"" + text + "\"");
+
+        }
+
+        private static void TestDigitKeysNameTheTabs() {
+
+            SelfTest.Equal(0, MainWindow.SectionIndex(System.Windows.Input.Key.D1), "Ctrl+1 is the first tab");
+            SelfTest.Equal(7, MainWindow.SectionIndex(System.Windows.Input.Key.NumPad8), "the keypad counts the same");
+            SelfTest.Equal(-1, MainWindow.SectionIndex(System.Windows.Input.Key.D9), "there is no ninth tab");
+            SelfTest.Equal(-1, MainWindow.SectionIndex(System.Windows.Input.Key.A), "and a letter is no tab at all");
+
+        }
+
+        private static ResourceDictionary PaletteWith(string accent, string surface) {
+            ResourceDictionary palette = new ResourceDictionary();
+            palette["AccentColor"] = Color.FromRgb(0x8B, 0x5C, 0xF6);
+            palette["Good"] = new SolidColorBrush(Color.FromRgb(0x0C, 0xA3, 0x0C));
+            palette["Series1"] = new SolidColorBrush(Color.FromRgb(0x39, 0x87, 0xE5));
+            palette["CardColor"] = Color.FromRgb(0x23, 0x26, 0x2E);
+            StarMon.Ui.Shell.ThemePalette.Apply(palette, accent, surface);
+            return palette;
+        }
+
+        // The default leaves the palette file's own hand-picked values alone
+        private static void TestTheDefaultThemeIsTheOneThatShipped() {
+
+            ResourceDictionary palette = PaletteWith("Violet", "Graphite");
+
+            SelfTest.Equal(Color.FromRgb(0x8B, 0x5C, 0xF6), palette["AccentColor"],
+                "the violet accent is the shipped one");
+            SelfTest.Check(!palette.Contains("AccentEdge"),
+                "and nothing derived is put over the file's own");
+            SelfTest.Equal(Color.FromRgb(0x23, 0x26, 0x2E), palette["CardColor"],
+                "the graphite cards are untouched");
+
+        }
+
+        // Every key the markup reads the accent through follows the choice,
+        // or a badge or a button edge would stay violet on a blue window
+        private static void TestAnotherAccentReplacesEveryAccentColour() {
+
+            ResourceDictionary palette = PaletteWith("Blue", "Graphite");
+            Color blue = StarMon.Ui.Shell.ThemePalette.AccentOf("Blue");
+
+            SelfTest.Equal(blue, palette["AccentColor"], "the accent colour is the one chosen");
+            SelfTest.Equal(blue, ((SolidColorBrush) palette["Accent"]).Color, "and so is its brush");
+
+            foreach(string key in new[] { "AccentDim", "AccentFaint", "Focus", "ChipFill", "ChipEdge" }) {
+                Color colour = ((SolidColorBrush) palette[key]).Color;
+                SelfTest.Check(colour.R == blue.R && colour.G == blue.G && colour.B == blue.B && colour.A < 0xFF,
+                    key + " is a wash of the chosen accent");
+            }
+
+            foreach(string key in new[] { "AccentEdge", "BrandStroke" })
+                SelfTest.Check(palette[key] is LinearGradientBrush
+                        && ((LinearGradientBrush) palette[key]).IsFrozen,
+                    key + " is redrawn from it, frozen so every window can share it");
+
+            Color light = ((SolidColorBrush) palette["AccentLight"]).Color;
+            SelfTest.Check(light.R >= blue.R && light.G >= blue.G && light.B >= blue.B && light != blue,
+                "the hover step is lighter than the accent");
+
+        }
+
+        // The status colours and the chart's series are not the theme's to
+        // change: red has to mean the same thing whichever accent is chosen
+        private static void TestTheNightSurfaceDarkensTheCardsAndLeavesStatusAlone() {
+
+            ResourceDictionary palette = PaletteWith("Red", "Night");
+            Color card = (Color) palette["CardColor"];
+
+            SelfTest.Check(card.R < 0x23 && card.G < 0x26 && card.B < 0x2E,
+                "the night cards are darker than the graphite ones");
+            SelfTest.Equal(Color.FromRgb(0x0C, 0xA3, 0x0C), ((SolidColorBrush) palette["Good"]).Color,
+                "the status colours stay as they were");
+            SelfTest.Equal(Color.FromRgb(0x39, 0x87, 0xE5), ((SolidColorBrush) palette["Series1"]).Color,
+                "and so do the chart's series");
+
+        }
+
+        private static void TestAThemeNameFromNowhereFallsBackToTheDefault() {
+
+            SelfTest.Equal("Violet", StarMon.Ui.Shell.ThemePalette.NormaliseAccent("Chartreuse"),
+                "an accent this version does not have");
+            SelfTest.Equal("Teal", StarMon.Ui.Shell.ThemePalette.NormaliseAccent("teal"),
+                "a name written in another case is still found");
+            SelfTest.Equal("Graphite", StarMon.Ui.Shell.ThemePalette.NormaliseSurface(null),
+                "no surface at all");
+
+            foreach(string accent in StarMon.Ui.Shell.ThemePalette.Accents)
+                SelfTest.Check(Config.Locale.Get("GuiWpfAccent" + accent) != "GuiWpfAccent" + accent,
+                    "the " + accent + " swatch has a name to read out");
 
         }
 

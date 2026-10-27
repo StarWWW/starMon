@@ -316,6 +316,16 @@ namespace StarMon.Library
         // Whether the main form remains on top of other windows when shown
         public static bool GuiStayOnTop = false;
 
+        // The window's colour theme: an accent by name (Violet, Blue, Teal,
+        // Green, Orange, Red, Pink) and a surface (Graphite or Night). A name
+        // that is not one of them falls back to the default.
+        public static string GuiThemeAccent = "Violet";
+        public static string GuiThemeSurface = "Graphite";
+
+        // Where the main window was left: "left,top,width,height", with ",max"
+        // after it if maximised. Empty to open centred at the default size.
+        public static string GuiWindowPlacement = "";
+
         // Timer interval, determines how frequently a tick occurs [ms]
         public const int GuiTimerInterval = 1000;
 

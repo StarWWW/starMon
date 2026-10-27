@@ -1,13 +1,18 @@
 <!-- StarMon: hardware monitoring and control
      Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
-     The one dictionary the application merges. The order matters: the control
-     templates reference brushes and text styles by StaticResource, so the
-     palette and the type scale have to be in scope before they are parsed. -->
+     The one dictionary the application merges, after the palette. The order
+     matters: the control templates reference brushes and text styles by
+     StaticResource, so the palette and the type scale have to be in scope
+     before they are parsed.
+
+     The palette is not merged here, nor by the dictionaries below: it is
+     loaded by Ui/Shell/Theme.cs, given the colours chosen in Settings, and put
+     into the application's resources first. A local merge would bring the
+     file's own colours back in front of the chosen ones. -->
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="Palette.xaml"/>
         <ResourceDictionary Source="Typography.xaml"/>
         <ResourceDictionary Source="Controls.xaml"/>
         <ResourceDictionary Source="Menu.xaml"/>

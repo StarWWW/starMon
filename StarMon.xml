@@ -274,6 +274,17 @@
         <!-- Whether the main window stays on top of all other windows -->
         <GuiStayOnTop>false</GuiStayOnTop>
 
+        <!-- The window's colour theme: the accent (Violet, Blue, Teal, Green,
+             Orange, Red or Pink) and the surface (Graphite, or Night for a
+             darker window on an OLED panel) -->
+        <GuiThemeAccent>Violet</GuiThemeAccent>
+        <GuiThemeSurface>Graphite</GuiThemeSurface>
+
+        <!-- Where the main window was left, kept by the application itself:
+             left,top,width,height and ",max" if it was maximised. Leave it
+             empty to open centred at the default size. -->
+        <GuiWindowPlacement></GuiWindowPlacement>
+
         <!-- How long to show a tip in the notification area for [ms]
              (0 to disable entirely; the default setting of 30000, or 30 s,
               is scaled down to a couple of seconds by the operating system) -->

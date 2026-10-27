@@ -53,6 +53,42 @@
                 <Setter Property="Margin" Value="0,0,0,2"/>
             </Style>
 
+            <!-- An accent to choose: a dot of the colour itself, ringed when
+                 it is the one in use. The buttons are made by the code
+                 behind, one per accent, each with its colour as Background. -->
+            <Style x:Key="Swatch" TargetType="RadioButton">
+                <Setter Property="Width" Value="28"/>
+                <Setter Property="Height" Value="28"/>
+                <Setter Property="Margin" Value="0,0,8,0"/>
+                <Setter Property="Cursor" Value="Hand"/>
+                <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="RadioButton">
+                            <Grid Background="Transparent">
+                                <Ellipse x:Name="Ring" Stroke="{StaticResource TextPrimary}"
+                                         StrokeThickness="2" Opacity="0"/>
+                                <Ellipse x:Name="Dot" Margin="5" Fill="{TemplateBinding Background}"/>
+                                <Ellipse x:Name="Focus" Stroke="{StaticResource Focus}"
+                                         StrokeThickness="2" Margin="-2" Opacity="0"/>
+                            </Grid>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="Dot" Property="Margin" Value="4"/>
+                                </Trigger>
+                                <Trigger Property="IsChecked" Value="True">
+                                    <Setter TargetName="Ring" Property="Opacity" Value="1"/>
+                                    <Setter TargetName="Dot" Property="Margin" Value="5"/>
+                                </Trigger>
+                                <Trigger Property="IsKeyboardFocused" Value="True">
+                                    <Setter TargetName="Focus" Property="Opacity" Value="1"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
+            </Style>
+
         </ResourceDictionary>
     </UserControl.Resources>
 
@@ -258,6 +294,38 @@
                 <!--#region Right column: the application -->
                 <StackPanel Grid.Column="2">
 
+                    <!-- Appearance: the accent and the surface. A change
+                         rebuilds the window in the new colours at once. -->
+                    <Border Style="{StaticResource ControlCard}">
+                        <StackPanel>
+
+                            <TextBlock Text="{loc:Str GuiWpfAppearance}" Style="{StaticResource SectionHead}"/>
+                            <TextBlock Style="{StaticResource Micro}" Margin="0,4,0,0"
+                                       TextWrapping="Wrap" Text="{loc:Str GuiWpfAppearanceHint}"/>
+
+                            <DockPanel Margin="0,12,0,0">
+                                <TextBlock DockPanel.Dock="Left" Text="{loc:Str GuiWpfThemeAccent}"
+                                           Style="{StaticResource RowLabel}" Margin="0,0,16,0"/>
+                                <StackPanel x:Name="AccentSwatches" Orientation="Horizontal"
+                                            HorizontalAlignment="Right" Margin="0,0,-8,0"/>
+                            </DockPanel>
+
+                            <DockPanel Margin="0,12,0,0">
+                                <Border Style="{StaticResource SegmentGroup}" DockPanel.Dock="Right"
+                                        VerticalAlignment="Center" Margin="14,0,0,0">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ToggleButton Content="{loc:Str GuiWpfSurfaceGraphite}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsGraphiteSurface}" ToolTip="{loc:Str GuiWpfTipSurfaceGraphite}"/>
+                                        <ToggleButton Content="{loc:Str GuiWpfSurfaceNight}" Style="{StaticResource Segment}"
+                                                      IsChecked="{Binding IsNightSurface}" ToolTip="{loc:Str GuiWpfTipSurfaceNight}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock Text="{loc:Str GuiWpfThemeSurface}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                        </StackPanel>
+                    </Border>
+
                     <!-- Behaviour -->
                     <Border Style="{StaticResource ControlCard}">
                         <StackPanel>
@@ -383,7 +451,16 @@
                             <TextBlock Style="{StaticResource Micro}" Margin="0,4,0,0"
                                        TextWrapping="Wrap" Text="{loc:Str GuiWpfOmenKeyHint}"/>
 
+                            <!-- Without this the key does nothing while the
+                                 application is closed: only a running copy
+                                 hears it -->
                             <DockPanel Style="{StaticResource SwitchRow}" Margin="0,10,0,0">
+                                <ToggleButton Style="{StaticResource RowSwitch}"
+                                              IsChecked="{Binding KeyIntercepted}" ToolTip="{loc:Str GuiWpfTipKeyIntercepted}"/>
+                                <TextBlock Text="{loc:Str GuiWpfKeyIntercepted}" Style="{StaticResource RowLabel}"/>
+                            </DockPanel>
+
+                            <DockPanel Style="{StaticResource SwitchRow}" Margin="0,12,0,0">
                                 <ToggleButton Style="{StaticResource RowSwitch}"
                                               IsChecked="{Binding KeyTogglesProgram}" ToolTip="{loc:Str GuiWpfTipKeyToggles}"/>
                                 <TextBlock Text="{loc:Str GuiWpfKeyToggles}" Style="{StaticResource RowLabel}"/>

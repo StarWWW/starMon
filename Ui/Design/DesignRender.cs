@@ -19,7 +19,7 @@ namespace StarMon.Ui.Design {
     // into a bitmap on a thread with no window at all, and the same
     // unelevated test host that runs the self-test can do it.
     //
-    //     StarMonTest.exe -RenderUi <surface> <output.png> [scale]
+    //     StarMonTest.exe -RenderUi <surface> <output.png> [scale] [accent] [surface]
     //
     // It renders the real theme out of the real build, so what comes back is
     // what the application will draw, not an approximation of it built
@@ -348,7 +348,7 @@ namespace StarMon.Ui.Design {
         public static int Run(string[] args) {
 
             if(args.Length < 3) {
-                Console.WriteLine("Usage: -RenderUi <surface> <output.png> [scale]");
+                Console.WriteLine("Usage: -RenderUi <surface> <output.png> [scale] [accent] [surface]");
                 Console.WriteLine("Surfaces: " + string.Join(", ", Names()));
                 return 2;
             }
@@ -370,6 +370,13 @@ namespace StarMon.Ui.Design {
                 Console.WriteLine("Surfaces: " + string.Join(", ", Names()));
                 return 2;
             }
+
+            // A theme to draw it in, after the scale: an accent and a surface
+            // by the names the configuration file takes
+            if(args.Length > 4)
+                Library.Config.GuiThemeAccent = args[4];
+            if(args.Length > 5)
+                Library.Config.GuiThemeSurface = args[5];
 
             try {
 

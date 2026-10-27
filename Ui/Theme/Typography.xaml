@@ -25,7 +25,6 @@
          a window. So each dictionary pulls in what it references rather than
          relying on the order Theme.xaml merges them in. -->
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="Palette.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
     <!-- Bahnschrift: the DIN 1451 face Windows has shipped since 2017 — the

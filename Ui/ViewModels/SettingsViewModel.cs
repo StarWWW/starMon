@@ -427,6 +427,65 @@ namespace StarMon.Ui.ViewModels {
 
         // -- The Omen key ----------------------------------------------------
 
+        // Whether the key reaches the application at all.
+        //
+        // The key is heard by Windows, not by the application: a scheduled
+        // task is started on the key's event, and it either tells the running
+        // copy or starts one. With no task the key does nothing, open or
+        // closed. Like starting with Windows, this is not a value in the file
+        // but a task that exists or does not, so it is seeded from the
+        // scheduler rather than read from the configuration.
+        private bool KeyInterceptedField;
+
+        public bool KeyIntercepted {
+            get { return this.KeyInterceptedField; }
+            set {
+                if(this.KeyInterceptedField == value) return;
+                this.KeyInterceptedField = value;
+                Raise("KeyIntercepted");
+            }
+        }
+
+        // -- The theme -------------------------------------------------------
+
+        // The accent and the surface, by the names the configuration stores.
+        // A change takes effect at once: the window is rebuilt in the new
+        // colours, which is why each raises its own name rather than only
+        // marking the file as out of date.
+        public string ThemeAccent {
+            get { return Shell.ThemePalette.NormaliseAccent(Library.Config.GuiThemeAccent); }
+            set {
+                string accent = Shell.ThemePalette.NormaliseAccent(value);
+                if(this.ThemeAccent == accent) return;
+                Library.Config.GuiThemeAccent = accent;
+                Change("ThemeAccent");
+            }
+        }
+
+        public string ThemeSurface {
+            get { return Shell.ThemePalette.NormaliseSurface(Library.Config.GuiThemeSurface); }
+            set {
+                string surface = Shell.ThemePalette.NormaliseSurface(value);
+                if(this.ThemeSurface == surface) return;
+                Library.Config.GuiThemeSurface = surface;
+                Raise("IsGraphiteSurface");
+                Raise("IsNightSurface");
+                Change("ThemeSurface");
+            }
+        }
+
+        // The two halves of the surface's segmented control, as the boost
+        // mode's are: choosing one is all a press can do
+        public bool IsGraphiteSurface {
+            get { return this.ThemeSurface == "Graphite"; }
+            set { if(value) this.ThemeSurface = "Graphite"; }
+        }
+
+        public bool IsNightSurface {
+            get { return this.ThemeSurface == "Night"; }
+            set { if(value) this.ThemeSurface = "Night"; }
+        }
+
         public bool KeyTogglesProgram {
             get { return Library.Config.KeyToggleFanProgram; }
             set {

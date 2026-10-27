@@ -189,6 +189,43 @@ namespace StarMon.Ui.Views {
 
         }
 
+        // The tabs on show, left to right. The keyboard's is collapsed on a
+        // machine without a backlight, and the shortcuts count what is there.
+        private List<ToggleButton> ShownTabs() {
+            List<ToggleButton> tabs = new List<ToggleButton>();
+            foreach(ToggleButton button in this.Buttons.Keys)
+                if(button.Visibility == Visibility.Visible && button.IsEnabled)
+                    tabs.Add(button);
+            return tabs;
+        }
+
+        // Picks the tab at a position, as Ctrl and a digit do. False for a
+        // position past the last tab, so the key is left to anything else.
+        public bool SelectAt(int index) {
+
+            List<ToggleButton> tabs = ShownTabs();
+            if(index < 0 || index >= tabs.Count)
+                return false;
+
+            tabs[index].IsChecked = true;
+            return true;
+
+        }
+
+        // Moves one tab along, wrapping at either end, as Ctrl+Tab does
+        public bool Step(int direction) {
+
+            List<ToggleButton> tabs = ShownTabs();
+            if(tabs.Count == 0)
+                return false;
+
+            int current = tabs.FindIndex(tab => tab.IsChecked == true);
+            int next = ((current < 0 ? 0 : current) + direction + tabs.Count) % tabs.Count;
+            tabs[next].IsChecked = true;
+            return true;
+
+        }
+
         private static void Raise(Action handler) {
             if(handler != null)
                 handler();

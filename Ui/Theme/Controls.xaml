@@ -32,7 +32,6 @@
     <!-- Every StaticResource below is resolved as this dictionary is parsed,
          so its dependencies are merged here rather than left to Theme.xaml -->
     <ResourceDictionary.MergedDictionaries>
-        <ResourceDictionary Source="Palette.xaml"/>
         <ResourceDictionary Source="Typography.xaml"/>
     </ResourceDictionary.MergedDictionaries>
 
@@ -182,15 +181,7 @@
          key rather than a flat patch of colour -->
     <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
         <Setter Property="Background" Value="{StaticResource Accent}"/>
-        <Setter Property="BorderBrush">
-            <Setter.Value>
-                <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                    <GradientStop Offset="0.0" Color="#FFA585F9"/>
-                    <GradientStop Offset="0.3" Color="#FF8B5CF6"/>
-                    <GradientStop Offset="1.0" Color="#FF6A3FD6"/>
-                </LinearGradientBrush>
-            </Setter.Value>
-        </Setter>
+        <Setter Property="BorderBrush" Value="{StaticResource AccentEdge}"/>
         <Setter Property="Foreground" Value="#FFFFFFFF"/>
     </Style>
 
@@ -342,8 +333,8 @@
          fill rather than half the ink's strength — at eleven pixels a bright
          outline is what makes a badge look like something to click. -->
     <Style x:Key="Chip" TargetType="Border">
-        <Setter Property="Background" Value="#288B5CF6"/>
-        <Setter Property="BorderBrush" Value="#448B5CF6"/>
+        <Setter Property="Background" Value="{StaticResource ChipFill}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource ChipEdge}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="CornerRadius" Value="4"/>
         <Setter Property="Padding" Value="7,2,7,3"/>
@@ -589,8 +580,8 @@
                                 <Condition Property="IsChecked" Value="True"/>
                                 <Condition Property="IsMouseOver" Value="True"/>
                             </MultiTrigger.Conditions>
-                            <Setter TargetName="Track" Property="Background" Value="#FF9D74F8"/>
-                            <Setter TargetName="Track" Property="BorderBrush" Value="#FF9D74F8"/>
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource AccentLight}"/>
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{StaticResource AccentLight}"/>
                             <Setter TargetName="Knob" Property="Width" Value="16"/>
                             <Setter TargetName="Knob" Property="Height" Value="16"/>
                             <Setter TargetName="Knob" Property="Margin" Value="21,0,0,0"/>

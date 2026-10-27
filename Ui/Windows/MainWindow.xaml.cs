@@ -2,7 +2,9 @@
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
 using System;
+using System.Globalization;
 using System.Windows;
+using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Shell;
@@ -43,7 +45,149 @@ namespace StarMon.Ui.Windows {
             // handle.
             this.SourceInitialized += OnSourceInitialized;
 
+            // Ctrl+1 to Ctrl+8 for the sections, Ctrl+Tab to step through
+            // them. KeyDown rather than its preview, so a control that takes
+            // keystrokes for itself - the hotkey capture - has them first.
+            this.KeyDown += OnKeyDown;
+
             FitToScreen();
+
+        }
+
+        private void OnKeyDown(object sender, KeyEventArgs e) {
+
+            if(e.Handled || (Keyboard.Modifiers & ModifierKeys.Control) == 0)
+                return;
+
+            if(e.Key == Key.Tab) {
+                e.Handled = this.Shell.Step(
+                    (Keyboard.Modifiers & ModifierKeys.Shift) != 0 ? -1 : 1);
+                return;
+            }
+
+            int index = SectionIndex(e.Key);
+            if(index >= 0 && (Keyboard.Modifiers & (ModifierKeys.Alt | ModifierKeys.Shift)) == 0)
+                e.Handled = this.Shell.SelectAt(index);
+
+        }
+
+        // The tab a digit key stands for, counting from nought, or -1 for a
+        // key that is not one of them. The number row and the keypad both.
+        internal static int SectionIndex(Key key) {
+
+            if(key >= Key.D1 && key <= Key.D8)
+                return key - Key.D1;
+
+            if(key >= Key.NumPad1 && key <= Key.NumPad8)
+                return key - Key.NumPad1;
+
+            return -1;
+
+        }
+
+        // -- Where the window was left -----------------------------------------
+
+        // Written as "left,top,width,height" in device-independent units,
+        // with ",max" after it for a window left maximised. The size and
+        // place it had before being maximised are the ones kept, so taking
+        // it out of maximised goes back to them, as it would have.
+        public string Placement {
+            get {
+
+                Rect bounds = this.WindowState == WindowState.Normal
+                    ? new Rect(this.Left, this.Top, this.Width, this.Height)
+                    : this.RestoreBounds;
+
+                if(bounds.IsEmpty || double.IsNaN(bounds.Left) || double.IsNaN(bounds.Top)
+                    || double.IsNaN(bounds.Width) || double.IsNaN(bounds.Height))
+                    return "";
+
+                return FormatPlacement(bounds, this.WindowState == WindowState.Maximized);
+
+            }
+        }
+
+        // Opens the window where it was left, if that is still somewhere on
+        // the desktop. A placement on a monitor since unplugged, or one from a
+        // larger display than this one, is ignored rather than followed: a
+        // window opening off every screen is a window that cannot be found.
+        public void Restore(string placement) {
+
+            Rect desktop = new Rect(
+                SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+
+            Rect bounds;
+            bool maximised;
+            if(!ParsePlacement(placement, desktop, this.MinWidth, this.MinHeight,
+                out bounds, out maximised))
+                return;
+
+            this.WindowStartupLocation = WindowStartupLocation.Manual;
+            this.Left = bounds.Left;
+            this.Top = bounds.Top;
+            this.Width = bounds.Width;
+            this.Height = bounds.Height;
+
+            // Set once the window is up: a window maximised before it is
+            // shown opens maximised on whichever screen it lands on first
+            if(maximised)
+                this.ContentRendered += (s, e) => this.WindowState = WindowState.Maximized;
+
+        }
+
+        internal static string FormatPlacement(Rect bounds, bool maximised) {
+            return string.Format(CultureInfo.InvariantCulture, "{0:0},{1:0},{2:0},{3:0}{4}",
+                bounds.Left, bounds.Top, bounds.Width, bounds.Height, maximised ? ",max" : "");
+        }
+
+        // Reads a placement back, refusing one that is malformed, smaller
+        // than the window allows, or not on the desktop far enough to take
+        // hold of: the title bar has to be on a screen, or the window cannot
+        // be dragged back.
+        internal static bool ParsePlacement(string text, Rect desktop,
+            double minWidth, double minHeight, out Rect bounds, out bool maximised) {
+
+            bounds = Rect.Empty;
+            maximised = false;
+
+            if(string.IsNullOrWhiteSpace(text))
+                return false;
+
+            string[] parts = text.Split(',');
+            if(parts.Length != 4 && parts.Length != 5)
+                return false;
+
+            double[] values = new double[4];
+            for(int i = 0; i < 4; i++)
+                if(!double.TryParse(parts[i].Trim(), NumberStyles.Float,
+                    CultureInfo.InvariantCulture, out values[i]))
+                    return false;
+
+            if(parts.Length == 5) {
+                if(parts[4].Trim() != "max")
+                    return false;
+                maximised = true;
+            }
+
+            if(values[2] < minWidth || values[3] < minHeight)
+                return false;
+
+            Rect candidate = new Rect(values[0], values[1], values[2], values[3]);
+
+            // A larger window than the whole desktop came from another display
+            if(candidate.Width > desktop.Width || candidate.Height > desktop.Height)
+                return false;
+
+            // The top strip, where the title bar is, at least 120 by 24 on the
+            // desktop
+            Rect caption = new Rect(candidate.Left, candidate.Top, candidate.Width, 40);
+            caption.Intersect(desktop);
+            if(caption.IsEmpty || caption.Width < 120 || caption.Height < 24)
+                return false;
+
+            bounds = candidate;
+            return true;
 
         }
 
@@ -176,6 +320,11 @@ namespace StarMon.Ui.Windows {
         // keeps its solid background, which is exactly right. Clearing the
         // background first and hoping would leave a black hole on Windows 10.
         private void SetBackdrop(IntPtr handle) {
+
+            // The night surface is the near-black plane itself, which the
+            // backdrop would only show through as the system's own grey
+            if(Ui.Shell.ThemePalette.NormaliseSurface(Library.Config.GuiThemeSurface) == "Night")
+                return;
 
             try {
 

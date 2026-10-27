@@ -3,6 +3,7 @@
 
 using System;
 using System.Threading;
+using System.Windows;
 using System.Windows.Threading;
 using StarMon.AppService;
 using StarMon.Library;
@@ -896,6 +897,19 @@ namespace StarMon.Ui.Windows {
                 return this.Window;
 
             this.Window = new MainWindow();
+            this.Window.Restore(Config.GuiWindowPlacement);
+
+            // Kept as it changes and written out once the window is put away,
+            // so the next one opens where this one was
+            MainWindow window = this.Window;
+            EventHandler moved = (s, e) => RememberPlacement(window, false);
+            window.LocationChanged += moved;
+            window.SizeChanged += (s, e) => RememberPlacement(window, false);
+            window.StateChanged += moved;
+            window.IsVisibleChanged += (s, e) => {
+                if(!window.IsVisible)
+                    RememberPlacement(window, true);
+            };
 
             this.Dashboard = new DashboardView { DataContext = this.DashboardModel };
             this.Sensors = new SensorsView { DataContext = this.DashboardModel };
@@ -917,6 +931,77 @@ namespace StarMon.Ui.Windows {
             Show(Section.Dashboard);
 
             return this.Window;
+
+        }
+
+        // Builds the window again in the colours just chosen.
+        //
+        // Every brush in the window was looked up once, as its markup was
+        // parsed, so changing the resources leaves what is on screen as it
+        // was. The window is cheap to make and holds no state of its own -
+        // the models behind it carry everything - so it is replaced: the old
+        // one let go of its models and closed, a new one opened where it was,
+        // on the section that was showing.
+        private void RebuildForTheme() {
+
+            Shell.Theme.Reapply(Config.GuiThemeAccent, Config.GuiThemeSurface);
+
+            MainWindow old = this.Window;
+            if(old == null)
+                return;
+
+            bool visible = old.IsVisible;
+            Section section = this.CurrentSection;
+
+            // The new window opens where this one is, through the same
+            // placement a restart would use
+            RememberPlacement(old, false);
+
+            // Detached before closing, so the old views stop following the
+            // models they were bound to
+            foreach(FrameworkElement view in new FrameworkElement[] {
+                    this.Dashboard, this.Sensors, this.Curve, this.Log,
+                    this.Settings, this.SystemPanel, this.AboutPanel, this.Keyboard })
+                if(view != null)
+                    view.DataContext = null;
+            old.View.DataContext = null;
+            old.View.SectionSelected -= Show;
+
+            this.Window = null;
+            MainWindow window = Ensure();
+            window.Topmost = Config.GuiStayOnTop;
+
+            Show(section);
+
+            // Closed before the new one shows, so the placement it records
+            // as it goes is the one already taken
+            old.Close();
+
+            if(visible) {
+                window.Show();
+                window.Activate();
+            }
+
+        }
+
+        // Notes where the window is. Written to the file only when asked -
+        // as the window is put away - rather than on every pixel of a drag.
+        // A window that was never shown has no place of its own to keep.
+        private void RememberPlacement(MainWindow window, bool save) {
+
+            if(window == null || !window.IsLoaded || window != this.Window && save)
+                return;
+
+            string placement = window.Placement;
+            if(placement == "" || placement == Config.GuiWindowPlacement)
+                return;
+
+            Config.GuiWindowPlacement = placement;
+
+            if(save) {
+                this.PendingSave.Stop();
+                this.PendingSave.Start();
+            }
 
         }
 
@@ -1008,6 +1093,9 @@ namespace StarMon.Ui.Windows {
                 int brightness = -1;
                 try { brightness = Hardware.DisplayBrightness.Get(); } catch { }
 
+                bool keyTask = false;
+                try { keyTask = Hw.TaskGet(Config.TaskId.Key); } catch { }
+
                 this.Dispatcher.BeginInvoke((Action) delegate {
 
                     this.IsApplyingReading = true;
@@ -1023,6 +1111,8 @@ namespace StarMon.Ui.Windows {
                         this.SettingsModel.IsBrightnessSupported = brightness >= 0;
                         if(brightness >= 0)
                             this.SettingsModel.Brightness = brightness;
+
+                        this.SettingsModel.KeyIntercepted = keyTask;
 
                     } finally {
                         this.IsApplyingReading = false;
@@ -1074,6 +1164,35 @@ namespace StarMon.Ui.Windows {
                     // does not
                     Guard(() => Hw.TaskSet(Config.TaskId.Gui, Config.AutoStartup),
                         "Start with Windows: " + (Config.AutoStartup ? "on" : "off"));
+                    break;
+
+                case "KeyIntercepted":
+                    // The task Windows starts on the key's event. Every press
+                    // goes through it - the running application is reached by
+                    // the message the task sends, a closed one is started by
+                    // it - so without it the key does nothing at all.
+                    bool intercept = this.SettingsModel.KeyIntercepted;
+                    Guard(() => Hw.TaskSet(Config.TaskId.Key, intercept),
+                        "Omen key handled by the application: " + (intercept ? "on" : "off"));
+
+                    // Read back, so the switch shows what the scheduler holds
+                    // rather than what was asked of it
+                    bool registered = intercept;
+                    try { registered = Hw.TaskGet(Config.TaskId.Key); } catch { }
+                    if(registered != intercept) {
+                        this.IsApplyingReading = true;
+                        try { this.SettingsModel.KeyIntercepted = registered; }
+                        finally { this.IsApplyingReading = false; }
+                    }
+                    break;
+
+                case "ThemeAccent":
+                case "ThemeSurface":
+                    // After the click that chose it has finished: the control
+                    // that raised this belongs to the window about to be closed
+                    string theme = this.SettingsModel.ThemeAccent + ", " + this.SettingsModel.ThemeSurface;
+                    this.Dispatcher.BeginInvoke((Action) (() =>
+                        Guard(RebuildForTheme, "Theme: " + theme)));
                     break;
 
                 case "StayOnTop":

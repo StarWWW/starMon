@@ -411,6 +411,16 @@ namespace StarMon.Library {
                     if(GetBool(xml, XmlPrefix + "GuiStayOnTop", out flag))
                         GuiStayOnTop = flag;
 
+                    string themeAccent = GetString(xml, XmlPrefix + "GuiThemeAccent");
+                    if(themeAccent != "")
+                        GuiThemeAccent = themeAccent;
+
+                    string themeSurface = GetString(xml, XmlPrefix + "GuiThemeSurface");
+                    if(themeSurface != "")
+                        GuiThemeSurface = themeSurface;
+
+                    GuiWindowPlacement = GetString(xml, XmlPrefix + "GuiWindowPlacement");
+
                     if(GetWord(xml, XmlPrefix + "GuiTipDuration", out value))
                         GuiTipDuration = value;
 
@@ -795,6 +805,9 @@ namespace StarMon.Library {
                     SetBool(xml, XmlPrefix + "GuiDynamicIcon", GuiDynamicIcon);
                     SetBool(xml, XmlPrefix + "GuiDynamicIconHasBackground", GuiDynamicIconHasBackground);
                     SetBool(xml, XmlPrefix + "GuiStayOnTop", GuiStayOnTop);
+                    SetString(xml, XmlPrefix + "GuiThemeAccent", GuiThemeAccent);
+                    SetString(xml, XmlPrefix + "GuiThemeSurface", GuiThemeSurface);
+                    SetString(xml, XmlPrefix + "GuiWindowPlacement", GuiWindowPlacement ?? "");
                     SetUInt(xml, XmlPrefix + "GuiTipDuration", (uint) GuiTipDuration);
                     SetString(xml, XmlPrefix + "Language", Language);
                     SetBool(xml, XmlPrefix + "LogVerbose", LogVerbose);

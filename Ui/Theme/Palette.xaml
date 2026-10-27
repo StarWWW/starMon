@@ -83,6 +83,25 @@
     <SolidColorBrush x:Key="AccentDim"   Color="#808B5CF6"/>
     <SolidColorBrush x:Key="AccentFaint" Color="#308B5CF6"/>
 
+    <!-- The accent a step lighter, for a switch under the pointer -->
+    <SolidColorBrush x:Key="AccentLight" Color="#FF9D74F8"/>
+
+    <!-- A badge's tint and its edge -->
+    <SolidColorBrush x:Key="ChipFill" Color="#288B5CF6"/>
+    <SolidColorBrush x:Key="ChipEdge" Color="#448B5CF6"/>
+
+    <!-- The edge of a primary button: lighter along the top, deeper along the
+         bottom, so it reads as a raised key -->
+    <LinearGradientBrush x:Key="AccentEdge" StartPoint="0,0" EndPoint="0,1">
+        <GradientStop Offset="0.0" Color="#FFA585F9"/>
+        <GradientStop Offset="0.3" Color="#FF8B5CF6"/>
+        <GradientStop Offset="1.0" Color="#FF6A3FD6"/>
+    </LinearGradientBrush>
+
+    <!-- The accent and everything above is replaced as a set when another
+         colour is picked in Settings; Ui/Shell/ThemePalette.cs works them out
+         from the one colour -->
+
     <!-- The deeper end of the accent, for the brand mark's gradient only -->
     <Color x:Key="Accent2Color">#FF5B3BD6</Color>
     <SolidColorBrush x:Key="Accent2" Color="{StaticResource Accent2Color}"/>
