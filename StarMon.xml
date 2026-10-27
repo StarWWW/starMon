@@ -268,6 +268,13 @@
              empty to open centred at the default size. -->
         <GuiWindowPlacement></GuiWindowPlacement>
 
+        <!-- The graphics power (Base, Custom or Boost) and the performance
+             profile (Default, Performance, Cool...) last chosen on the
+             dashboard, kept by the application and put back each time it
+             starts. Empty: leave the firmware's own. -->
+        <GuiGpuPower></GuiGpuPower>
+        <GuiPerformanceMode></GuiPerformanceMode>
+
         <!-- How long to show a tip in the notification area for [ms]
              (0 to disable entirely; the default setting of 30000, or 30 s,
               is scaled down to a couple of seconds by the operating system) -->

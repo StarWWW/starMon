@@ -306,6 +306,14 @@ namespace StarMon.Library
         public static string GuiThemeAccent = "Violet";
         public static string GuiThemeSurface = "Graphite";
 
+        // The graphics power and the performance profile last chosen on the
+        // dashboard, put back each time the application starts. Empty until
+        // a choice has been made, so nothing is written on a machine where
+        // nobody has asked for anything. GpuPower takes Base, Custom or Boost;
+        // PerformanceMode takes the firmware's profile names.
+        public static string GuiGpuPower = "";
+        public static string GuiPerformanceMode = "";
+
         // Where the main window was left: "left,top,width,height", with ",max"
         // after it if maximised. Empty to open centred at the default size.
         public static string GuiWindowPlacement = "";

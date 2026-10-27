@@ -71,6 +71,10 @@ namespace StarMon.Hardware.Platform {
         private BiosData.FanMode LastFanMode;
         private BiosData.GpuPowerData LastGpuPowerData;
 
+        // Whether the level above was actually read, rather than the empty
+        // default handed back by a board that refuses the read
+        private bool LastGpuPowerKnown;
+
         // Level list for the current program
         // to facilitate threshold look-ups
         private List<byte> Levels;
@@ -187,7 +191,8 @@ namespace StarMon.Hardware.Platform {
             // left the machine in a profile the user never chose.
             if(!wasRunning) {
                 this.LastFanMode = Platform.Fans.GetMode();
-                this.LastGpuPowerData = Platform.System.GetGpuPower();
+                this.LastGpuPowerData = Platform.System.GetGpuPower(true);
+                this.LastGpuPowerKnown = Platform.System.GpuPowerSupported;
             }
 
             // The lifecycle of a fan program was entirely unlogged, and it is
@@ -237,8 +242,7 @@ namespace StarMon.Hardware.Platform {
             // Restore the previous fan mode
             UpdateFanMode(true, this.LastFanMode);
 
-            // Restore the previous GPU power settings
-            UpdateGpuPower(true, this.LastGpuPowerData);
+            RestoreGpuPower();
 
             // Report success
             return true;
@@ -267,8 +271,7 @@ namespace StarMon.Hardware.Platform {
             BiosData.FanMode restored = this.LastFanMode;
             UpdateFanMode(true, restored);
 
-            // Restore the previous GPU power settings
-            UpdateGpuPower(true, this.LastGpuPowerData);
+            RestoreGpuPower();
 
             // Set the state flags
             this.IsAlternate = false;
@@ -616,10 +619,37 @@ namespace StarMon.Hardware.Platform {
 
         }
 
+        // Puts the graphics power back as a program stops.
+        //
+        // What the user chose in the window comes first: a program stopping
+        // is not a reason to give up the wattage they asked for. Otherwise the
+        // level from before the program ran, if it could be read at all - and
+        // on a board that refuses the read (this one, the HP 8DCF) it cannot,
+        // so what came back was the empty default, and writing that back put
+        // the card at its base power every time a program stopped: a change
+        // of fan mode, the switch to battery, closing the application with
+        // the curve running.
+        private void RestoreGpuPower() {
+
+            if(this.Platform.HasDesiredGpuPower) {
+                this.Platform.ReassertGpuPower();
+                return;
+            }
+
+            if(this.LastGpuPowerKnown)
+                UpdateGpuPower(true, this.LastGpuPowerData);
+
+        }
+
         // Updates the GPU power, optionally only if different than the desired target state
         private void UpdateGpuPower(
             bool forceUpdate = false,
             BiosData.GpuPowerData? power = null) {
+
+            // The level chosen in the window outranks the one saved with the
+            // program; Platform keeps that one asserted on its own
+            if(power == null && this.Platform.HasDesiredGpuPower)
+                return;
 
             // Set the default GPU power data if empty
             if(power == null)

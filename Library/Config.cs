@@ -488,6 +488,8 @@ namespace StarMon.Library {
                         GuiThemeSurface = themeSurface;
 
                     GuiWindowPlacement = GetString(xml, XmlPrefix + "GuiWindowPlacement");
+                    GuiGpuPower = GetString(xml, XmlPrefix + "GuiGpuPower");
+                    GuiPerformanceMode = GetString(xml, XmlPrefix + "GuiPerformanceMode");
 
                     if(GetWord(xml, XmlPrefix + "GuiTipDuration", out value))
                         GuiTipDuration = value;
@@ -875,6 +877,8 @@ namespace StarMon.Library {
                     SetString(xml, XmlPrefix + "GuiThemeAccent", GuiThemeAccent);
                     SetString(xml, XmlPrefix + "GuiThemeSurface", GuiThemeSurface);
                     SetString(xml, XmlPrefix + "GuiWindowPlacement", GuiWindowPlacement ?? "");
+                    SetString(xml, XmlPrefix + "GuiGpuPower", GuiGpuPower ?? "");
+                    SetString(xml, XmlPrefix + "GuiPerformanceMode", GuiPerformanceMode ?? "");
                     SetUInt(xml, XmlPrefix + "GuiTipDuration", (uint) GuiTipDuration);
                     SetString(xml, XmlPrefix + "Language", Language);
                     SetBool(xml, XmlPrefix + "LogVerbose", LogVerbose);

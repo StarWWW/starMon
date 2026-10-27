@@ -122,6 +122,18 @@ namespace StarMon.Hardware.Platform {
             this.DesiredGpuPower = null;
         }
 
+        // Writes the desired level again at once, for a caller that has just
+        // written something else over it. Does nothing where nothing was asked.
+        public void ReassertGpuPower() {
+
+            if(!this.DesiredGpuPower.HasValue)
+                return;
+
+            this.System.SetGpuPower(new BiosData.GpuPowerData(this.DesiredGpuPower.Value));
+            this.DesiredGpuPowerTimestamp = Environment.TickCount;
+
+        }
+
         // Re-applies the desired graphics power level if it is time
         public void MaintainGpuPowerSticky() {
 

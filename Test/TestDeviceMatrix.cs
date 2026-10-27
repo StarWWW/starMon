@@ -73,6 +73,7 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: a fan program and the window at once");
             TestAStoppedProgramStaysStopped();
             TestCyclingProgramsPutsTheOriginalModeBack();
+            TestAStoppedProgramKeepsTheChosenGraphicsPower();
             TestAProgramWithNoStepsIsNotStarted();
 
             SelfTest.Group("Device matrix: the command line writes what it was given");
@@ -1481,6 +1482,89 @@ namespace StarMon.Test {
                     Config.GpuPowerSetInterval = previousInterval;
                 }
 
+            }
+
+        }
+
+        // A program stopping on a board that will not report its graphics
+        // power.
+        //
+        // The HP 8DCF refuses the read. A program recorded the level from
+        // before it ran, got back the empty default - custom TGP and dynamic
+        // boost both off - and wrote that back when it stopped: the card went
+        // from 80 W to 60 W at every change of fan mode, at the switch to
+        // battery and when the application closed with the curve running.
+        // Measured on the machine before the fix.
+        private static void TestAStoppedProgramKeepsTheChosenGraphicsPower() {
+
+            System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+            steps[0] = new byte[] { 30, 30 };
+
+            var previous = Config.FanProgram;
+            int previousInterval = Config.GpuPowerSetInterval;
+
+            try {
+
+                Config.FanProgram =
+                    new System.Collections.Generic.SortedList<string, FanProgramData> {
+                        ["Curve"] = new FanProgramData("Curve",
+                            BiosData.FanMode.Performance,
+                            BiosData.GpuPowerLevel.Minimum, steps) };
+
+                Config.GpuPowerSetInterval = 0;
+
+                // With boost chosen in the window
+                DeviceScenario board = DeviceCatalogue.Reference();
+                board.Bios.Refuse("GetGpuPower");
+
+                using(new Installed(board)) {
+
+                    Platform platform = new Platform();
+                    platform.SetGpuPowerSticky(BiosData.GpuPowerLevel.Maximum);
+
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    runner.Run("Curve");
+
+                    SelfTest.Equal(BiosData.GpuPpab.On, board.Bios.GpuPower.Ppab,
+                        "a running program does not take back the boost chosen in the window");
+
+                    runner.Terminate();
+
+                    SelfTest.Equal(BiosData.GpuCustomTgp.On, board.Bios.GpuPower.CustomTgp,
+                        "nor does stopping it: the custom TGP stays on");
+                    SelfTest.Equal(BiosData.GpuPpab.On, board.Bios.GpuPower.Ppab,
+                        "and so does the dynamic boost");
+
+                }
+
+                // With nothing chosen, nothing unreadable is written back
+                board = DeviceCatalogue.Reference();
+                board.Bios.Refuse("GetGpuPower");
+                board.Bios.GpuPower = new BiosData.GpuPowerData(BiosData.GpuPowerLevel.Maximum);
+
+                using(new Installed(board)) {
+
+                    Platform platform = new Platform();
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    runner.Run("Curve");
+                    board.Bios.WriteLog.Clear();
+                    runner.Terminate();
+
+                    SelfTest.Check(!board.Bios.WriteLog.Contains("SetGpuPower"),
+                        "a level that could not be read is not written back");
+                    SelfTest.Equal(BiosData.GpuPpab.On, board.Bios.GpuPower.Ppab,
+                        "so the card keeps the power it had");
+
+                }
+
+            } finally {
+                Config.FanProgram = previous;
+                Config.GpuPowerSetInterval = previousInterval;
             }
 
         }

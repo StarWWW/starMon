@@ -274,9 +274,9 @@ namespace StarMon.AppGui
                 }
             });
 
-            // Automatically apply settings, if enabled
-            if (Config.AutoConfig)
-                this.Op.AutoConfigRun();
+            // Put back the dashboard's graphics power and performance profile,
+            // and apply the saved settings if that is enabled
+            this.Op.AutoConfigRun();
 
             // Register the power-mode change event handler
             SystemEvents.PowerModeChanged += EventPowerChange;

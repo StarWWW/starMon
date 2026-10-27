@@ -235,6 +235,14 @@ namespace StarMon.Ui.Windows {
             // answer right: it was built before this, with nobody to ask
             RefreshKeyboardSupport();
 
+            // The choices the startup has just put back, shown before anything
+            // listens for a change, so showing them does not write them again
+            GpuPower rememberedPower;
+            if(Enum.TryParse(Config.GuiGpuPower ?? "", out rememberedPower))
+                this.DashboardModel.GraphicsPower = rememberedPower;
+            if(!string.IsNullOrEmpty(Config.GuiPerformanceMode))
+                this.DashboardModel.PerformanceMode = Config.GuiPerformanceMode;
+
             this.DashboardModel.PropertyChanged += OnDashboardChanged;
 
             this.CurveModel.Applied += ApplyCurve;
@@ -1431,6 +1439,8 @@ namespace StarMon.Ui.Windows {
 
                 case "GraphicsPower":
                     ApplyGpuPower();
+                    Remember(ref Config.GuiGpuPower,
+                        this.DashboardModel.GraphicsPower.ToString());
                     break;
 
                 // The firmware profile takes effect at once, like a mode does,
@@ -1438,9 +1448,24 @@ namespace StarMon.Ui.Windows {
                 case "PerformanceMode":
                     Requested();
                     ApplyPerformanceMode();
+                    Remember(ref Config.GuiPerformanceMode,
+                        this.DashboardModel.PerformanceMode);
                     break;
 
             }
+
+        }
+
+        // Keeps a dashboard choice for the next start, written with the other
+        // preferences once the clicking stops
+        private void Remember(ref string setting, string value) {
+
+            if(setting == value)
+                return;
+
+            setting = value;
+            this.PendingSave.Stop();
+            this.PendingSave.Start();
 
         }
 
@@ -1870,10 +1895,21 @@ namespace StarMon.Ui.Windows {
         // machine cooling itself differently from the picture on the screen.
         private Hardware.Platform.FanProgramData BuildProgram(string name) {
 
+            // The profile and the graphics power the dashboard is set to, not
+            // fixed ones: the curve is about the fans, and saving it used to
+            // switch the machine to Performance and the card to its base power
+            // whatever the selectors above it said
+            Hardware.Bios.BiosData.FanMode mode;
+            if(!Enum.TryParse(this.DashboardModel.PerformanceMode ?? "", out mode))
+                mode = Hardware.Bios.BiosData.FanMode.Performance;
+
+            GpuPower power = this.DashboardModel.GraphicsPower;
+
             return FanCurve.ToProgram(name, FanCurveViewModel.Columns,
-                this.CurveModel.Percent, Config.FanLevelMax,
-                Hardware.Bios.BiosData.FanMode.Performance,
-                Hardware.Bios.BiosData.GpuPowerLevel.Minimum);
+                this.CurveModel.Percent, Config.FanLevelMax, mode,
+                power == GpuPower.Boost ? Hardware.Bios.BiosData.GpuPowerLevel.Maximum
+                : power == GpuPower.Custom ? Hardware.Bios.BiosData.GpuPowerLevel.Medium
+                : Hardware.Bios.BiosData.GpuPowerLevel.Minimum);
 
         }
 

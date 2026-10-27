@@ -116,7 +116,10 @@ namespace StarMon.AppGui {
             }
 
             // Apply the default GPU power settings; an unrecognized
-            // configuration value falls back to the minimum level
+            // configuration value falls back to the minimum level. Skipped
+            // where the dashboard has a choice of its own to put back, which
+            // RestoreChoices does whether or not this runs.
+            if(string.IsNullOrEmpty(Config.GuiGpuPower))
             try {
                 if(!Enum.TryParse(Config.GpuPowerDefault, out BiosData.GpuPowerLevel gpuPowerLevel)) {
                     Logger.Warning("AutoConfig", "Unrecognized GpuPowerDefault, using Minimum", Config.GpuPowerDefault);
@@ -159,11 +162,48 @@ namespace StarMon.AppGui {
 
         }
 
+        // Puts back the graphics power and the performance profile last chosen
+        // on the dashboard.
+        //
+        // Both are held while the application runs, and neither was kept
+        // past it: every start went back to the card's base power and the
+        // firmware's own profile until they were chosen again, which read as
+        // the setting not working at all. These two are put back whatever
+        // AutoConfig says - they are the user's last explicit choice, not a
+        // default - and only once one has been made.
+        public void RestoreChoices() {
+
+            try {
+                StarMon.AppService.GpuPower power;
+                if(Enum.TryParse(Config.GuiGpuPower ?? "", out power)) {
+                    StarMon.AppService.FanControl.ApplyGpuPower(this.Platform, power);
+                    Logger.Info("Startup", "Graphics power put back", power.ToString());
+                }
+            } catch(Exception e) {
+                Logger.Error("Startup", "Putting the graphics power back failed", e.Message);
+            }
+
+            try {
+                BiosData.FanMode mode;
+                if(Enum.TryParse(Config.GuiPerformanceMode ?? "", out mode)) {
+                    this.Platform.SetFanModeSticky(mode);
+                    Logger.Info("Startup", "Performance mode put back", mode.ToString());
+                }
+            } catch(Exception e) {
+                Logger.Error("Startup", "Putting the performance mode back failed", e.Message);
+            }
+
+        }
+
         // Starts the automatic configuration in another thread
         // so as not to increase the application loading time
         public void AutoConfigRun() {
 
-            Thread autoConfig = new Thread(this.AutoConfig);
+            Thread autoConfig = new Thread(delegate() {
+                RestoreChoices();
+                if(Config.AutoConfig)
+                    AutoConfig();
+            });
             autoConfig.IsBackground = true;
             autoConfig.Start();
 
