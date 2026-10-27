@@ -2,32 +2,38 @@
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
 using System;
+using System.IO;
 using System.Text;
+using StarMon.External;
 using StarMon.Library;
 
 namespace StarMon.Driver {
 
-    // Which driver the privileged reads actually go through.
+    // The privileged reads, through PawnIO.
     //
-    // There are two, and they are not interchangeable. WinRing0 hands out raw
-    // access to ports, model-specific registers and PCI configuration space;
-    // it is what this application has always used, and it is on Microsoft's
-    // vulnerable-driver list precisely because raw access is what it hands
-    // out. PawnIO hands out nothing: it runs a verified program inside the
-    // kernel, and the programs used here permit two I/O ports and a fixed list
-    // of processor registers and refuse the rest.
+    // PawnIO hands out nothing on its own: it runs a verified program inside
+    // the kernel, and the programs used here permit two I/O ports and a fixed
+    // list of processor registers and refuse the rest. It is the only driver.
     //
-    // Everything above this class asks for a reading. This is the only place
-    // that knows which driver answered, so it is the only place that has to
-    // change when one of them is not there. What it deliberately does not do
-    // is pretend the two are equivalent: PawnIO can be open and still have no
-    // processor module, because the module says which processors it is for,
-    // and a caller that needs one is told so rather than handed a zero.
+    // There used to be a second, WinRing0 1.2.0.5, carried inside the
+    // executable and installed as a kernel service wherever PawnIO was not.
+    // It hands any administrator raw access to ports, processor registers and
+    // physical memory, which is why Microsoft lists it as a vulnerable driver
+    // and Defender reports it - and leaving it as a fallback meant every copy
+    // of this application carried it. It is gone. A machine without PawnIO
+    // keeps its readings and loses fan control, and is told why and what to
+    // install, which is a better answer than loading a driver that lets
+    // anything on the machine into the kernel.
+    //
+    // Everything above this class asks for a reading. What it deliberately
+    // does not do is pretend every reading is there: PawnIO can be open and
+    // still have no processor module, because the module says which
+    // processors it is for, and a caller that needs one is told so rather than
+    // handed a zero.
     public static class LowLevel {
 
         public enum Backend {
             None,
-            WinRing0,
             PawnIo
         }
 
@@ -85,14 +91,8 @@ namespace StarMon.Driver {
         private const uint MSR_AMD_APERF_RO = 0xC00000E8;
 
 #region Opening & Closing
-        // Loads whichever driver this machine can have.
-        //
-        // The order is not arbitrary. PawnIO is preferred wherever it is
-        // installed: it is signed, it loads with memory integrity left on, and
-        // it does not install a service Windows Defender reports as a
-        // vulnerable driver. WinRing0 remains the fallback, because it is
-        // carried in this executable and therefore works on a machine with
-        // nothing installed — which is most of them.
+        // Opens PawnIO, after taking away anything an earlier version left of
+        // WinRing0
         public static void Open() {
 
             lock(Lock) {
@@ -103,23 +103,71 @@ namespace StarMon.Driver {
                 Opened = true;
                 Log.Length = 0;
 
-                string preference = (Config.DriverBackend ?? "").Trim();
+                RemoveWinRing0();
 
-                bool mayPawn = !preference.Equals("WinRing0",
-                    StringComparison.OrdinalIgnoreCase);
-                bool mayRing = !preference.Equals("PawnIO",
-                    StringComparison.OrdinalIgnoreCase);
-
-                if(mayPawn && OpenPawnIo())
+                if(OpenPawnIo())
                     return;
 
-                if(mayRing && OpenRing0())
-                    return;
-
-                Log.AppendLine("No driver could be loaded, so the Embedded "
+                Log.AppendLine("PawnIO could not be opened, so the Embedded "
                     + "Controller and the processor registers are unreachable");
 
             }
+
+        }
+
+        // The service name and the file an earlier version installed WinRing0
+        // under: "R0" and the program's name, and the program's own path with
+        // ".sys" in place of ".exe".
+        //
+        // Those versions removed both on the way out, so they are only left
+        // behind by one that did not get to - a crash, a power cut, a kill
+        // from the task manager. A driver service left registered loads again
+        // the next time anything asks for it, and this one is the reason it
+        // was taken out. Only this application's own name is looked for:
+        // another program's copy of WinRing0 is that program's business.
+        internal const string WinRing0Service = "R0StarMon";
+
+        private static void RemoveWinRing0() {
+
+            try {
+
+                IntPtr manager = AdvApi32.OpenSCManager(null, null,
+                    AdvApi32.SC_MANAGER_ACCESS_MASK.SC_MANAGER_CONNECT);
+                if(manager == IntPtr.Zero)
+                    return;
+
+                try {
+
+                    IntPtr service = AdvApi32.OpenService(manager, WinRing0Service,
+                        AdvApi32.SERVICE_ACCESS_MASK.SERVICE_ALL_ACCESS);
+
+                    if(service != IntPtr.Zero) {
+
+                        AdvApi32.SERVICE_STATUS status = new AdvApi32.SERVICE_STATUS();
+                        AdvApi32.ControlService(service,
+                            AdvApi32.SERVICE_CONTROL.SERVICE_CONTROL_STOP, ref status);
+
+                        bool deleted = AdvApi32.DeleteService(service);
+                        AdvApi32.CloseServiceHandle(service);
+
+                        Logger.Warning("Driver", "Removed the WinRing0 service an "
+                            + "earlier version left behind",
+                            WinRing0Service + (deleted ? "" : " (marked; it goes at the next restart)"));
+
+                    }
+
+                } finally {
+                    AdvApi32.CloseServiceHandle(manager);
+                }
+
+                string file = Path.ChangeExtension(Config.AppFile ?? "", ".sys");
+                if(file.Length > 4 && File.Exists(file)) {
+                    File.Delete(file);
+                    Logger.Warning("Driver", "Removed the WinRing0 file an "
+                        + "earlier version left behind", file);
+                }
+
+            } catch { }
 
         }
 
@@ -162,28 +210,6 @@ namespace StarMon.Driver {
 
         }
 
-        // Opens WinRing0
-        private static bool OpenRing0() {
-
-            Ring0.Open();
-
-            if(!Ring0.IsOpen) {
-                Log.Append(Ring0.GetStatus());
-                return false;
-            }
-
-            Active = Backend.WinRing0;
-
-            // WinRing0 hands out raw access, so everything it can do is
-            // available the moment it is open. Whether a given register exists
-            // on this processor is the caller's question, not the driver's.
-            HasMsr = true;
-            HasSmn = true;
-
-            return true;
-
-        }
-
         public static void Close() {
 
             lock(Lock) {
@@ -197,11 +223,6 @@ namespace StarMon.Driver {
                     MsrModule.Dispose();
                     MsrModule = null;
                 }
-
-                if(Active == Backend.WinRing0)
-                    try {
-                        Ring0.Close();
-                    } catch { }
 
                 Active = Backend.None;
                 Vendor = MsrVendor.None;
@@ -237,9 +258,6 @@ namespace StarMon.Driver {
                                     ? "AMDFamily17" : "IntelMSR")
                             : " · no processor module for this CPU");
 
-                case Backend.WinRing0:
-                    return "WinRing0 1.2.0.5 (raw port, register and PCI access)";
-
                 default:
                     return "none";
 
@@ -262,7 +280,7 @@ namespace StarMon.Driver {
 
             }
 
-            return Active == Backend.WinRing0 ? Ring0.ReadIoPort(port) : (byte) 0;
+            return 0;
 
         }
 
@@ -274,12 +292,7 @@ namespace StarMon.Driver {
                     EcModule.Execute(PioWrite,
                         new ulong[] { port, value }, null);
 
-                return;
-
             }
-
-            if(Active == Backend.WinRing0)
-                Ring0.WriteIoPort(port, value);
 
         }
 #endregion
@@ -311,7 +324,7 @@ namespace StarMon.Driver {
 
             }
 
-            return Ring0.ReadMsr(index, out eax, out edx);
+            return false;
 
         }
 
@@ -362,17 +375,7 @@ namespace StarMon.Driver {
 
             }
 
-            if(Active != Backend.WinRing0)
-                return false;
-
-            // WinRing0 has no notion of SMN, so it is done the long way it has
-            // always been done: point the host bridge's index register at the
-            // address and read the value back out of the data register. The
-            // caller holds a lock across both, since the pair is not atomic.
-            if(!Ring0.WritePciConfig(0, 0x60, address))
-                return false;
-
-            return Ring0.ReadPciConfig(0, 0x64, out value);
+            return false;
 
         }
 #endregion

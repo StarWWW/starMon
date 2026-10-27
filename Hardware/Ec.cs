@@ -416,7 +416,7 @@ namespace StarMon.Hardware.Ec
 
     #region Driver Implementation
     // Links the abstract Embedded Controller implementation
-    // to the low-level routines in the Ring0 kernel driver
+    // to the low-level routines in the PawnIO kernel driver
     public sealed class EmbeddedController : EmbeddedControllerAbstract, IEmbeddedController
     {
 

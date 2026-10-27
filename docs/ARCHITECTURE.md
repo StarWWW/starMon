@@ -70,11 +70,10 @@ The struct layouts are hand-written and have to match the native ones exactly, i
 
 ### `Driver/` — ring 0
 
-Two drivers, one facade.
+One driver, one facade. WinRing0 1.2.0.5 used to be carried as a fallback and installed as a kernel service where PawnIO was not; it is on Microsoft's vulnerable-driver list and is gone. `LowLevel` removes a service an earlier version left behind.
 
-- **`Ring0.cs`** — WinRing0 1.2.0.5, extracted from an embedded resource and installed as a kernel service. Raw port, MSR, PCI and memory access. On Microsoft's vulnerable-driver list, and does not load where that list is enforced — the default on Windows 11.
-- **`PawnIo.cs`** — the signed alternative. Loads verified programs into the kernel rather than handing out raw access; the one used for the controller permits ports `0x62` and `0x66` and refuses everything else. The modules are carried as embedded resources and the driver verifies each one, so a wrong byte disables PawnIO on every machine rather than misbehaving — which is why their digests are asserted in the tests.
-- **`LowLevel.cs`** — the only thing above this layer that knows which of the two answered.
+- **`PawnIo.cs`** — the driver. Loads verified programs into the kernel rather than handing out raw access; the one used for the controller permits ports `0x62` and `0x66` and refuses everything else. The modules are carried as embedded resources and the driver verifies each one, so a wrong byte disables PawnIO on every machine rather than misbehaving — which is why their digests are asserted in the tests.
+- **`LowLevel.cs`** — the facade everything above this layer reads through.
 
 `LowLevel` keeps apart three questions that used to be one:
 
@@ -170,7 +169,7 @@ Three more things about the interface that are not visible from its markup:
             stamps Reading.TakenAt  before asking anything
             Platform.UpdateTemperature(), UpdateFans()
             Hw.EcExec(...)          takes the machine-wide EC mutex
-            LowLevel.ReadIoPort()   → PawnIO or WinRing0
+            LowLevel.ReadIoPort()   → PawnIO
       → Poller.Read event           still on the background thread
       → WindowController.Apply      marshalled to the dispatcher
 ```
@@ -354,7 +353,7 @@ The order matters. A fix written before the scenario is a fix for a board nobody
 | `App/Cli/` | Command line, including `-Probe` and `-EcMon` |
 | `App/Gui/` | Tray context, the heartbeat, the Omen key handler, the instance filter |
 | `App/Service/` | Poller, Maintainer, Ticker, ThermalGuard, FanControl, Backlight, HistoryBuffer, Reading |
-| `Driver/` | WinRing0, PawnIO, and the facade over both |
+| `Driver/` | PawnIO, and the facade over it |
 | `External/` | P/Invoke declarations |
 | `Hardware/` | Controller, firmware, sensors, fans, profile, identity, capabilities, stand-ins |
 | `Library/` | Config, Logger, Locale, Os, Hw, WMI helpers |

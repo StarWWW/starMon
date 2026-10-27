@@ -219,10 +219,9 @@ namespace StarMon.Library {
         // reachable.
         //
         // The failure this handles is not rare and not the user's mistake:
-        // reaching the controller needs a kernel driver, the driver this
-        // application carries is on Microsoft's vulnerable-driver list, and
-        // that list has been enforced by default since the Windows 11 2022
-        // update. Exiting told those users nothing they could act on.
+        // reaching the controller needs a kernel driver, PawnIO, and it is
+        // not installed on most machines. Exiting told those users nothing
+        // they could act on.
         //
         // See Hardware/CodeIntegrity.cs for what is in the way and what to
         // say about it.

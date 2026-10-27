@@ -52,19 +52,6 @@ namespace StarMon.Library
         // Prefix for default color presets, name to be resolved through locale
         public const string ColorPresetDefaultPrefix = "Default";
 
-        // Which kernel driver the privileged reads go through.
-        //
-        // "Auto" prefers PawnIO wherever it is installed and falls back to the
-        // WinRing0 build carried in this executable. PawnIO is signed, loads
-        // with memory integrity left on, and is handed a verified program that
-        // permits two I/O ports rather than raw access to all of them; the
-        // fallback exists because most machines have nothing installed.
-        //
-        // "PawnIO" and "WinRing0" pin one of them, which is worth having when
-        // a machine misbehaves and the question is which half is at fault.
-        // Anything else reads as "Auto". See Driver/LowLevel.cs.
-        public static string DriverBackend = "Auto";
-
         // Whether the NVIDIA card is asked anything at all.
         //
         // NVAPI is a hand-bound entry point into the display driver, reached

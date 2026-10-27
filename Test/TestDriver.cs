@@ -61,7 +61,8 @@ namespace StarMon.Test {
             TestTheModulesAreInTheBuild();
             TestTheFacadeIsSafeBeforeAnyDriverOpens();
             TestAmdCountersUseTheReadOnlyAliases();
-            TestPinningABackendIsHonoured();
+            TestPawnIoIsTheOnlyDriver();
+            TestTheVulnerableDriverIsNotCarried();
             TestDetectionAgreesWithItself();
 
         }
@@ -444,28 +445,24 @@ namespace StarMon.Test {
 
         }
 
-        // Pinning a backend means pinning it.
+        // PawnIO is the driver, and the only one.
         //
-        // The setting exists for a machine that misbehaves, where the question
-        // is which of the two drivers is at fault; a pin that quietly fell
-        // back to the other one would answer the wrong question. Only PawnIO
-        // is pinned here: asking for WinRing0 would install a kernel service,
-        // which is not something a test run should leave behind.
-        private static void TestPinningABackendIsHonoured() {
-
-            string previous = Config.DriverBackend;
+        // WinRing0 used to be the fallback wherever PawnIO was not installed,
+        // and is on Microsoft's vulnerable-driver list. Whatever this machine
+        // has, opening the facade either reaches PawnIO or reaches nothing.
+        private static void TestPawnIoIsTheOnlyDriver() {
 
             try {
 
                 StarMon.Driver.LowLevel.Reset();
-                Config.DriverBackend = "PawnIO";
                 StarMon.Driver.LowLevel.Open();
 
                 StarMon.Driver.LowLevel.Backend active =
                     StarMon.Driver.LowLevel.Active;
 
-                SelfTest.Check(active != StarMon.Driver.LowLevel.Backend.WinRing0,
-                    "asking for PawnIO never yields the driver it was chosen over");
+                SelfTest.Check(active == StarMon.Driver.LowLevel.Backend.PawnIo
+                        || active == StarMon.Driver.LowLevel.Backend.None,
+                    "the facade opens PawnIO or nothing (" + active + ")");
 
                 if(active == StarMon.Driver.LowLevel.Backend.PawnIo) {
 
@@ -491,20 +488,34 @@ namespace StarMon.Test {
                 } else {
 
                     SelfTest.Check(StarMon.Driver.LowLevel.GetStatus().Length > 0,
-                        "and a backend that would not open says why ("
+                        "and a driver that would not open says why ("
                             + StarMon.Driver.LowLevel.GetStatus()
                                 .Replace("\r", "").Replace("\n", " ").Trim() + ")");
 
                 }
 
-                Console.WriteLine("         pinned to PawnIO: "
+                Console.WriteLine("         driver: "
                     + StarMon.Driver.LowLevel.Describe());
 
             } finally {
                 StarMon.Driver.LowLevel.Close();
                 StarMon.Driver.LowLevel.Reset();
-                Config.DriverBackend = previous;
             }
+
+        }
+
+        // The WinRing0 binary is not in the build, so no copy of this
+        // application can install it
+        private static void TestTheVulnerableDriverIsNotCarried() {
+
+            System.Reflection.Assembly assembly = typeof(StarMon.Driver.LowLevel).Assembly;
+
+            foreach(string name in assembly.GetManifestResourceNames())
+                SelfTest.Check(name.IndexOf(".sys", StringComparison.OrdinalIgnoreCase) < 0,
+                    "no kernel driver is embedded (" + name + ")");
+
+            SelfTest.Check(assembly.GetType("StarMon.Driver.Ring0") == null,
+                "and the code that installed one is gone");
 
         }
 
@@ -890,11 +901,11 @@ namespace StarMon.Test {
                 SelfTest.Check(obstacle != CodeIntegrity.Obstacle.NotElevated,
                     "an elevated process is not told it lacks elevation");
 
-            // Memory integrity enforces the blocklist, so a machine running it
-            // must not be told the blocklist is the thing in its way
-            if(CodeIntegrity.IsElevated && CodeIntegrity.MemoryIntegrityRunning)
-                SelfTest.Equal(CodeIntegrity.Obstacle.MemoryIntegrity, obstacle,
-                    "memory integrity is named ahead of the blocklist it enforces");
+            // Elevated, the only other thing that can be missing is PawnIO
+            if(CodeIntegrity.IsElevated)
+                SelfTest.Equal(CodeIntegrity.PawnIoInstalled
+                        ? CodeIntegrity.Obstacle.Unknown : CodeIntegrity.Obstacle.PawnIoMissing,
+                    obstacle, "a machine without PawnIO is told so");
 
             // Examined once, and the answer held
             SelfTest.Equal(obstacle, CodeIntegrity.Diagnose(),
@@ -926,13 +937,16 @@ namespace StarMon.Test {
             SelfTest.Check(explanation.Length > 40,
                 "and it is a sentence rather than a code (" + explanation.Length + " chars)");
 
-            // Every branch but the elevation one should point at the thing
-            // that actually resolves this without turning a protection off
-            if(CodeIntegrity.Diagnose() != CodeIntegrity.Obstacle.NotElevated
-                && CodeIntegrity.Diagnose() != CodeIntegrity.Obstacle.Unknown)
+            // Every branch but the elevation one is about PawnIO, and says so
+            if(CodeIntegrity.Diagnose() != CodeIntegrity.Obstacle.NotElevated)
                 SelfTest.Check(explanation.IndexOf("PawnIO",
                         StringComparison.OrdinalIgnoreCase) >= 0,
-                    "and names the signed driver that resolves it");
+                    "and names the driver it is about");
+
+            foreach(string key in new[] { "GuiDriverNotElevated",
+                    "GuiDriverPawnIoMissing", "GuiDriverPawnIoRefused" })
+                SelfTest.Check(Config.Locale.Get(key) != key,
+                    "the " + key + " explanation is written");
 
         }
 
@@ -946,9 +960,7 @@ namespace StarMon.Test {
             SelfTest.Check(!string.IsNullOrEmpty(summary),
                 "the summary is produced");
 
-            foreach(string part in new string[] {
-                "elevated", "memory integrity", "driver blocklist",
-                "secure boot", "PawnIO" })
+            foreach(string part in new string[] { "elevated", "PawnIO" })
 
                 SelfTest.Check(summary.IndexOf(part, StringComparison.Ordinal) >= 0,
                     "the summary reports " + part);

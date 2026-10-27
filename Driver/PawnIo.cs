@@ -14,14 +14,13 @@ using Microsoft.Win32;
 
 namespace StarMon.Driver {
 
-    // The other way into the Embedded Controller.
+    // The way into the Embedded Controller.
     //
     // Reaching the controller means reading and writing two I/O ports, and
     // nothing in user mode may do that — it takes a kernel driver. The one
-    // this application carries is WinRing0 1.2.0.5, which Microsoft lists as a
-    // vulnerable driver, and that list has been enforced by default since the
-    // Windows 11 2022 update. On a machine where it is enforced the driver
-    // does not load, and no amount of retrying changes that.
+    // this application used to carry, WinRing0 1.2.0.5, is on Microsoft's
+    // vulnerable-driver list, enforced by default since the Windows 11 2022
+    // update, and it is no longer carried at all.
     //
     // PawnIO is the answer the rest of this field settled on. It is a signed
     // driver that is not on the list, and it does not expose raw port access:
@@ -241,8 +240,8 @@ namespace StarMon.Driver {
         // Internal so a test can check that the modules are actually in the
         // build and are byte-for-byte what was published. A dropped or altered
         // resource fails silently otherwise: the driver refuses a module it
-        // cannot verify, and the application falls back to WinRing0 on every
-        // machine — which looks exactly like PawnIO not being installed.
+        // cannot verify, and fan control is gone on every machine — which
+        // looks exactly like PawnIO not being installed.
         internal static byte[] Read(string module) {
             try {
 

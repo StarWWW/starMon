@@ -391,7 +391,7 @@ namespace StarMon.Hardware.Platform {
 
     // Implements a CPU temperature component backed by the processor's own
     // on-die thermal sensor, read through Model-Specific Registers (Intel) or
-    // the SMU thermal register (AMD) via the WinRing0 driver. This provides a
+    // the SMU thermal register (AMD) through PawnIO. This provides a
     // markedly more accurate reading than the Embedded Controller register and
     // is therefore used in place of it whenever the processor supports it.
     public class MsrCpuTemperatureComponent : PlatformComponentAbstract, IPlatformReadComponent {

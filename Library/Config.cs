@@ -346,10 +346,6 @@ namespace StarMon.Library {
                     if(GetBool(xml, XmlPrefix + "BiosErrorReporting", out flag))
                         BiosErrorReporting = flag;
 
-                    string backend = GetString(xml, XmlPrefix + "DriverBackend");
-                    if(backend != "")
-                        DriverBackend = backend;
-
                     if(GetWord(xml, XmlPrefix + "EcFailLimit", out value))
                         EcFailLimit = value;
 
@@ -787,7 +783,6 @@ namespace StarMon.Library {
                     }
 
                     // Continue with the configuration values
-                    SetString(xml, XmlPrefix + "DriverBackend", DriverBackend);
                     SetUInt(xml, XmlPrefix + "EcFailLimit", (uint) EcFailLimit);
                     SetUInt(xml, XmlPrefix + "EcMonInterval", (uint) EcMonInterval);
                     SetUInt(xml, XmlPrefix + "EcMutexTimeout", (uint) EcMutexTimeout);

@@ -107,9 +107,6 @@
              The application icon is still Resources\Icon.ico, through the
              ApplicationIcon property, which WPF also uses as the default
              window icon. Everything else the interface draws, it draws. -->
-        <EmbeddedResource Include="Resources\Driver.sys.gz">
-            <LogicalName>StarMon.Driver.sys.gz</LogicalName>
-        </EmbeddedResource>
         <!-- The PawnIO modules: small verified programs handed to the signed
              PawnIO driver, which will only run ones it can verify. Carried
              here rather than fetched, so the application works on a machine

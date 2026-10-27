@@ -64,22 +64,20 @@ An earlier version of this paragraph said "a few megabytes" for both cases. That
 | **Operating system** | Windows 10 or Windows 11, 64-bit |
 | **Runtime** | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), x64 — not part of Windows, installed once. `StarMon.exe` is a single file that uses it rather than carrying its own copy |
 | **Rights** | Administrator — the EC and the BIOS calls are not reachable otherwise |
+| **Driver** | [PawnIO](https://pawnio.eu), installed once — fan control and the keyboard backlight go through it; without it StarMon only monitors |
 | **Hardware** | An HP Omen or Victus laptop. Most features need the HP BIOS interface; what your particular board offers is listed on the System page |
 
 > **Note** — Administrator rights are not optional and not a convenience. Reading an Embedded Controller port from user mode is refused by Windows, so an unelevated StarMon can show you almost nothing.
 
 ### Which kernel driver
 
-Reaching the Embedded Controller means reading and writing two I/O ports, and nothing in user mode may do that. StarMon can use either of two drivers, and prefers the first:
+Reaching the Embedded Controller means reading and writing two I/O ports, and nothing in user mode may do that. StarMon uses **[PawnIO](https://pawnio.eu)**, which has to be installed once.
 
-| | |
-|---|---|
-| **PawnIO** | Signed, not on Microsoft's blocklist, and loads with memory integrity left on. It is not given raw port access: it runs a small verified program — supplied by StarMon and carried inside the executable — which permits ports `0x62` and `0x66` and refuses everything else. Used automatically wherever [PawnIO](https://pawnio.eu) is installed. |
-| **WinRing0 1.2.0.5** | Carried inside `StarMon.exe`, so it needs nothing installed. It hands out raw access to ports, processor registers and PCI configuration space, which is why Microsoft lists it as a vulnerable driver — and why it does not load on a machine enforcing that list, which is the default on Windows 11. |
+PawnIO is signed, not on Microsoft's blocklist, and loads with memory integrity left on. It is not given raw port access: it runs a small verified program — supplied by StarMon and carried inside the executable — which permits ports `0x62` and `0x66` and refuses everything else.
 
-If neither loads, StarMon still starts. Everything that does not need the controller keeps working, and the System page says what is in the way.
+Before 1.4.1 StarMon also carried WinRing0 1.2.0.5 as a fallback for machines without PawnIO. That driver hands any administrator raw access to ports, processor registers and physical memory, which is why Microsoft lists it as a vulnerable driver; it is no longer included, and a WinRing0 service an earlier version left behind is removed at startup.
 
-`DriverBackend` in `StarMon.xml` pins one of them (`Auto`, `PawnIO`, `WinRing0`), which is worth doing when a machine misbehaves and the question is which half is at fault. The driver actually in use is named in the log, on the System page, and in `-Probe`.
+Without PawnIO, StarMon still starts. Temperatures, the battery and everything else that does not need the controller keep working, fan control and the keyboard backlight do not, and the window says what to install. The driver in use is named in the log, on the System page, and in `-Probe`.
 
 ## Getting started
 
@@ -274,7 +272,7 @@ Arguments are case-insensitive and each may appear any number of times.
 | **Display** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
 | **Interface** | `Language` `GuiCloseWindowExit` `GuiStayOnTop` `GuiDynamicIcon` `GuiDynamicIconHasBackground` `GuiTipDuration` |
 | **Timing** | `UpdateMonitorInterval` `UpdateProgramInterval` `UpdateIconInterval` |
-| **Embedded Controller** | `DriverBackend` `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
+| **Embedded Controller** | `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
 | **Logging** | `LogVerbose` `LogToFile` `LogFileMaxBytes` `BiosErrorReporting` |
 | **Startup** | `AutoConfig` `AutoStartup` |
 
@@ -362,7 +360,7 @@ About 43,000 lines of C#, one project, one package reference — the CIM client,
 | `App/Cli` | Command-line parsing and output, including `-Probe` |
 | `App/Gui` | Tray host, the once-a-second heartbeat, the Omen key handler |
 | `App/Service` | Readings, polling, maintenance, fan control, history, thermal guard |
-| `Driver` | WinRing0, PawnIO, and the facade that hides which one answered |
+| `Driver` | PawnIO, and the facade the rest of the application reads through |
 | `External` | P/Invoke declarations, and nothing else |
 | `Hardware` | Embedded Controller, BIOS calls, sensors, fans, device profile, the hardware gate |
 | `Library` | Configuration, localisation, logging, WMI, the OS, conversions |
@@ -470,22 +468,20 @@ Bu paragrafın eski hâli her iki durum için de "birkaç megabayt" diyordu. Bu 
 | **İşletim sistemi** | Windows 10 veya Windows 11, 64 bit |
 | **Çalışma zamanı** | [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0), x64 — Windows'la gelmez, bir kez kurulur. `StarMon.exe` bunu kullanan tek bir dosyadır, kendi kopyasını taşımaz |
 | **Yetki** | Yönetici — EC ve BIOS çağrılarına başka türlü erişilemez |
+| **Sürücü** | [PawnIO](https://pawnio.eu), bir kez kurulur — fan denetimi ve klavye ışığı onun üzerinden çalışır; o olmadan StarMon yalnızca izler |
 | **Donanım** | HP Omen ya da Victus dizüstü. Özelliklerin çoğu HP BIOS arayüzünü gerektirir; sizin anakartınızın neyi sunduğu Sistem sayfasında yazar |
 
 > **Not** — Yönetici yetkisi bir tercih ya da kolaylık değil. Windows, kullanıcı kipinden Gömülü Denetleyici portu okunmasını reddeder; yükseltilmemiş bir StarMon size neredeyse hiçbir şey gösteremez.
 
 ### Hangi çekirdek sürücüsü
 
-Gömülü Denetleyici'ye ulaşmak, iki G/Ç portunu okumak ve yazmak demek; kullanıcı kipinde hiçbir şeyin buna izni yok. StarMon iki sürücüden birini kullanabiliyor ve ilkini tercih ediyor:
+Gömülü Denetleyici'ye ulaşmak, iki G/Ç portunu okumak ve yazmak demek; kullanıcı kipinde hiçbir şeyin buna izni yok. StarMon bunun için bir kez kurulması gereken **[PawnIO](https://pawnio.eu)** sürücüsünü kullanıyor.
 
-| | |
-|---|---|
-| **PawnIO** | İmzalı, Microsoft'un kara listesinde değil ve bellek bütünlüğü açıkken yükleniyor. Ham port erişimi verilmiyor: StarMon'un sağladığı ve çalıştırılabilir dosyanın içinde taşıdığı, doğrulanmış küçük bir program çalıştırıyor — bu program yalnızca `0x62` ve `0x66` portlarına izin verip geri kalan her şeyi reddediyor. [PawnIO](https://pawnio.eu) kurulu olan her yerde kendiliğinden kullanılıyor. |
-| **WinRing0 1.2.0.5** | `StarMon.exe` içinde taşınıyor, yani hiçbir şeyin kurulu olmasını gerektirmiyor. Portlara, işlemci yazmaçlarına ve PCI yapılandırma alanına ham erişim veriyor — Microsoft'un onu güvenlik açıklı sürücü olarak listelemesinin ve bu listeyi zorunlu kılan makinelerde (Windows 11'de varsayılan) yüklenmemesinin sebebi bu. |
+PawnIO imzalı, Microsoft'un kara listesinde değil ve bellek bütünlüğü açıkken yükleniyor. Ham port erişimi verilmiyor: StarMon'un sağladığı ve çalıştırılabilir dosyanın içinde taşıdığı, doğrulanmış küçük bir program çalıştırıyor — bu program yalnızca `0x62` ve `0x66` portlarına izin verip geri kalan her şeyi reddediyor.
 
-İkisi de yüklenmezse StarMon yine de başlıyor. Denetleyiciye ihtiyaç duymayan her şey çalışmaya devam ediyor ve Sistem sayfası neyin engellediğini söylüyor.
+1.4.1'den önce StarMon, PawnIO olmayan makineler için yedek olarak WinRing0 1.2.0.5'i de taşıyordu. Bu sürücü her yöneticiye portlara, işlemci yazmaçlarına ve fiziksel belleğe ham erişim veriyor; Microsoft'un onu güvenlik açıklı sürücü olarak listelemesinin sebebi bu. Artık uygulamada yok; eski bir sürümün geride bıraktığı WinRing0 servisi de açılışta kaldırılıyor.
 
-`StarMon.xml` içindeki `DriverBackend` bunlardan birini sabitliyor (`Auto`, `PawnIO`, `WinRing0`). Bir makine tuhaf davrandığında ve soru "hangi yarısı hatalı" olduğunda bunu yapmaya değer. Fiilen kullanılan sürücü günlükte, Sistem sayfasında ve `-Probe` çıktısında adıyla yazıyor.
+PawnIO yoksa StarMon yine de başlıyor. Sıcaklıklar, pil ve denetleyiciye ihtiyaç duymayan her şey çalışıyor; fan denetimi ve klavye ışığı çalışmıyor ve pencere neyin kurulması gerektiğini söylüyor. Kullanılan sürücü günlükte, Sistem sayfasında ve `-Probe` çıktısında adıyla yazıyor.
 
 ## Başlarken
 
@@ -680,7 +676,7 @@ Argümanlar büyük/küçük harfe duyarsızdır ve her biri istenildiği kadar 
 | **Ekran** | `RefreshRateFollowPower` `RefreshRateAutoDetect` `PresetRefreshRateHigh` `PresetRefreshRateLow` `DisplayOffHotkeyKey` `DisplayOffHotkeyMods` |
 | **Arayüz** | `Language` `GuiCloseWindowExit` `GuiStayOnTop` `GuiDynamicIcon` `GuiDynamicIconHasBackground` `GuiTipDuration` |
 | **Zamanlama** | `UpdateMonitorInterval` `UpdateProgramInterval` `UpdateIconInterval` |
-| **Gömülü Denetleyici** | `DriverBackend` `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
+| **Gömülü Denetleyici** | `EcFailLimit` `EcRetryLimit` `EcWaitLimit` `EcWaitTimeoutMs` `EcMutexTimeout` `EcMonInterval` |
 | **Günlük** | `LogVerbose` `LogToFile` `LogFileMaxBytes` `BiosErrorReporting` |
 | **Açılış** | `AutoConfig` `AutoStartup` |
 
@@ -747,7 +743,7 @@ Yaklaşık 43.000 satır C#, tek proje, tek paket referansı — .NET 10'a geçi
 | `App/Cli` | Komut satırı ayrıştırma ve çıktı, `-Probe` dahil |
 | `App/Gui` | Tepsi barındırıcısı, saniyede bir atan kalp atışı, Omen tuşu işleyicisi |
 | `App/Service` | Ölçümler, yoklama, bakım, fan denetimi, geçmiş, ısıl koruma |
-| `Driver` | WinRing0, PawnIO, ve hangisinin cevap verdiğini gizleyen cephe |
+| `Driver` | PawnIO ve uygulamanın geri kalanının okumaları üzerinden yaptığı cephe |
 | `External` | P/Invoke bildirimleri, başka hiçbir şey |
 | `Hardware` | Gömülü Denetleyici, BIOS çağrıları, sensörler, fanlar, cihaz profili, donanım kapısı |
 | `Library` | Yapılandırma, yerelleştirme, günlük, WMI, işletim sistemi, dönüşümler |

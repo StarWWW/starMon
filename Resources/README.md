@@ -2,19 +2,13 @@
 
 This directory holds the non-_GPL3_ resources bundled with **StarMon**. These items come with their own licenses, which are compatible with being distributed alongside the application.
 
-# Driver.sys.gz
-
-**_WinRing0_ driver binary from [OpenLibSys](https://openlibsys.org/manual/WhatIsWinRing0.html)**
-* Copyright © 2007-2010 OpenLibSys & Noriyuki Miyazaki
-* Licensed under the terms of the [Modified BSD License](https://openlibsys.org/manual/License.html)
-
 # LpcACPIEC.bin, IntelMSR.bin, AMDFamily17.bin
 
 **_PawnIO_ modules from [PawnIO_Modules](https://github.com/namazso/PawnIO_Modules)**
 * Copyright © 2023-2025 namazso
 * Licensed under the terms of the [LGPL-2.1-or-later](https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html)
 
-Unmodified binaries, taken from release `0.2.10` of that project. They are small verified programs that run inside the signed _PawnIO_ driver, which loads on machines where _WinRing0_ is blocked by Microsoft's vulnerable-driver list. `LpcACPIEC` permits I/O ports `0x62` and `0x66` and nothing else; `IntelMSR` and `AMDFamily17` each permit a fixed list of processor registers and refuse a processor they are not for.
+Unmodified binaries, taken from release `0.2.10` of that project. They are small verified programs that run inside the signed _PawnIO_ driver, the only kernel driver StarMon uses. `LpcACPIEC` permits I/O ports `0x62` and `0x66` and nothing else; `IntelMSR` and `AMDFamily17` each permit a fixed list of processor registers and refuse a processor they are not for.
 
 They must be byte-for-byte as published: the driver verifies each module's signature and will not run one that has been altered.
 

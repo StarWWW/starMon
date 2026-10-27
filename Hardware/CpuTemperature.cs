@@ -482,11 +482,9 @@ namespace StarMon.Hardware.Cpu {
 
         // Reads an AMD SMN register.
         //
-        // How that is done depends on the driver: WinRing0 has to be walked
-        // through the host bridge's index/data pair by hand, while PawnIO's
-        // AMD module does the pair itself and hands back the value. The lock
-        // above is held across the call either way, since the first of those
-        // is two accesses that must not interleave with another caller's.
+        // PawnIO's AMD module walks the host bridge's index/data pair itself
+        // and hands back the value; the lock above is held across the call
+        // all the same.
         private static bool ReadAmdSmn(uint address, out uint value) {
             return LowLevel.ReadSmn(address, out value);
         }

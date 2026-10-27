@@ -374,7 +374,7 @@ namespace StarMon.Ui.Design {
         }
 
         // The window with the notice the driver's failure puts across every
-        // page, which is the state a new Windows 11 machine most often starts in
+        // page, which is the state a machine without PawnIO starts in
         private static FrameworkElement WindowNotice() {
 
             Views.ShellView shell = (Views.ShellView) Frame(Views.Section.Dashboard, "Panel",
@@ -382,11 +382,7 @@ namespace StarMon.Ui.Design {
 
             ((ViewModels.SummaryViewModel) shell.DataContext).SetNotice(
                 Library.Config.Locale.Get("GuiWpfDriverTitle"),
-                "The driver StarMon uses to reach the Embedded Controller could not be "
-                    + "loaded, and memory integrity is running on this machine — which "
-                    + "enforces Microsoft's vulnerable-driver list, and is the usual reason. "
-                    + "Temperatures, battery and system readings still work. Fan control "
-                    + "and the keyboard backlight do not.");
+                Library.Config.Locale.Get("GuiDriverPawnIoMissing"));
 
             return shell;
 
