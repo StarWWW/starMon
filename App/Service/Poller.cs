@@ -312,7 +312,7 @@ namespace StarMon.AppService {
             // since Reading was written, the locale strings for it exist in
             // both languages, and nothing has ever assigned it.
             try {
-                reading.Uptime = Hardware.SystemMetrics.FormatUptime(
+                reading.Uptime = Hardware.SystemMetrics.FormatDuration(
                     Hardware.SystemMetrics.GetUptime());
             } catch { }
 

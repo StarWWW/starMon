@@ -460,11 +460,14 @@ namespace StarMon.Ui.Windows {
                     Name("GuiWpfTipRefreshRates")));
 
                 rows.Add(new DetailRowViewModel(Name("GuiWpfRowAlwaysOn"),
-                    YesNo(Hardware.HpBiosSettings.FanAlwaysOn),
+                    OnOff(Hardware.HpBiosSettings.FanAlwaysOn),
                     Name("GuiWpfTipAlwaysOn")));
 
+                // "evet/hayır" rather than the "var/yok" the capability rows
+                // use: whether the firmware was asked is not a thing the
+                // machine has, and "probed: there is" did not parse
                 rows.Add(new DetailRowViewModel(Name("GuiWpfRowProbed"),
-                    YesNo(Hardware.DeviceProfile.Probed),
+                    Name(Hardware.DeviceProfile.Probed ? "GuiWpfAnswerYes" : "GuiWpfAnswerNo"),
                     Name("GuiWpfTipProbed")));
 
             } catch(Exception e) {
@@ -1860,7 +1863,7 @@ namespace StarMon.Ui.Windows {
             Set(state, 0, Ceiling(reading));
             Set(state, 1, Countdown(reading));
             Set(state, 2, YesNo(Hardware.DeviceProfile.SoftwareFanControl));
-            Set(state, 3, YesNo(Hardware.HpBiosSettings.FanAlwaysOn));
+            Set(state, 3, OnOff(Hardware.HpBiosSettings.FanAlwaysOn));
             Set(state, 4, reading.FanCount > 0 ? reading.FanCount.ToString() : "");
             Set(state, 5, Hardware.DeviceProfile.BiosFanLevel ? "BIOS" : "EC");
             Set(state, 6, reading.IsThermalProtectionActive
@@ -1879,6 +1882,17 @@ namespace StarMon.Ui.Windows {
                 return Name("GuiWpfUnknown");
 
             return value.Value ? Name("GuiWpfYes") : Name("GuiWpfNo");
+
+        }
+
+        // A setting's state, as on or off. "Fans always on: no" read as the
+        // machine lacking the option rather than having it switched off.
+        internal static string OnOff(bool? value) {
+
+            if(value == null)
+                return Name("GuiWpfUnknown");
+
+            return value.Value ? Name("GuiWpfBoostOn") : Name("GuiWpfBoostOff");
 
         }
 
@@ -2287,8 +2301,8 @@ namespace StarMon.Ui.Windows {
                 ? reading.BatteryCycleCount.ToString() : "-");
             Set(model, 5, 2, Capacity(reading));
             Set(model, 5, 3, reading.BatteryMinutesLeft > 0
-                ? (reading.BatteryMinutesLeft / 60) + "h "
-                    + (reading.BatteryMinutesLeft % 60) + "m" : "-");
+                ? Hardware.SystemMetrics.FormatDuration(
+                    TimeSpan.FromMinutes(reading.BatteryMinutesLeft)) : "-");
             Set(model, 5, 4, !double.IsNaN(reading.BatteryWatts)
                 && System.Math.Abs(reading.BatteryWatts) > 0.05
                 ? System.Math.Abs(reading.BatteryWatts).ToString("F1",
@@ -2557,12 +2571,14 @@ namespace StarMon.Ui.Windows {
                 : reading.BatteryOnAc ? Name("GuiWpfBatAc") : Name("GuiWpfBatDc");
 
             // Written tight rather than spelled out. The card is the narrowest
-            // in the row and this is its supporting line, so "1h 12m" fits
-            // where "1 h 12 m" is trimmed to "1 h 1…" — which reads as a
-            // different, wrong number rather than as a shortened one.
+            // in the row and this is its supporting line, so "1sa 12dk" fits
+            // where "1 sa 12 dk" is trimmed — which reads as a different,
+            // wrong number rather than as a shortened one. In the interface's
+            // own units: an English "1h 12m" in a Turkish window looked like
+            // a leftover.
             string remaining = reading.BatteryMinutesLeft > 0
-                ? " · " + (reading.BatteryMinutesLeft / 60) + "h "
-                    + (reading.BatteryMinutesLeft % 60) + "m"
+                ? " · " + Hardware.SystemMetrics.FormatDuration(
+                    TimeSpan.FromMinutes(reading.BatteryMinutesLeft))
                 : "";
 
             model.Battery.Detail = state + remaining;
@@ -2811,18 +2827,14 @@ namespace StarMon.Ui.Windows {
 
         }
 
-        // The plan and the mode on one line. They are two different things —
-        // the plan is the scheme, the mode is the slider in the battery
-        // flyout — and neither is worth a row of its own beside the other.
-        private static string PowerLine(Reading reading) {
+        // The Windows power mode for the dashboard's narrow system card, or
+        // the plan where the mode cannot be read. Both on one line ran past
+        // the card's width and was cut to "Balanced · Best perf…"; the
+        // Sensors page carries the plan and the mode in rows of their own.
+        internal static string PowerLine(Reading reading) {
 
-            string plan = reading.PowerPlan ?? "";
             string mode = PowerModeName(reading.PowerMode);
-
-            if(plan.Length == 0)
-                return mode;
-
-            return mode.Length > 0 && mode != plan ? plan + " · " + mode : plan;
+            return mode.Length > 0 ? mode : reading.PowerPlan ?? "";
 
         }
 

@@ -40,9 +40,12 @@ namespace StarMon.Test {
             TestSensorLabels();
             TestThrottleDescriptions();
             TestTheGraphicsCardIsNamedWhoeverMadeIt();
+            TestLogSourcesReadAsWords();
+            TestProgramsNameTheirGraphicsPowerInWords();
 
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
+            TestDurationsTakeTheLanguagesUnits();
             TestNumberFormatting();
             TestBatteryFlowShowsDischarging();
             TestADriveThatStopsAnsweringIsNotShownAsLive();
@@ -95,6 +98,58 @@ namespace StarMon.Test {
 
             SelfTest.Equal("", SettingsViewModel.ThresholdNoteFor(99, -1),
                 "nothing is said when the throttle point could not be read");
+
+        }
+
+        // A duration takes the units it is given, so a Turkish window can
+        // read "1sa 12dk" where it used to read an English "1h 12m"
+        private static void TestDurationsTakeTheLanguagesUnits() {
+
+            SelfTest.Equal("1sa 12dk", SystemMetrics.FormatUptime(
+                    TimeSpan.FromMinutes(72), "g", "sa", "dk"),
+                "an hour and twelve minutes in Turkish units");
+
+            SelfTest.Equal("3g 4sa", SystemMetrics.FormatUptime(
+                    new TimeSpan(3, 4, 30, 0), "g", "sa", "dk"),
+                "and three days four hours");
+
+            SelfTest.Equal("2h 30m", SystemMetrics.FormatUptime(TimeSpan.FromMinutes(150)),
+                "the unit-less form keeps the English letters it always had");
+
+        }
+
+        // The log's source column shows words rather than the internal names
+        // the logger is called with
+        private static void TestLogSourcesReadAsWords() {
+
+            SelfTest.Check(LogLineViewModel.SourceName("GuiTray") != "GuiTray",
+                "an internal name with a translation is replaced by it");
+
+            SelfTest.Equal("BIOS", LogLineViewModel.SourceName("Bios"),
+                "an acronym reads as one");
+
+            SelfTest.Equal("Unheard", LogLineViewModel.SourceName("Unheard"),
+                "a name with no translation is shown as it is");
+
+            SelfTest.Equal("", LogLineViewModel.SourceName(null),
+                "and no source is no text");
+
+        }
+
+        // A saved program's line names its graphics power the way the
+        // dashboard's selector does, not by the enum's English names
+        private static void TestProgramsNameTheirGraphicsPowerInWords() {
+
+            SelfTest.Equal(Config.Locale.Get("GuiWpfGpuBase"),
+                CoolingViewModel.GpuPowerName(StarMon.Hardware.Bios.BiosData.GpuPowerLevel.Minimum),
+                "the lowest level is the base power");
+
+            SelfTest.Equal(Config.Locale.Get("GuiWpfGpuBoost"),
+                CoolingViewModel.GpuPowerName(StarMon.Hardware.Bios.BiosData.GpuPowerLevel.Maximum),
+                "and the highest is boost");
+
+            SelfTest.Check(WindowController.OnOff(false) != WindowController.OnOff(true),
+                "a setting's state reads differently on and off");
 
         }
 

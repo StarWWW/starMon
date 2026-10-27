@@ -27,22 +27,22 @@ namespace StarMon.Ui.Design {
                 Shell.MenuModel.Separator(),
 
                 Shell.MenuModel.Branch(() => "Fan"),
-                Shell.MenuModel.Branch(() => "Ekran Kartı"),
+                Shell.MenuModel.Branch(() => "Ekran kartı"),
                 Shell.MenuModel.Branch(() => "Klavye"),
                 Shell.MenuModel.Branch(() => "Ayarlar"),
 
                 Shell.MenuModel.Separator(),
 
-                Shell.MenuModel.Toggle(() => "Her Zaman Üstte", () => true, null),
-                Shell.MenuModel.Toggle(() => "Dinamik Simge", () => true, null),
-                Shell.MenuModel.Toggle(() => "Dinamik Arka Plan",
+                Shell.MenuModel.Toggle(() => "Her zaman üstte", () => true, null),
+                Shell.MenuModel.Toggle(() => "Dinamik simge", () => true, null),
+                Shell.MenuModel.Toggle(() => "Dinamik arka plan",
                     () => false, null).Disable(() => false),
                 Shell.MenuModel.Toggle(() => "Güncelleme: 3 sn", () => false, null),
                 Shell.MenuModel.Toggle(() => "Otomatik termal koruma", () => true, null),
 
                 Shell.MenuModel.Separator(),
 
-                Shell.MenuModel.Item("İzleyiciyi Göster", null),
+                Shell.MenuModel.Item("Pencereyi göster", null),
                 Shell.MenuModel.Item("Günlük", null),
                 Shell.MenuModel.Item("Çıkış", null)
 
@@ -134,8 +134,8 @@ namespace StarMon.Ui.Design {
                 .Add("Extreme kipi", "yok")
                 .Add("Klavye bölgesi", "1")
                 .Add("Yenileme hızları", "60 / 144 Hz")
-                .Add("Fanlar hep açık", "var")
-                .Add("Yoklandı", "var");
+                .Add("Fanlar hep açık", "Kapalı")
+                .Add("Yoklandı", "evet");
 
             model.PowerMode = "HighPerformance";
 
@@ -292,18 +292,18 @@ namespace StarMon.Ui.Design {
 
             CoolingViewModel model = new CoolingViewModel(Curve());
 
-            model.Programs.Add(new FanProgramViewModel("Silent", "Default · Minimum · 6 adım") {
+            model.Programs.Add(new FanProgramViewModel("Silent", "Varsayılan · Temel · 6 adım") {
                 IsRunning = true
             });
-            model.Programs.Add(new FanProgramViewModel("Balanced", "Performance · Medium · 6 adım"));
-            model.Programs.Add(new FanProgramViewModel("Cool", "Performance · Maximum · 8 adım"));
-            model.Programs.Add(new FanProgramViewModel("Curve", "Performance · Minimum · 7 adım"));
+            model.Programs.Add(new FanProgramViewModel("Balanced", "Performans · Özel TGP · 6 adım"));
+            model.Programs.Add(new FanProgramViewModel("Cool", "Performans · Boost · 8 adım"));
+            model.Programs.Add(new FanProgramViewModel("Curve", "Performans · Temel · 7 adım"));
 
             model.Selected = model.Programs[0];
             model.Status = "Silent çalışıyor";
 
             Rows(model.State,
-                "56 · azamide görüldü", "212 s", "var", "var",
+                "56 · azamide görüldü", "212 s", "var", "Kapalı",
                 "2", "BIOS", "izliyor");
 
             return model;
@@ -344,7 +344,7 @@ namespace StarMon.Ui.Design {
 
             model.Battery.Figure = "38";
             model.Battery.Unit = "%";
-            model.Battery.Detail = "pilde · 1h 12m";
+            model.Battery.Detail = "pilde · 1sa 12dk";
             model.Battery.Health = HealthScale.FromCharge(38);
             model.Battery.Portion = 0.38;
 
@@ -366,7 +366,7 @@ namespace StarMon.Ui.Design {
             Rows(model.CoolingBlock, "77 % · 4.100 rpm", "84 % · 4.400 rpm",
                 "91 °C", "Performans", "56 · azamide görüldü", "212 s", "devrede");
             Rows(model.PowerBlock, "38 %", "18.3 W", "94 %",
-                "Dengeli · En iyi performans", "11.4 / 15.7 GB",
+                "En iyi performans", "11.4 / 15.7 GB",
                 "42.6 / 8.1 MB/s", "18.3 / 2.4 Mb/s");
 
             model.Mode = FanMode.Program;
@@ -417,7 +417,7 @@ namespace StarMon.Ui.Design {
                 .Add("BIOS", "F.14")
                 .Add("Plan", "Dengeli")
                 .Add("Kip", "En iyi performans")
-                .Add("Açık", "3g 7s"));
+                .Add("Açık", "3g 7sa"));
 
             model.Details.Add(new DetailGroupViewModel("İŞLEMCİ")
                 .Add("Sıcaklık", "78 °C")
@@ -454,7 +454,7 @@ namespace StarMon.Ui.Design {
                 .Add("Sağlık", "94 %")
                 .Add("Döngü", "212")
                 .Add("Kapasite", "67.4 / 70.0 Wh")
-                .Add("Kalan", "1h 12m")
+                .Add("Kalan", "1sa 12dk")
                 .Add("Güç çekişi", "18.3 W")
                 .Add("Durum", "pilde"));
 

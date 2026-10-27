@@ -19,7 +19,7 @@ namespace StarMon.Ui.ViewModels {
 
             this.Time = entry.Timestamp.ToString("HH:mm:ss");
             this.Level = entry.Level;
-            this.Source = entry.Source ?? "";
+            this.Source = SourceName(entry.Source);
             this.Message = entry.Message ?? "";
 
             // Identical consecutive entries are stacked by the logger rather
@@ -29,6 +29,29 @@ namespace StarMon.Ui.ViewModels {
 
             this.Detail = string.IsNullOrEmpty(entry.Details)
                 ? "" : entry.Details;
+
+        }
+
+        // The part of the application a line came from, in words. The logger
+        // is called with internal names - "GuiTray", "WmiEvent", "Kbd" - which
+        // read as code in the window; each has a name in both languages, and
+        // one that does not at least has its acronyms written as acronyms.
+        public static string SourceName(string source) {
+
+            if(string.IsNullOrEmpty(source))
+                return "";
+
+            string key = "GuiWpfSource" + source;
+            string name = Library.Config.Locale.Get(key);
+            if(!string.IsNullOrEmpty(name) && name != key)
+                return name;
+
+            switch(source) {
+                case "Bios": return "BIOS";
+                case "Ec": return "EC";
+                case "Os": return "OS";
+                default: return source;
+            }
 
         }
 

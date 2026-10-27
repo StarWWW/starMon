@@ -196,11 +196,25 @@ namespace StarMon.Hardware {
 
         // Formats an uptime span compactly, e.g. "3d 7h 4m"
         public static string FormatUptime(TimeSpan up) {
+            return FormatUptime(up, "d", "h", "m");
+        }
+
+        // The same, with the unit letters given: the interface passes its own
+        // language's, so a Turkish window reads "1sa 12dk" rather than "1h 12m"
+        public static string FormatUptime(TimeSpan up, string day, string hour, string minute) {
             if(up.TotalDays >= 1)
-                return (int)up.TotalDays + "d " + up.Hours + "h";
+                return (int)up.TotalDays + day + " " + up.Hours + hour;
             if(up.TotalHours >= 1)
-                return up.Hours + "h " + up.Minutes + "m";
-            return up.Minutes + "m";
+                return up.Hours + hour + " " + up.Minutes + minute;
+            return up.Minutes + minute;
+        }
+
+        // A duration in the interface's language
+        public static string FormatDuration(TimeSpan span) {
+            return FormatUptime(span,
+                Library.Config.Locale.Get("GuiUnitDay"),
+                Library.Config.Locale.Get("GuiUnitHour"),
+                Library.Config.Locale.Get("GuiUnitMinute"));
         }
 
     }

@@ -177,8 +177,25 @@ namespace StarMon.Ui.ViewModels {
 
             int steps = program.Level != null ? program.Level.Count : 0;
 
-            return mode + " · " + program.GpuPower
+            return mode + " · " + GpuPowerName(program.GpuPower)
                 + " · " + steps + " " + Config.Locale.Get("GuiWpfSteps");
+
+        }
+
+        // The graphics power a program asks for, by the names the dashboard's
+        // selector uses. The enum's own names - Minimum, Medium, Maximum -
+        // were printed as they were, in English, in a Turkish window.
+        internal static string GpuPowerName(Hardware.Bios.BiosData.GpuPowerLevel level) {
+
+            switch(level) {
+                case Hardware.Bios.BiosData.GpuPowerLevel.Medium:
+                    return Config.Locale.Get("GuiWpfGpuCustom");
+                case Hardware.Bios.BiosData.GpuPowerLevel.Maximum:
+                    return Config.Locale.Get("GuiWpfGpuBoost");
+                default:
+                    return Config.Locale.Get("GuiWpfGpuBase");
+            }
+
 
         }
 
