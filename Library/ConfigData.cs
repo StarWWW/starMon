@@ -222,8 +222,22 @@ namespace StarMon.Library
         // list made — it was labelled a Victus limitation and shipped to Omen
         // owners as well, and nothing read it in the end.
 
-        // How often to re-apply the selected fan mode to prevent BIOS reset [ms]
-        public static int FanModeKeepAliveMs = 5000;
+        // How often to re-apply the selected fan mode and graphics power [ms].
+        //
+        // It was five seconds, on the belief that the firmware drops both back
+        // on its own schedule. Measured on an HP 8DCF with nvidia-smi:
+        // Performance and Boost written once held at 80 W for ten minutes
+        // with nothing re-asserting them, and HP's own OmenCap service
+        // running. Every re-assertion is a firmware call that goes through the
+        // controller, and at five seconds that was over thirty a minute for
+        // nothing. A minute is insurance; resume and a change of power
+        // source, the transitions likeliest to reset them, re-assert at once.
+        public static int FanModeKeepAliveMs = 60000;
+
+        // The five-second default the configuration file was written with
+        // until the measurement above. A file still holding it is taken to
+        // hold the old default rather than a choice, and is moved on.
+        internal const int FanModeKeepAliveOldDefaultMs = 5000;
 
         // Automatic thermal protection: when the hottest monitored temperature
         // reaches the high threshold the fans are forced to maximum, and released

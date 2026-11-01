@@ -134,32 +134,35 @@ namespace StarMon.Hardware.Platform {
 
         }
 
-        // Re-applies the desired graphics power level if it is time
-        public void MaintainGpuPowerSticky() {
+        // Re-applies the desired graphics power level if it is time, or at once
+        // where a transition that resets it has just happened
+        public void MaintainGpuPowerSticky(bool now = false) {
 
             if(!this.DesiredGpuPower.HasValue)
                 return;
 
-            int now = Environment.TickCount;
+            int tick = Environment.TickCount;
 
-            if(unchecked(now - this.DesiredGpuPowerTimestamp) < Config.FanModeKeepAliveMs)
+            if(!now && unchecked(tick - this.DesiredGpuPowerTimestamp) < Config.FanModeKeepAliveMs)
                 return;
 
             // Written blind rather than compared first: this board refuses the
             // read (GpuPowerSupported) while accepting the write, so there is
             // nothing to compare against on the machine that needs it most
             this.System.SetGpuPower(new BiosData.GpuPowerData(this.DesiredGpuPower.Value));
-            this.DesiredGpuPowerTimestamp = now;
+            this.DesiredGpuPowerTimestamp = tick;
 
         }
 
-        // Re-applies the desired fan mode if needed
-        public void MaintainFanModeSticky() {
+        // Re-applies the desired fan mode if needed, or at once where a
+        // transition that resets it has just happened
+        public void MaintainFanModeSticky(bool immediately = false) {
             if(!this.DesiredFanMode.HasValue)
                 return;
 
             int now = Environment.TickCount;
-            bool shouldReapply = unchecked(now - this.DesiredFanModeTimestamp) >= Config.FanModeKeepAliveMs;
+            bool shouldReapply = immediately
+                || unchecked(now - this.DesiredFanModeTimestamp) >= Config.FanModeKeepAliveMs;
 
             if(shouldReapply || this.Fans.GetMode() != this.DesiredFanMode.Value) {
                 this.Fans.SetMode(this.DesiredFanMode.Value);

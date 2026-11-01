@@ -387,6 +387,15 @@ namespace StarMon.AppGui {
             // hours earlier, which is the hardest kind of thing to report.
             this.FullPower = onAc;
 
+            // A change of power source is the transition most likely to have
+            // the firmware put its own profile back (not measured on every
+            // board), so what the user chose goes back at once rather than
+            // waiting for the next keep-alive
+            if(changed) {
+                try { this.Platform.MaintainFanModeSticky(true); } catch { }
+                try { this.Platform.MaintainGpuPowerSticky(true); } catch { }
+            }
+
             // Only if the state actually changed, a fan program is active, and
             // the application was asked to manage it
             if(changed && Config.AutoConfig && this.Program.IsEnabled) {
@@ -494,8 +503,8 @@ namespace StarMon.AppGui {
             // power transition. The keep-alive would get to these on its next
             // tick anyway; doing it here means the machine is right within a
             // second of waking rather than within a cadence.
-            try { this.Platform.MaintainFanModeSticky(); } catch { }
-            try { this.Platform.MaintainGpuPowerSticky(); } catch { }
+            try { this.Platform.MaintainFanModeSticky(true); } catch { }
+            try { this.Platform.MaintainGpuPowerSticky(true); } catch { }
 
             // The refresh rate, whose power source may well have changed while
             // the lid was shut — the charger comes out at the desk and goes in

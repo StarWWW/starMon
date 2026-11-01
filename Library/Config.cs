@@ -413,7 +413,8 @@ namespace StarMon.Library {
                         FanProgramSuspend = flag;
 
                     if(GetWord(xml, XmlPrefix + "FanModeKeepAliveMs", out value))
-                        FanModeKeepAliveMs = value;
+                        FanModeKeepAliveMs = value == FanModeKeepAliveOldDefaultMs
+                            ? FanModeKeepAliveMs : value;
 
                     if(GetBool(xml, XmlPrefix + "ThermalProtectionEnabled", out flag))
                         ThermalProtectionEnabled = flag;

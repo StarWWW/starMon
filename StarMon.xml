@@ -176,8 +176,10 @@
              such as sleep, standby or hibernation, to be automatically re-enabled upon resume -->
         <FanProgramSuspend>true</FanProgramSuspend>
 
-        <!-- How often to re-apply the selected fan mode to prevent BIOS reset [ms] -->
-        <FanModeKeepAliveMs>5000</FanModeKeepAliveMs>
+        <!-- How often to re-apply the selected performance mode and graphics
+             power, in case something else changed them [ms]. Resume from
+             sleep and a change of power source re-apply them at once. -->
+        <FanModeKeepAliveMs>60000</FanModeKeepAliveMs>
 
         <!-- Thermal Protection -->
 
