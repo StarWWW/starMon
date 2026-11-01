@@ -450,12 +450,18 @@ namespace StarMon.Test {
         // WinRing0 used to be the fallback wherever PawnIO was not installed,
         // and is on Microsoft's vulnerable-driver list. Whatever this machine
         // has, opening the facade either reaches PawnIO or reaches nothing.
+        //
+        // Opened without the controller module, as the application opens it
+        // by default. The test host can be run elevated, and with the module
+        // loaded this test used to read the controller's status port on the
+        // machine running it - the very conversation with the controller the
+        // application no longer has behind Windows' back.
         private static void TestPawnIoIsTheOnlyDriver() {
 
             try {
 
                 StarMon.Driver.LowLevel.Reset();
-                StarMon.Driver.LowLevel.Open();
+                StarMon.Driver.LowLevel.Open(false);
 
                 StarMon.Driver.LowLevel.Backend active =
                     StarMon.Driver.LowLevel.Active;
@@ -472,18 +478,14 @@ namespace StarMon.Test {
                             .IndexOf("PawnIO", StringComparison.Ordinal) >= 0,
                         "and says which one it got");
 
-                    // Reading the controller's status port is the whole point
-                    // of the module. What it holds is the machine's business;
-                    // that the call completes is not.
-                    bool read = true;
-                    try {
-                        StarMon.Driver.LowLevel.ReadIoPort(0x66);
-                    } catch {
-                        read = false;
-                    }
+                    // And without the controller module a port read goes
+                    // nowhere: nothing reaches the controller from here
+                    SelfTest.Equal((byte) 0, StarMon.Driver.LowLevel.ReadIoPort(0x66),
+                        "without the controller module no port is read");
 
-                    SelfTest.Check(read,
-                        "and the controller's status port can be read through it");
+                    SelfTest.Check(StarMon.Driver.LowLevel.Describe()
+                            .IndexOf("no Embedded Controller access", StringComparison.Ordinal) >= 0,
+                        "and the description says so");
 
                 } else {
 

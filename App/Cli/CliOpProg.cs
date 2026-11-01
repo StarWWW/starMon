@@ -68,7 +68,7 @@ namespace StarMon.AppCli {
                 return;
             }
 
-            if(!Hw.EcInit()) {
+            if(!Hw.EcInit() && Config.EcAccess) {
                 App.Error("ErrEcInit");
                 Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
                 return;

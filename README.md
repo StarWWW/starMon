@@ -79,6 +79,14 @@ Before 1.4.1 StarMon also carried WinRing0 1.2.0.5 as a fallback for machines wi
 
 Without PawnIO, StarMon still starts. Temperatures, the battery and everything else that does not need the controller keep working, fan control and the keyboard backlight do not, and the window says what to install. The driver in use is named in the log, on the System page, and in `-Probe`.
 
+#### The controller is left to Windows by default
+
+Windows' own ACPI driver talks to the same Embedded Controller through the same two ports — for the battery, the thermal zones, the Fn keys and HP's own firmware calls — and it does not take the lock other programs use. A direct exchange from StarMon can land in the middle of one of Windows', and both sides then read the wrong bytes: Windows logs it in the System log as **ACPI event 13** ("did not respond within the timeout") and **15** ("returned data when none was expected").
+
+So since 1.5 StarMon does not touch the controller's ports at all unless `EcAccess` is set to `true` in `StarMon.xml`. Fan levels, maximum fans, the performance mode, the graphics power and the keyboard all go through HP's WMI interface, which runs inside ACPI and takes its turn with Windows. PawnIO is then used only for the processor's own registers (temperature, clocks, throttling), which are not the controller's. What only the registers had is given up: the fans-off switch, the firmware's fan countdown, and two auxiliary temperature probes. `-Ec` and `-EcMon` on the command line still read the registers when asked for by name.
+
+The firmware's countdown was what handed the fans back if StarMon died holding a fan level. Its place is taken by a **watchdog**: a second, tiny StarMon process started with the interface, which waits for it to end — however it ends, a crash or a kill from the task manager included — and then hands the fans back through the firmware. It touches nothing else.
+
 ## Getting started
 
 1. Build `Bin\StarMon.exe` (see [Building from source](#building-from-source)) or copy an existing build anywhere you like.
@@ -482,6 +490,14 @@ PawnIO imzalı, Microsoft'un kara listesinde değil ve bellek bütünlüğü aç
 1.4.1'den önce StarMon, PawnIO olmayan makineler için yedek olarak WinRing0 1.2.0.5'i de taşıyordu. Bu sürücü her yöneticiye portlara, işlemci yazmaçlarına ve fiziksel belleğe ham erişim veriyor; Microsoft'un onu güvenlik açıklı sürücü olarak listelemesinin sebebi bu. Artık uygulamada yok; eski bir sürümün geride bıraktığı WinRing0 servisi de açılışta kaldırılıyor.
 
 PawnIO yoksa StarMon yine de başlıyor. Sıcaklıklar, pil ve denetleyiciye ihtiyaç duymayan her şey çalışıyor; fan denetimi ve klavye ışığı çalışmıyor ve pencere neyin kurulması gerektiğini söylüyor. Kullanılan sürücü günlükte, Sistem sayfasında ve `-Probe` çıktısında adıyla yazıyor.
+
+#### Denetleyici varsayılan olarak Windows'a bırakılıyor
+
+Windows'un kendi ACPI sürücüsü aynı Gömülü Denetleyici ile aynı iki port üzerinden konuşuyor — pil, termal bölgeler, Fn tuşları ve HP'nin kendi firmware çağrıları için — ve diğer programların kullandığı kilidi almıyor. StarMon'un doğrudan bir konuşması Windows'unkinin ortasına denk gelebiliyor ve iki taraf da yanlış bayt okuyor: Windows bunu Sistem günlüğüne **ACPI olay 13** ("belirtilen sürede yanıt vermedi") ve **15** ("istenmediği halde veri döndürdü") olarak yazıyor.
+
+Bu yüzden 1.5'ten itibaren StarMon, `StarMon.xml` içinde `EcAccess` `true` yapılmadıkça denetleyicinin portlarına hiç dokunmuyor. Fan seviyeleri, azami fan, performans modu, ekran kartı gücü ve klavye, ACPI içinde çalışan ve Windows ile sırayla konuşan HP WMI arayüzünden geçiyor. PawnIO bu durumda yalnızca işlemcinin kendi yazmaçları (sıcaklık, saat hızı, kısma) için kullanılıyor; bunlar denetleyiciye ait değil. Yalnızca yazmaçlarda olan şeylerden vazgeçiliyor: fanları kapatma düğmesi, firmware'in fan geri sayımı ve iki yardımcı sıcaklık sensörü. Komut satırındaki `-Ec` ve `-EcMon` adıyla istendiğinde yazmaçları yine okuyor.
+
+StarMon bir fan seviyesini tutarken kapanırsa fanları geri veren şey firmware'in geri sayımıydı. Onun yerini bir **bekçi** alıyor: arayüzle birlikte başlayan küçük ikinci bir StarMon süreci, arayüzün bitmesini bekliyor — nasıl biterse bitsin, çökme ya da görev yöneticisinden öldürme dahil — ve ardından fanları firmware üzerinden geri veriyor. Başka hiçbir şeye dokunmuyor.
 
 ## Başlarken
 

@@ -92,8 +92,13 @@ namespace StarMon.Driver {
 
 #region Opening & Closing
         // Opens PawnIO, after taking away anything an earlier version left of
-        // WinRing0
-        public static void Open() {
+        // WinRing0.
+        //
+        // The controller module is loaded only when the controller is to be
+        // reached directly. Without it PawnIO still answers for the processor
+        // registers, which are the processor's own and are no part of the
+        // conversation Windows has with the controller.
+        public static void Open(bool controller = true) {
 
             lock(Lock) {
 
@@ -105,7 +110,7 @@ namespace StarMon.Driver {
 
                 RemoveWinRing0();
 
-                if(OpenPawnIo())
+                if(OpenPawnIo(controller))
                     return;
 
                 Log.AppendLine("PawnIO could not be opened, so the Embedded "
@@ -172,15 +177,15 @@ namespace StarMon.Driver {
         }
 
         // Opens PawnIO and loads the modules this application uses
-        private static bool OpenPawnIo() {
+        private static bool OpenPawnIo(bool controller) {
 
             if(!PawnIo.IsAvailable) {
                 Log.Append(PawnIo.GetStatus());
                 return false;
             }
 
-            EcModule = PawnIo.Load("LpcACPIEC");
-            if(EcModule == null) {
+            EcModule = controller ? PawnIo.Load("LpcACPIEC") : null;
+            if(controller && EcModule == null) {
 
                 // Without the Embedded Controller module there is no point
                 // keeping the rest: the processor registers alone would leave
@@ -251,7 +256,8 @@ namespace StarMon.Driver {
                     // "PawnIO 2.0.0" beside an installer that says 2.2.0 is
                     // one more thing for somebody to have to work out.
                     return "PawnIO (library " + PawnIo.Version + ", signed, "
-                        + "Embedded Controller ports only)"
+                        + (EcModule != null ? "Embedded Controller ports only"
+                            : "no Embedded Controller access") + ")"
                         + (HasMsr
                             ? " · processor registers via "
                                 + (Vendor == MsrVendor.Amd

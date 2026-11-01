@@ -456,8 +456,11 @@ namespace StarMon.Hardware.Platform {
                 }
             }
 
+            // Without the register, the level the firmware reports, which on
+            // these boards is the speed in hundreds of rpm (measured on an HP
+            // 8DCF: the level read back is the tachometer over a hundred)
             if(this.Speed == null)
-                return 0;
+                return GetLevel() * 100;
 
             this.Speed.Update();
             return this.Speed.GetValue();

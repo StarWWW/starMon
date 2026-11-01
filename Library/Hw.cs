@@ -197,6 +197,11 @@ namespace StarMon.Library {
         }
 
         // Sets the BIOS GPU power settings based on the value passed as a parameter
+        // Whether the controller is in use at all: allowed, and reached
+        public static bool EcInUse {
+            get { return Config.EcAccess && HasEc; }
+        }
+
         public static void BiosSetStruct(Action<BiosData.GpuPowerData> biosMethod, BiosData.GpuPowerData gpuPowerData) {
             Hw.BiosExec(bios => {
                 // Not a mistake: seems this need to run twice to take effect,
@@ -225,7 +230,26 @@ namespace StarMon.Library {
         //
         // See Hardware/CodeIntegrity.cs for what is in the way and what to
         // say about it.
-        public static bool EcInit() {
+        public static bool EcInit(bool force = false) {
+
+            // Not reached directly unless that has been allowed, or asked for
+            // by name on the command line. PawnIO is still opened for the
+            // processor registers, which are not the controller's.
+            if(!Config.EcAccess && !force) {
+
+                Ec = new StarMon.Hardware.AbsentEmbeddedController();
+                HasEc = false;
+
+                try { StarMon.Driver.LowLevel.Open(false); } catch { }
+
+                Logger.Info("Ec", "Embedded Controller left to Windows",
+                    "fans and modes go through the HP firmware's WMI interface; "
+                        + "processor registers through "
+                        + StarMon.Driver.LowLevel.Describe());
+
+                return false;
+
+            }
 
             Ec = EcInterface();
             HasEc = Ec != null && Ec.IsInitialized;

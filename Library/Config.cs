@@ -346,6 +346,9 @@ namespace StarMon.Library {
                     if(GetBool(xml, XmlPrefix + "BiosErrorReporting", out flag))
                         BiosErrorReporting = flag;
 
+                    if(GetBool(xml, XmlPrefix + "EcAccess", out flag))
+                        EcAccess = flag;
+
                     if(GetWord(xml, XmlPrefix + "EcFailLimit", out value))
                         EcFailLimit = value;
 
@@ -785,6 +788,7 @@ namespace StarMon.Library {
                     }
 
                     // Continue with the configuration values
+                    SetBool(xml, XmlPrefix + "EcAccess", EcAccess);
                     SetUInt(xml, XmlPrefix + "EcFailLimit", (uint) EcFailLimit);
                     SetUInt(xml, XmlPrefix + "EcMonInterval", (uint) EcMonInterval);
                     SetUInt(xml, XmlPrefix + "EcMutexTimeout", (uint) EcMutexTimeout);

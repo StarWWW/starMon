@@ -226,8 +226,10 @@ namespace StarMon.Ui.Shell {
                         // that keeps it. A profile picked from the menu held for
                         // a few seconds and then quietly went back, which is
                         // exactly what "the fan modes reset themselves" is.
-                        this.Host.Platform.SetFanModeSticky(captured);
-                        this.Host.RefreshFanState();
+                        Queue(delegate {
+                            this.Host.Platform.SetFanModeSticky(captured);
+                            this.Host.RefreshFanState();
+                        }, "Performance mode: " + captured);
 
                     }));
 
@@ -240,21 +242,23 @@ namespace StarMon.Ui.Shell {
             // with the fans switched off leaves them off
             branch.Add(MenuModel.Toggle(() => Text("ActFanMax"),
                 () => Safe(() => this.Host.Platform.Fans.GetMax()),
-                () => {
+                () => Queue(delegate {
                     AppService.FanControl.SetMaximum(this.Host.Platform.Fans,
                         !Safe(() => this.Host.Platform.Fans.GetMax()));
                     this.Host.Platform.ClearFanModeSticky();
                     this.Host.RefreshFanState();
-                }));
+                }, "Maximum fans from the menu")));
 
+            // A register, so only where the registers are reached
+            if(Library.Config.EcAccess)
             branch.Add(MenuModel.Toggle(() => Text("ActFanOff"),
                 () => Safe(() => this.Host.Platform.Fans.GetOff()),
-                () => {
+                () => Queue(delegate {
                     AppService.FanControl.SetOff(this.Host.Platform.Fans,
                         !Safe(() => this.Host.Platform.Fans.GetOff()));
                     this.Host.Platform.ClearFanModeSticky();
                     this.Host.RefreshFanState();
-                }));
+                }, "Fans off from the menu")));
 
             branch.Add(MenuModel.Separator());
 
@@ -264,7 +268,7 @@ namespace StarMon.Ui.Shell {
 
                 string captured = name;
 
-                branch.Add(MenuModel.Item(() => captured, () => {
+                branch.Add(MenuModel.Item(() => captured, () => Queue(delegate {
 
                     if(this.Host.Program.IsEnabled
                         && this.Host.Program.GetName() == captured)
@@ -274,7 +278,7 @@ namespace StarMon.Ui.Shell {
 
                     this.Host.RefreshFanState();
 
-                }));
+                }, "Fan program from the menu: " + captured)));
 
             }
 
@@ -284,6 +288,12 @@ namespace StarMon.Ui.Shell {
 
             return branch;
 
+        }
+
+        // The menu's hardware requests, off the interface thread and in the
+        // same queue as the window's, so the two can never overtake each other
+        private static void Queue(System.Action action, string what) {
+            AppService.HardwareQueue.Default.Post(action, what);
         }
 
         private BiosData.FanMode Current() {

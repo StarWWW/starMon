@@ -115,13 +115,14 @@ namespace StarMon.AppCli {
             sb.AppendLine("| Firmware interface | "
                 + (Hw.HasBios ? "available" : "**not available**") + " |");
             sb.AppendLine("| Embedded Controller | "
-                + (Hw.HasEc ? "available" : "**not reachable**") + " |");
+                + (!Config.EcAccess ? "left to Windows (EcAccess off)"
+                    : Hw.HasEc ? "available" : "**not reachable**") + " |");
             sb.AppendLine("| Kernel driver | " + StarMon.Driver.LowLevel.Describe()
                 + " |");
             sb.AppendLine("| Code integrity | " + CodeIntegrity.Summary() + " |");
             sb.AppendLine();
 
-            if(!Hw.HasEc) {
+            if(Config.EcAccess && !Hw.HasEc) {
                 sb.AppendLine("> " + CodeIntegrity.Explain().Replace("\n\n", " "));
                 sb.AppendLine();
             }

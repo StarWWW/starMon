@@ -64,7 +64,9 @@ namespace StarMon.AppGui {
             // than worth exiting over.
             Hw.BiosInit();
 
-            if(!Hw.EcInit())
+            // Only where the controller is wanted directly is its absence a
+            // problem: through the firmware, fan control needs no driver
+            if(!Hw.EcInit() && Config.EcAccess)
                 this.DriverObstacle = StarMon.Hardware.CodeIntegrity.Explain();
 
             // Work out what this particular board can do and adapt the

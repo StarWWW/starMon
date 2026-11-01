@@ -357,8 +357,9 @@ namespace StarMon.AppCli {
 
                     // Initialize the Embedded Controller. As for -Bios
                     // above: asked for explicitly, so a refusal is reported
-                    // rather than worked around.
-                    if(!Hw.EcInit()) {
+                    // rather than worked around - and reached whatever
+                    // EcAccess says, the registers being what was asked for
+                    if(!Hw.EcInit(true)) {
                         App.Error("ErrEcInit");
                         Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
                         return;
@@ -409,8 +410,8 @@ namespace StarMon.AppCli {
 
                     // Initialize the Embedded Controller. As for -Bios
                     // above: asked for explicitly, so a refusal is reported
-                    // rather than worked around.
-                    if(!Hw.EcInit()) {
+                    // rather than worked around, whatever EcAccess says
+                    if(!Hw.EcInit(true)) {
                         App.Error("ErrEcInit");
                         Cli.PrintError(StarMon.Hardware.CodeIntegrity.Explain());
                         return;

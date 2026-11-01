@@ -368,6 +368,18 @@ namespace StarMon.AppService {
                         // reading the maximum flag back and the interface
                         // reporting a mode the user had not asked for.
                         case ConstantAction.SwitchOff:
+
+                            // The switch is a register. Without it, both
+                            // levels at nought through the firmware, which is
+                            // what the sliders say and which the firmware is
+                            // free to hold at its own minimum.
+                            if(!Config.EcAccess) {
+                                if(isMax) platform.Fans.SetMax(false);
+                                platform.Fans.SetLevels(new byte[] { 0, 0 });
+                                platform.Fans.SetMode(platform.Fans.GetMode());
+                                break;
+                            }
+
                             if(isMax) platform.Fans.SetMax(false);
                             if(!isOff) platform.Fans.SetOff(true);
                             break;

@@ -182,28 +182,24 @@ namespace StarMon.Hardware.Platform {
             // *after* this did. A board with one fan got a second one that
             // read nought per cent forever and cost a round trip per tick; a
             // board with three had the third clipped off.
+            // Where the controller is left to Windows these four have no
+            // component at all, and FanArray answers for them from what it
+            // knows: the mode last set, no countdown, no manual toggle and no
+            // fans-off switch
             this.Fans = new FanArray(
                 BuildFans(),
 
                 // Define the countdown component
-                new EcComponent(
-                    (byte) EmbeddedControllerData.Register.XFCD,
-                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+                Rw(EmbeddedControllerData.Register.XFCD),
 
                 // Define the manual toggle component
-                new EcComponent(
-                    (byte) EmbeddedControllerData.Register.OMCC,
-                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+                Rw(EmbeddedControllerData.Register.OMCC),
 
                 // Define the mode component
-                new EcComponent(
-                    (byte) EmbeddedControllerData.Register.HPCM,
-                    PlatformData.AccessType.Read | PlatformData.AccessType.Write),
+                Rw(EmbeddedControllerData.Register.HPCM),
 
                 // Define the switch component
-                new EcComponent(
-                    (byte) EmbeddedControllerData.Register.SFAN,
-                    PlatformData.AccessType.Read | PlatformData.AccessType.Write));
+                Rw(EmbeddedControllerData.Register.SFAN));
 
         }
 
@@ -244,10 +240,14 @@ namespace StarMon.Hardware.Platform {
         // A component for a register, or null where this build has no register
         // for that part of a fan. Fan tolerates the null and reaches the fan
         // through the firmware instead.
+        //
+        // And null wherever the controller is not to be reached directly:
+        // every register-backed part of the fan system then goes through the
+        // firmware or answers from what is known, and not one port is touched.
         private static EcComponent Ro(EmbeddedControllerData.Register? register,
             PlatformData.DataSize size = PlatformData.DataSize.Byte) {
 
-            return register.HasValue
+            return register.HasValue && Config.EcAccess
                 ? new EcComponent((byte) register.Value,
                     PlatformData.AccessType.Read, size)
                 : null;
@@ -255,13 +255,13 @@ namespace StarMon.Hardware.Platform {
         }
 
         private static EcComponent Wo(EmbeddedControllerData.Register? register) {
-            return register.HasValue
+            return register.HasValue && Config.EcAccess
                 ? new EcComponent((byte) register.Value, PlatformData.AccessType.Write)
                 : null;
         }
 
         private static EcComponent Rw(EmbeddedControllerData.Register? register) {
-            return register.HasValue
+            return register.HasValue && Config.EcAccess
                 ? new EcComponent((byte) register.Value,
                     PlatformData.AccessType.Read | PlatformData.AccessType.Write)
                 : null;
@@ -320,11 +320,20 @@ namespace StarMon.Hardware.Platform {
                 // Process each sensor loaded from the configuration
                 switch(Config.TemperatureSensor[name].Source) {
 
-                    // Add an Embedded Controller sensor
+                    // Add an Embedded Controller sensor, or where the
+                    // controller is left to Windows a place-holder that is
+                    // never asked and never counts: the thermal zones and the
+                    // firmware's own sensors cover the board from there
                     case PlatformData.LinkType.EmbeddedController:
-                        this.Temperature[i++] = new EcComponent(
-                            Config.TemperatureSensor[name].Register,
-                            Config.MaxBelievableTemperature);
+                        if(Config.EcAccess) {
+                            this.Temperature[i++] = new EcComponent(
+                                Config.TemperatureSensor[name].Register,
+                                Config.MaxBelievableTemperature);
+                        } else {
+                            this.TemperatureUse[i] = false;
+                            this.TemperatureDormant[i] = true;
+                            this.Temperature[i++] = new UnreachedComponent(name);
+                        }
                         break;
 
                     // Add a WMI BIOS sensor
@@ -337,7 +346,10 @@ namespace StarMon.Hardware.Platform {
 
             }
 
-            // Cache the used indices for faster updates
+            // Cache the used indices for faster updates. Built from the flags
+            // rather than as they were read, since a sensor can be stood down
+            // above after it was counted.
+            usedIndices.RemoveAll(index => !this.TemperatureUse[index]);
             this.TemperatureUseIndices = usedIndices.ToArray();
 
         }
@@ -499,6 +511,10 @@ namespace StarMon.Hardware.Platform {
 
             if(this.TemperatureDormant[index]
                 && this.TemperatureTick % DormantRetryEvery != 0)
+                return;
+
+            // A sensor the platform never reaches is not retried either
+            if(this.Temperature[index] is UnreachedComponent)
                 return;
 
             bool updated = this.Temperature[index].Update();

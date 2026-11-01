@@ -124,6 +124,13 @@ namespace StarMon {
 
                     CliOp.TaskRun(args);
 
+                // The watchdog the interface starts for itself. Headless, and
+                // ahead of the command line for the same reason as -Run: it
+                // has nothing to print and nobody to print it to.
+                } else if(args[0].ToLowerInvariant() == Watchdog.Argument) {
+
+                    Environment.ExitCode = Watchdog.Run(args);
+
                 // Run the built-in tests. Handled ahead of the ordinary
                 // command-line path because it needs a console but must not
                 // take the single-instance lock the other CLI operations do:

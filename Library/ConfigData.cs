@@ -84,6 +84,27 @@ namespace StarMon.Library
         // Whenever any of those four numbers changes, recompute this one.
         public static int EcMutexTimeout = 1000;
 
+        // Whether the Embedded Controller is reached directly, through its I/O
+        // ports.
+        //
+        // Off by default. Windows' own ACPI driver talks to the same
+        // controller through the same two ports - for the battery, the thermal
+        // zones, the Fn keys and the HP firmware calls themselves - and it
+        // knows nothing of the lock this application takes. Two conversations
+        // interleaved on those ports corrupt each other: Windows logs it as
+        // ACPI event 13 ("did not respond within the timeout") and 15 ("returned
+        // data when none was expected"), and this application got the bytes
+        // the code is full of defences against. Measured on an HP 8DCF: 1420
+        // and 70 of them in two weeks.
+        //
+        // Off, everything goes through the HP firmware's WMI interface, which
+        // runs inside ACPI and reaches the controller in turn with Windows.
+        // What is given up is what only the registers had: the fans-off
+        // switch, the firmware's own countdown and two auxiliary temperature
+        // probes. The command line's -Ec and -EcMon still reach the registers
+        // when asked, being asked for exactly that.
+        public static bool EcAccess = false;
+
         public static int EcFailLimit = 15;  // Maximum number of failed attempts waiting to read
         public static int EcRetryLimit = 3;  // Maximum number of read and write attempts
 

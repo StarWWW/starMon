@@ -352,6 +352,35 @@ namespace StarMon.Hardware.Platform {
 
     }
 
+    // A sensor configured on a register the platform does not reach.
+    //
+    // Kept in the array so the sensor list keeps its shape and its names,
+    // and never asked: Update refuses without touching anything, and the
+    // value is nought, which is not a temperature anything acts on.
+    public class UnreachedComponent : PlatformComponentAbstract, IPlatformReadComponent {
+
+        public UnreachedComponent(string name) {
+            this.AccessType = PlatformData.AccessType.Read;
+            this.LinkType = PlatformData.LinkType.EmbeddedController;
+            this.Size = PlatformData.DataSize.Byte;
+            SetName(name);
+        }
+
+        public override void SetName(string name = "") {
+            this.Name = name;
+        }
+
+        protected override int Read() {
+            return 0;
+        }
+
+        protected override bool TryRead(out int value) {
+            value = 0;
+            return false;
+        }
+
+    }
+
     // Implements a BIOS Temperature component
     public class WmiBiosTemperatureComponent : PlatformComponentAbstract, IPlatformReadComponent {
 

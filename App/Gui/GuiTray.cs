@@ -278,6 +278,12 @@ namespace StarMon.AppGui
             // and apply the saved settings if that is enabled
             this.Op.AutoConfigRun();
 
+            // Something to hand the fans back if this process ends without
+            // doing it - the firmware's countdown is a register, and the
+            // registers are left to Windows
+            if (Hw.HasBios)
+                StarMon.Watchdog.Start();
+
             // Register the power-mode change event handler
             SystemEvents.PowerModeChanged += EventPowerChange;
 
@@ -298,6 +304,10 @@ namespace StarMon.AppGui
             // That one has to be waited for before the fans are handed back,
             // or it re-asserts what the handback is about to clear.
             this.Maintain.Drain();
+
+            // And whatever the window asked for and has not been carried out
+            // yet: done before the hand-back, never after it
+            HardwareQueue.Default.Drain(StarMon.AppService.Maintainer.DrainTimeoutMs);
 
             if (this.Tray != null)
                 this.Tray.Dispose();

@@ -28,6 +28,15 @@
 
         <!-- Embedded Controller -->
 
+        <!-- Whether StarMon reaches the Embedded Controller directly, through
+             its I/O ports. Off by default: Windows talks to the same
+             controller through the same ports and knows nothing of StarMon's
+             lock, and the two conversations corrupt each other (ACPI events
+             13 and 15 in the System log). Off, fans and modes go through the
+             HP firmware's WMI interface. On brings back the fans-off switch,
+             the firmware countdown and the auxiliary temperature probes. -->
+        <EcAccess>false</EcAccess>
+
         <!-- Maximum number of failed attempts waiting to read -->
         <EcFailLimit>15</EcFailLimit>
 

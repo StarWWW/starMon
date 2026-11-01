@@ -108,13 +108,18 @@ namespace StarMon.Hardware.Platform {
         // Retrieves the countdown value [s]
         // until automatic settings are restored
         public int GetCountdown() {
+            if(this.Countdown == null)
+                return 0;
             this.Countdown.Update();
             return this.Countdown.GetValue();
         }
 
-        // Sets the countdown value [s]
+        // Sets the countdown value [s]. Without the register there is no
+        // countdown to set; the watchdog process is what hands the fans back
+        // if this application stops without doing so itself.
         public void SetCountdown(int countdown) {
-            this.Countdown.SetValue(countdown);
+            if(this.Countdown != null)
+                this.Countdown.SetValue(countdown);
         }
 
         // Retrieves the levels of all fans at the same time
@@ -137,8 +142,10 @@ namespace StarMon.Hardware.Platform {
                 this.SetManual(true);
 
             // Depending on the configuration setting,
-            // use either the BIOS or the EC to set levels
-            if(Config.FanLevelUseEc) {
+            // use either the BIOS or the EC to set levels. The registers only
+            // where they are allowed: with the controller left to Windows the
+            // firmware's call is the one way in.
+            if(Config.FanLevelUseEc && Config.EcAccess) {
 
                 // Try to set the speed for each fan individually. Bounded by
                 // both arrays: a caller passing more levels than there are
@@ -191,6 +198,9 @@ namespace StarMon.Hardware.Platform {
             // first; this one handed back whatever the component last held,
             // which is only ever what this application last wrote — so a
             // reading could not see the toggle as the firmware has it.
+            if(this.Manual == null)
+                return false;
+
             this.Manual.Update();
 
             return this.Manual.GetValue() == (byte) PlatformData.FanManual.On;
@@ -198,6 +208,8 @@ namespace StarMon.Hardware.Platform {
 
         // Sets the manual fan speed toggle status
         public void SetManual(bool flag) {
+            if(this.Manual == null)
+                return;
             this.Manual.SetValue(flag ?
                 (byte) PlatformData.FanManual.On : (byte) PlatformData.FanManual.Off);
         }
@@ -230,6 +242,15 @@ namespace StarMon.Hardware.Platform {
         // answer. A register that has moved since is the firmware, or someone
         // else, having changed the mode, and is read as it stands.
         public BiosData.FanMode GetMode() {
+
+            // Without the register, the mode last set. The firmware has no
+            // call that reads it back, and on this hardware the register could
+            // not tell Default from Cool anyway.
+            if(this.Mode == null) {
+                ModeWrite last = this.LastModeWrite;
+                return last != null ? last.Mode : BiosData.FanMode.Default;
+            }
+
             this.Mode.Update();
             int value = this.Mode.GetValue();
 
@@ -248,6 +269,11 @@ namespace StarMon.Hardware.Platform {
                 return;
             }
             // Note: WMI BIOS call preferred over this.Mode.SetValue((byte) mode);
+
+            if(this.Mode == null) {
+                this.LastModeWrite = new ModeWrite(mode, -1);
+                return;
+            }
 
             // What the register reads now the mode has been set. Read twice:
             // a register going to nought is held off once by the component,
@@ -277,12 +303,16 @@ namespace StarMon.Hardware.Platform {
 
         // Retrieves the fan off switch status
         public bool GetOff() {
+            if(this.Switch == null)
+                return false;
             this.Switch.Update();
             return ((PlatformData.FanSwitch) this.Switch.GetValue()) == PlatformData.FanSwitch.Off;
         }
 
         // Switches the fan off or back on
         public void SetOff(bool flag) {
+            if(this.Switch == null)
+                return;
             this.Switch.SetValue(flag ?
                 (int) PlatformData.FanSwitch.Off : (int) PlatformData.FanSwitch.On);
         }

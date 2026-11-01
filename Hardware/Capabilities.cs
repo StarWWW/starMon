@@ -84,11 +84,12 @@ namespace StarMon.Hardware {
             sb.AppendLine("  Firmware      : "
                 + (Library.Hw.HasBios ? "available" : "NOT AVAILABLE"));
             sb.AppendLine("  Controller    : "
-                + (Library.Hw.HasEc ? "available" : "NOT REACHABLE"));
+                + (!Library.Config.EcAccess ? "left to Windows (EcAccess off)"
+                    : Library.Hw.HasEc ? "available" : "NOT REACHABLE"));
             sb.AppendLine("  Driver        : " + Driver.LowLevel.Describe());
             sb.AppendLine("  Code integrity: " + CodeIntegrity.Summary());
 
-            if(!Library.Hw.HasEc) {
+            if(Library.Config.EcAccess && !Library.Hw.HasEc) {
                 sb.AppendLine();
                 foreach(string line in CodeIntegrity.Explain().Split('\n'))
                     sb.AppendLine("  " + line.Trim());

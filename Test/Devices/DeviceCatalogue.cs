@@ -39,6 +39,11 @@ namespace StarMon.Test.Devices {
         internal FakeEcDevice Ec;
         internal FakeBiosDevice Bios;
 
+        // Whether the application is to reach this board's registers. Most
+        // scenarios are about exactly that and say yes; the shipping default
+        // says no, and the scenarios that check that default turn it off.
+        internal bool EcAccess = true;
+
         public override string ToString() {
             return Name + (Board == null ? "" : " [" + Board + "]");
         }

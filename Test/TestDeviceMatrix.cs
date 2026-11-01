@@ -3,6 +3,7 @@
 
 using System;
 using System.Collections.Generic;
+using StarMon.AppService;
 using StarMon.Hardware;
 using StarMon.Hardware.Bios;
 using StarMon.Hardware.Ec;
@@ -74,6 +75,10 @@ namespace StarMon.Test {
             TestAStoppedProgramStaysStopped();
             TestCyclingProgramsPutsTheOriginalModeBack();
             TestAStoppedProgramKeepsTheChosenGraphicsPower();
+
+            SelfTest.Group("Device matrix: the controller left to Windows");
+            TestNothingTouchesThePortsByDefault();
+            TestTheWatchdogLeavesNothingHeld();
             TestAProgramWithNoStepsIsNotStarted();
 
             SelfTest.Group("Device matrix: the command line writes what it was given");
@@ -103,6 +108,7 @@ namespace StarMon.Test {
             private readonly bool PreviousAutoDetect;
             private readonly int PreviousWaitTimeout;
             private readonly bool PreviousProbed;
+            private readonly bool PreviousEcAccess;
 
             private readonly System.Collections.Generic.Dictionary<string,
                 Config.TemperatureSensorData> PreviousSensors;
@@ -119,6 +125,13 @@ namespace StarMon.Test {
                 PreviousAutoDetect = Config.FanLevelAutoDetect;
                 PreviousWaitTimeout = Config.EcWaitTimeoutMs;
                 PreviousProbed = DeviceProfile.Probed;
+                PreviousEcAccess = Config.EcAccess;
+
+                // These scenarios describe boards register by register, and
+                // most of what they check is how the registers are read. The
+                // shipping default leaves the controller to Windows; a scenario
+                // that is about that says so itself.
+                Config.EcAccess = scenario.EcAccess;
                 PreviousSensors = Config.TemperatureSensor;
 
                 // The scenarios describe boards, not the machine running the
@@ -183,6 +196,7 @@ namespace StarMon.Test {
                 Config.EcWaitTimeoutMs = PreviousWaitTimeout;
                 SetProfile("Probed", PreviousProbed);
                 Config.TemperatureSensor = PreviousSensors;
+                Config.EcAccess = PreviousEcAccess;
                 DeviceProfile.Attach(null);
             }
 
@@ -1481,6 +1495,120 @@ namespace StarMon.Test {
                     Config.FanProgram = previous;
                     Config.GpuPowerSetInterval = previousInterval;
                 }
+
+            }
+
+        }
+
+        // With the controller left to Windows - the shipping default - not a
+        // single port operation, whatever the application is asked to do.
+        //
+        // Windows' ACPI driver talks to the same controller through the same
+        // two ports and does not take this application's lock. Any exchange
+        // here can land in the middle of one of its own, and on the HP 8DCF
+        // that showed as 1420 "did not respond" and 70 "returned data when
+        // none was expected" in two weeks of the System log. So the claim is
+        // not "fewer": it is none, through every path a session goes down.
+        private static void TestNothingTouchesThePortsByDefault() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+            board.EcAccess = false;
+
+            System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+            steps[0] = new byte[] { 30, 30 };
+
+            var previous = Config.FanProgram;
+            int previousInterval = Config.GpuPowerSetInterval;
+
+            try {
+
+                Config.FanProgram =
+                    new System.Collections.Generic.SortedList<string, FanProgramData> {
+                        ["Curve"] = new FanProgramData("Curve",
+                            BiosData.FanMode.Performance,
+                            BiosData.GpuPowerLevel.Maximum, steps) };
+
+                Config.GpuPowerSetInterval = 0;
+
+                using(new Installed(board)) {
+
+                    board.Ec.ResetCounts();
+
+                    Platform platform = new Platform();
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    // What the poller asks every tick
+                    platform.UpdateTemperature();
+                    platform.GetMaxTemperature(true);
+                    foreach(IFan fan in platform.Fans.Fan) {
+                        fan.GetSpeed();
+                        fan.GetLevel();
+                        fan.GetRate();
+                    }
+                    platform.Fans.GetMax();
+                    platform.Fans.GetOff();
+                    platform.Fans.GetManual();
+                    platform.Fans.GetCountdown();
+                    platform.Fans.GetMode();
+
+                    // Every request the window and the menu can make
+                    FanControl.Apply(platform, runner, FanRequest.Constant, 40, 40, null);
+                    FanControl.Apply(platform, runner, FanRequest.Constant, 0, 0, null);
+                    FanControl.Apply(platform, runner, FanRequest.Maximum, 0, 0, null);
+                    FanControl.Apply(platform, runner, FanRequest.Program, 0, 0, "Curve");
+                    runner.Update();
+                    runner.UpdateCountdown(true);
+                    FanControl.Apply(platform, runner, FanRequest.Automatic, 0, 0, "Cool");
+                    FanControl.SetMaximum(platform.Fans, true);
+                    FanControl.SetMaximum(platform.Fans, false);
+                    platform.SetFanModeSticky(BiosData.FanMode.Performance);
+                    platform.MaintainFanModeSticky();
+                    FanControl.ReleaseToFirmware(platform.Fans);
+
+                    SelfTest.Equal(0, board.Ec.PortOperations,
+                        "not one port operation through a whole session");
+
+                    SelfTest.Check(board.Bios.WriteLog.Contains("SetFanLevel=40,40"),
+                        "the levels went through the firmware instead");
+
+                    SelfTest.Equal(BiosData.FanMode.Performance, platform.Fans.GetMode(),
+                        "and the mode reads back as the one last set");
+
+                    SelfTest.Check(platform.Fans.Fan[0].GetSpeed() > 0,
+                        "a fan speed is still reported, from the firmware's level");
+
+                }
+
+            } finally {
+                Config.FanProgram = previous;
+                Config.GpuPowerSetInterval = previousInterval;
+            }
+
+        }
+
+        // The watchdog's two calls leave nothing held: no custom level and
+        // the maximum switch off. Nothing else - not the mode, not the
+        // graphics power - is the watchdog's to touch.
+        private static void TestTheWatchdogLeavesNothingHeld() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+            board.EcAccess = false;
+
+            using(new Installed(board)) {
+
+                board.Bios.WriteLog.Clear();
+                StarMon.Watchdog.Release(board.Bios);
+
+                SelfTest.Check(board.Bios.WriteLog.Contains("SetFanLevel=255,255"),
+                    "the levels are handed back");
+                SelfTest.Check(board.Bios.WriteLog.Contains("SetMaxFan=False"),
+                    "and the maximum switch is off");
+                SelfTest.Equal(2, board.Bios.WriteLog.Count,
+                    "and nothing else is written");
+                SelfTest.Equal(0, board.Ec.PortOperations,
+                    "through the firmware alone");
 
             }
 

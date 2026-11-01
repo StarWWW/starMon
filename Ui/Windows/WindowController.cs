@@ -247,8 +247,10 @@ namespace StarMon.Ui.Windows {
 
             this.CurveModel.Applied += ApplyCurve;
             this.CurveModel.Stopped += delegate {
-                Guard(() => host.Program.Terminate(), "Stopping the fan curve");
-                host.RefreshFanState();
+                Post(delegate {
+                    host.Program.Terminate();
+                    host.RefreshFanState();
+                }, "Stopping the fan curve");
             };
 
             // The programs. Every one of these paths existed in the service
@@ -822,8 +824,9 @@ namespace StarMon.Ui.Windows {
             switch(e.PropertyName) {
 
                 case "IsBacklightOn":
-                    Guard(() => this.Host.SetKbdBacklight(model.IsBacklightOn),
-                        "Switching the backlight");
+                    bool on = model.IsBacklightOn;
+                    Post(() => this.Host.SetKbdBacklight(on),
+                        "Backlight " + (on ? "on" : "off"));
                     break;
 
                 case "Mode":
@@ -831,16 +834,17 @@ namespace StarMon.Ui.Windows {
                     // are mutually exclusive, and each takes over from the
                     // other; the host already knows how to do that handover,
                     // including putting back the colour an effect replaced.
-                    Guard(delegate {
-                        if(model.Mode == BacklightMode.Temperature) {
+                    BacklightMode mode = model.Mode;
+                    Post(delegate {
+                        if(mode == BacklightMode.Temperature) {
                             this.Host.SetKbdColorByTemp(true);
                         } else {
                             this.Host.SetKbdColorByTemp(false);
                             this.Host.SetKbdEffect(
-                                model.Mode == BacklightMode.Cycle ? 1
-                                : model.Mode == BacklightMode.Breathe ? 2 : 0);
+                                mode == BacklightMode.Cycle ? 1
+                                : mode == BacklightMode.Breathe ? 2 : 0);
                         }
-                    }, "Changing the backlight mode");
+                    }, "Backlight mode: " + mode);
                     break;
 
                 case "IdleOffMinutes":
@@ -885,30 +889,29 @@ namespace StarMon.Ui.Windows {
             if(!model.HasColour)
                 return;
 
-            Guard(delegate {
+            // Picking a colour by hand means the user no longer wants a
+            // mode that chooses colours for them
+            if(model.Mode != BacklightMode.Static)
+                model.Mode = BacklightMode.Static;
 
-                // Picking a colour by hand means the user no longer wants a
-                // mode that chooses colours for them
-                if(model.Mode != BacklightMode.Static)
-                    model.Mode = BacklightMode.Static;
+            string what = "Backlight colour: " + model.Zones[0].Hex
+                + (model.IsSingleZone ? "" : " …");
 
-                if(model.IsSingleZone) {
-                    this.Host.SetKbdColor(Packed(model.Zones[0]));
-                    return;
-                }
+            if(model.IsSingleZone) {
+                int colour = Packed(model.Zones[0]);
+                Post(() => this.Host.SetKbdColor(colour), what);
+                return;
+            }
 
-                int[] zones = new int[model.Zones.Count];
-                for(int i = 0; i < zones.Length; i++) {
-                    // The swap only makes sense on the full four; a board that
-                    // reported some other count keeps the order it gave
-                    int slot = zones.Length == 4 ? HardwareZone(i) : i;
-                    zones[slot] = Packed(model.Zones[i]);
-                }
+            int[] zones = new int[model.Zones.Count];
+            for(int i = 0; i < zones.Length; i++) {
+                // The swap only makes sense on the full four; a board that
+                // reported some other count keeps the order it gave
+                int slot = zones.Length == 4 ? HardwareZone(i) : i;
+                zones[slot] = Packed(model.Zones[i]);
+            }
 
-                this.Host.SetKbdZoneColors(zones);
-
-            }, "Backlight colour: " + model.Zones[0].Hex
-                + (model.IsSingleZone ? "" : " …"));
+            Post(() => this.Host.SetKbdZoneColors(zones), what);
 
         }
 
@@ -1471,7 +1474,7 @@ namespace StarMon.Ui.Windows {
 
         private void ApplyPerformanceMode() {
             if(SetPerformanceSticky())
-                this.Host.RefreshFanState();
+                Post(this.Host.RefreshFanState, "");
         }
 
         // Applies the performance profile the selector is showing, stickily.
@@ -1490,7 +1493,7 @@ namespace StarMon.Ui.Windows {
             if(!Enum.TryParse(this.DashboardModel.PerformanceMode, out mode))
                 return false;
 
-            Guard(() => this.Host.Platform.SetFanModeSticky(mode),
+            Post(() => this.Host.Platform.SetFanModeSticky(mode),
                 "Performance mode: " + mode);
 
             return true;
@@ -1502,14 +1505,23 @@ namespace StarMon.Ui.Windows {
             if(this.Host == null)
                 return;
 
-            bool applied = FanControl.ApplyGpuPower(
-                this.Host.Platform, this.DashboardModel.GraphicsPower);
+            GpuPower level = this.DashboardModel.GraphicsPower;
 
-            // The firmware is the authority on whether it has this to give.
-            // A machine that reports no support leaves the row disabled and
-            // saying so, rather than accepting clicks that go nowhere.
-            this.DashboardModel.IsGpuPowerSupported = applied
-                || Read(() => this.Host.Platform.System.GpuPowerSupported);
+            Post(delegate {
+
+                bool applied = FanControl.ApplyGpuPower(this.Host.Platform, level);
+
+                // The firmware is the authority on whether it has this to
+                // give. A machine that reports no support leaves the row
+                // disabled and saying so, rather than accepting clicks that
+                // go nowhere.
+                bool supported = applied
+                    || Read(() => this.Host.Platform.System.GpuPowerSupported);
+
+                this.Dispatcher.BeginInvoke((Action) (() =>
+                    this.DashboardModel.IsGpuPowerSupported = supported));
+
+            }, "Graphics power: " + level);
 
         }
 
@@ -1577,9 +1589,9 @@ namespace StarMon.Ui.Windows {
                     : request == FanRequest.Program ? " " + model.ProgramName
                     : " (" + model.PerformanceMode + ")");
 
-            Guard(() => FanControl.Apply(this.Host.Platform, this.Host.Program,
-                request, (int) model.LevelCpu, (int) model.LevelGpu,
-                argument), what);
+            int levelCpu = (int) model.LevelCpu, levelGpu = (int) model.LevelGpu;
+            Post(() => FanControl.Apply(this.Host.Platform, this.Host.Program,
+                request, levelCpu, levelGpu, argument), what);
 
             if(request == FanRequest.Program && this.CoolingModel != null) {
                 this.CoolingModel.SetRunning(model.ProgramName);
@@ -1612,7 +1624,7 @@ namespace StarMon.Ui.Windows {
             if(request == FanRequest.Constant)
                 SetPerformanceSticky();
 
-            this.Host.RefreshFanState();
+            Post(this.Host.RefreshFanState, "");
 
         }
 
@@ -1636,9 +1648,11 @@ namespace StarMon.Ui.Windows {
                 // now running.
                 this.CoolingModel.Reload(CurveProgramName, CurveProgramName);
 
-                this.Host.Platform.ClearFanModeSticky();
-                this.Host.Program.Run(CurveProgramName);
-                this.Host.RefreshFanState();
+                Post(delegate {
+                    this.Host.Platform.ClearFanModeSticky();
+                    this.Host.Program.Run(CurveProgramName);
+                    this.Host.RefreshFanState();
+                }, "Running the drawn curve");
 
                 this.CurveModel.Status = Config.Locale.Get("GuiWpfApplied");
 
@@ -1774,7 +1788,7 @@ namespace StarMon.Ui.Windows {
                 return;
             }
 
-            Guard(delegate {
+            Post(delegate {
                 this.Host.Platform.ClearFanModeSticky();
                 this.Host.Program.Run(name);
             }, "Running the fan program " + name);
@@ -1784,7 +1798,7 @@ namespace StarMon.Ui.Windows {
             this.DashboardModel.ProgramName = name;
             this.DashboardModel.Mode = FanMode.Program;
 
-            this.Host.RefreshFanState();
+            Post(this.Host.RefreshFanState, "");
             this.CoolingModel.SetRunning(name);
             this.CoolingModel.Status = string.Format(Name("GuiWpfProgramRunning"), name);
 
@@ -1797,9 +1811,10 @@ namespace StarMon.Ui.Windows {
             if(this.Host == null)
                 return;
 
-            Guard(() => this.Host.Program.Terminate(), "Stopping the fan program");
-
-            this.Host.RefreshFanState();
+            Post(delegate {
+                this.Host.Program.Terminate();
+                this.Host.RefreshFanState();
+            }, "Stopping the fan program");
             this.CoolingModel.SetRunning("");
             this.CoolingModel.Status = Name("GuiWpfProgramStopped");
 
@@ -1954,6 +1969,12 @@ namespace StarMon.Ui.Windows {
         // Runs an action the user asked for, and logs it either way: the log
         // is the application's memory, and a log that only speaks when
         // something breaks reads as an application that never does anything.
+        // Hands a hardware request to the queue that carries them out off the
+        // interface thread, in order. See AppService.HardwareQueue.
+        private static void Post(Action action, string what) {
+            HardwareQueue.Default.Post(action, what);
+        }
+
         private static void Guard(Action action, string what) {
             try {
                 action();

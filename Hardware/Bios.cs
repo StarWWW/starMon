@@ -53,6 +53,17 @@ namespace StarMon.Hardware.Bios
 
         private CimSession session;
         private CimInstance biosData, biosMethods;
+
+        // One firmware call at a time, from the whole process.
+        //
+        // The poller, the periodic maintenance, the window, the start-up
+        // settings and the settings page each called in on a thread of their
+        // own, with nothing between them. The firmware's handler is ACPI code
+        // working through one shared buffer and the same Embedded Controller
+        // Windows is talking to, and nothing says it was written to be entered
+        // twice at once. Each call takes tens of milliseconds; waiting for the
+        // one before is the cheap side of that trade.
+        private readonly object CallLock = new object();
         #endregion
 
         #region Initialization & Disposal
@@ -137,6 +148,7 @@ namespace StarMon.Hardware.Bios
             // Log the BIOS call - commandType is the actual operation
             Logger.BiosCall((int)commandType, $"Cmd={command}, InSize={(inData?.Length ?? 0)}, OutSize={outDataSize}");
 
+            lock (this.CallLock)
             try
             {
                 using (CimInstance input = new CimInstance(biosData))

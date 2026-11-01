@@ -41,6 +41,12 @@ namespace StarMon.Test.Devices {
         private readonly int[] Reads = new int[256];
         private readonly int[] Writes = new int[256];
 
+        // Every touch of either port, status polls included. The registers
+        // above count conversations that got as far as naming a register;
+        // this counts any conversation at all, which is what Windows' own
+        // driver would have collided with.
+        internal int PortOperations;
+
         // Every write in order, so that a sequence can be asserted and not
         // just an end state. Fan control's whole reason for existing is the
         // order it does things in.
@@ -140,11 +146,14 @@ namespace StarMon.Test.Devices {
             Array.Clear(Reads, 0, Reads.Length);
             Array.Clear(Writes, 0, Writes.Length);
             WriteLog.Clear();
+            PortOperations = 0;
         }
 #endregion
 
 #region Port protocol
         protected override byte ReadIoPort(Port port) {
+
+            PortOperations++;
 
             if(port == Port.Command) {
 
@@ -165,6 +174,8 @@ namespace StarMon.Test.Devices {
         }
 
         protected override void WriteIoPort(Port port, byte value) {
+
+            PortOperations++;
 
             if(port == Port.Command) {
 
