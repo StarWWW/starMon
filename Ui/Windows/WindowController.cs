@@ -356,6 +356,7 @@ namespace StarMon.Ui.Windows {
         private static string CapDetail(string detail) {
             if(detail == "4 zones") return Config.Locale.Get("GuiCapZones4");
             if(detail == "single zone") return Config.Locale.Get("GuiCapZone1");
+            if(detail == "set only") return Config.Locale.Get("GuiCapSetOnly");
             return detail;
         }
 

@@ -166,7 +166,7 @@ namespace StarMon.Ui.Design {
                 "  Victus 8DCF - 2 fans - ceiling 56 (observed at maximum)" + System.Environment.NewLine +
                 "  levels via BIOS - extreme no - kbd 1 zone" + System.Environment.NewLine + System.Environment.NewLine +
                 "SUPPORTED FEATURES" + System.Environment.NewLine +
-                "  Fan speed reading (EC)" + System.Environment.NewLine +
+                "  Fan speed reading" + System.Environment.NewLine +
                 "  Maximum fan mode (BIOS)" + System.Environment.NewLine +
                 "  Fan level control (BIOS)" + System.Environment.NewLine + System.Environment.NewLine +
                 "UNSUPPORTED FEATURES" + System.Environment.NewLine +

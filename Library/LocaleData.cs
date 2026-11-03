@@ -1177,7 +1177,7 @@ namespace StarMon.Library.Locale
                 ["GuiCapGpuPower"] = "GPU power level (Custom TGP / PPAB)",
                 ["GuiCapAdapter"] = "Smart power adapter status",
                 ["GuiCapBornDate"] = "Born-on date",
-                ["GuiCapFanSpeed"] = "Fan speed reading (EC)",
+                ["GuiCapFanSpeed"] = "Fan speed reading",
                 ["GuiCapMaxFan"] = "Maximum fan mode (BIOS)",
                 ["GuiCapFanLevel"] = "Fan level control (BIOS)",
                 ["GuiCapFanTable"] = "Fan speed table (BIOS)",
@@ -1199,6 +1199,7 @@ namespace StarMon.Library.Locale
                 ["GuiCapBatteryHealth"] = "Battery health / charge cycles",
                 ["GuiCapZones4"] = "4 zones",
                 ["GuiCapZone1"] = "single zone",
+                ["GuiCapSetOnly"] = "set, not read back",
 
                 ["UnitFrequency"] = "Hz",
                 ["UnitPercent"] = "%",

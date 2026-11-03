@@ -100,13 +100,19 @@ namespace StarMon.Hardware {
                     Detail = zones == 4 ? "4 zones" : zones == 1 ? "single zone" : "" });
                 list.Add(new Feature { Key = "GpuModeSwitch", Name = "GPU mode switching (MUX)",
                     Supported = Try(() => p.System.GetGpuModeSupport()) });
+                // Offered whether or not the firmware reports it back, as the
+                // dashboard offers it: the HP 8DCF refuses the read and takes
+                // the write, its card going from 60 W to 80 W - and this line
+                // said "not on this model" about a setting that was working
+                bool gpuPowerRead = Try(() => { p.System.GetGpuPower(true); return p.System.GpuPowerSupported; });
                 list.Add(new Feature { Key = "GpuPower", Name = "GPU power level (Custom TGP / PPAB)",
-                    Supported = Try(() => { p.System.GetGpuPower(true); return p.System.GpuPowerSupported; }) });
+                    Supported = true,
+                    Detail = gpuPowerRead ? "" : "set only" });
                 list.Add(new Feature { Key = "Adapter", Name = "Smart power adapter status",
                     Supported = Try(() => p.System.GetAdapterStatus() != BiosData.AdapterStatus.NotSupported) });
                 list.Add(new Feature { Key = "BornDate", Name = "Born-on date",
                     Supported = Try(() => p.System.GetBornDate() != "Unknown") });
-                list.Add(new Feature { Key = "FanSpeed", Name = "Fan speed reading (EC)",
+                list.Add(new Feature { Key = "FanSpeed", Name = "Fan speed reading",
                     Supported = Try(() => p.Fans.Fan[0].GetSpeed() > 0) });
                 list.Add(new Feature { Key = "MaxFan", Name = "Maximum fan mode (BIOS)",
                     Supported = Try(() => { Hw.BiosGet<bool>(Hw.Bios.GetMaxFan); return true; }) });

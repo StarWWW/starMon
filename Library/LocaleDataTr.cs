@@ -1162,7 +1162,7 @@ namespace StarMon.Library.Locale
                 ["GuiCapGpuPower"] = "GPU güç seviyesi (Özel TGP / PPAB)",
                 ["GuiCapAdapter"] = "Akıllı güç adaptörü durumu",
                 ["GuiCapBornDate"] = "Üretim tarihi",
-                ["GuiCapFanSpeed"] = "Fan hızı okuma (EC)",
+                ["GuiCapFanSpeed"] = "Fan hızı okuma",
                 ["GuiCapMaxFan"] = "Azami fan modu (BIOS)",
                 ["GuiCapFanLevel"] = "Fan seviyesi denetimi (BIOS)",
                 ["GuiCapFanTable"] = "Fan hız tablosu (BIOS)",
@@ -1184,6 +1184,7 @@ namespace StarMon.Library.Locale
                 ["GuiCapBatteryHealth"] = "Pil sağlığı / şarj döngüleri",
                 ["GuiCapZones4"] = "4 bölge",
                 ["GuiCapZone1"] = "tek bölge",
+                ["GuiCapSetOnly"] = "yazılıyor, geri okunmuyor",
 
                 // Units
                 ["UnitFrequency"] = "Hz",
