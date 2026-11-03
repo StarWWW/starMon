@@ -436,7 +436,7 @@ namespace StarMon.Hardware.Ec
             if (!this.IsInitialized)
             {
                 LowLevel.Open();
-                if (LowLevel.IsOpen)
+                if (LowLevel.HasController)
                 {
                     this.IsInitialized = true;
                     EmbeddedControllerMutex.Open();

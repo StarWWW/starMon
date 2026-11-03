@@ -93,6 +93,13 @@ namespace StarMon.AppCli {
 
             FanProgram Program = new FanProgram(platform, Cli.PrintProgMessage);
 
+            // Ctrl+C stops the program and hands the fans back below; closing
+            // the console or killing the process does neither. With the
+            // controller left to Windows there is no firmware countdown to
+            // fall back on either, so the same watchdog the interface starts
+            // is started here.
+            StarMon.Watchdog.Start();
+
             // Create an event handler to break out of the perpetual loop
             Console.CancelKeyPress += (sender, eventArgs) => {
                 IsStop = true;

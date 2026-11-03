@@ -59,6 +59,12 @@ namespace StarMon.Driver {
             get { return Active != Backend.None; }
         }
 
+        // Whether the controller's ports can be reached: open, and opened
+        // with the controller module rather than for the processor alone
+        public static bool HasController {
+            get { return Active == Backend.PawnIo && EcModule != null; }
+        }
+
         // Whether model-specific registers can be read.
         //
         // Separate from IsOpen because it genuinely is: on PawnIO this is the
@@ -102,8 +108,22 @@ namespace StarMon.Driver {
 
             lock(Lock) {
 
-                if(Opened)
+                if(Opened) {
+
+                    // Opened earlier for the processor alone, and now asked
+                    // for the controller too - the command line's -Ec after
+                    // something that opened it the default way. The module
+                    // is added rather than the call quietly returning with
+                    // every port read answering nought.
+                    if(controller && Active == Backend.PawnIo && EcModule == null) {
+                        EcModule = PawnIo.Load("LpcACPIEC");
+                        if(EcModule == null)
+                            Log.Append(PawnIo.GetStatus());
+                    }
+
                     return;
+
+                }
 
                 Opened = true;
                 Log.Length = 0;
