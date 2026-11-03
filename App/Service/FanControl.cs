@@ -376,7 +376,7 @@ namespace StarMon.AppService {
                             if(!Config.EcAccess) {
                                 if(isMax) platform.Fans.SetMax(false);
                                 platform.Fans.SetLevels(new byte[] { 0, 0 });
-                                platform.Fans.SetMode(platform.Fans.GetMode());
+                                ReassertMode(platform);
                                 break;
                             }
 
@@ -399,7 +399,7 @@ namespace StarMon.AppService {
                             // Re-asserting the mode is what makes the levels
                             // take effect; without it they are accepted and
                             // then ignored
-                            platform.Fans.SetMode(platform.Fans.GetMode());
+                            ReassertMode(platform);
 
                             break;
 
@@ -424,16 +424,28 @@ namespace StarMon.AppService {
                     // firmware's own levels were the user's
                     try { platform.Fans.SetManual(false); } catch { }
 
+                    // The profile asked for, or failing that the one in force -
+                    // where that is known. Where it is not, the firmware keeps
+                    // whatever it has: holding a guessed Default would move a
+                    // machine left in Performance out of it.
                     BiosData.FanMode mode;
-                    if(!Enum.TryParse(programName ?? "", out mode))
-                        mode = Read(() => platform.Fans.GetMode());
-
-                    platform.SetFanModeSticky(mode);
+                    if(Enum.TryParse(programName ?? "", out mode))
+                        platform.SetFanModeSticky(mode);
+                    else if(Read(() => platform.Fans.IsModeKnown))
+                        platform.SetFanModeSticky(Read(() => platform.Fans.GetMode()));
 
                     break;
 
             }
 
+        }
+
+        // Writes the mode in force back to the firmware, which is what makes
+        // newly set levels take effect - and only where the mode in force is
+        // known rather than guessed
+        private static void ReassertMode(Platform platform) {
+            if(platform.Fans.IsModeKnown)
+                platform.Fans.SetMode(platform.Fans.GetMode());
         }
 
         // Clears whichever override is in force, so that whatever is asked

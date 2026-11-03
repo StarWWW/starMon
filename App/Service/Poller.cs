@@ -442,9 +442,13 @@ namespace StarMon.AppService {
                 reading.FanCountdown = this.Platform.Fans.GetCountdown();
             } catch { }
 
+            // Only a known mode: without the register, before this session has
+            // set one, the answer would be a guessed Default, and the window
+            // would show it as the machine's profile
             try {
-                reading.FanMode = Enum.GetName(typeof(BiosData.FanMode),
-                    this.Platform.Fans.GetMode()) ?? "";
+                reading.FanMode = this.Platform.Fans.IsModeKnown
+                    ? Enum.GetName(typeof(BiosData.FanMode), this.Platform.Fans.GetMode()) ?? ""
+                    : "";
             } catch { }
 
             // The keyboard's current colour, so the window's swatches follow

@@ -36,6 +36,10 @@ namespace StarMon.Hardware.Platform {
         public BiosData.FanMode GetMode();
         public void SetMode(BiosData.FanMode mode);
 
+        // Whether GetMode is an answer rather than a guess: there is a
+        // register to read, or this session has set a mode itself
+        public bool IsModeKnown { get; }
+
         // Re-derives every fan's believable-reading bounds from the current
         // fan ceiling, after the firmware has been asked what it is
         public void RefreshConstraints();
@@ -285,6 +289,16 @@ namespace StarMon.Hardware.Platform {
             } catch {
                 this.LastModeWrite = null;
             }
+        }
+
+        // Without the register, the mode is known only once this session has
+        // set one. Before that GetMode's Default is a guess, and anything that
+        // would write the mode back on the strength of it - re-asserting "the
+        // current mode", restoring "the mode from before" - must not: on a
+        // machine the firmware or the user left in Performance it would drop
+        // the graphics power from 80 W to 70 W for nothing.
+        public bool IsModeKnown {
+            get { return this.Mode != null || this.LastModeWrite != null; }
         }
 
         // The last mode set, and what the register read straight after. One

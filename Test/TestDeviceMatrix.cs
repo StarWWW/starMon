@@ -79,6 +79,7 @@ namespace StarMon.Test {
             SelfTest.Group("Device matrix: the controller left to Windows");
             TestNothingTouchesThePortsByDefault();
             TestTheWatchdogLeavesNothingHeld();
+            TestAnUnknownModeIsNeverWrittenBack();
             TestAProgramWithNoStepsIsNotStarted();
 
             SelfTest.Group("Device matrix: the command line writes what it was given");
@@ -1584,6 +1585,69 @@ namespace StarMon.Test {
             } finally {
                 Config.FanProgram = previous;
                 Config.GpuPowerSetInterval = previousInterval;
+            }
+
+        }
+
+        // Without the mode register, and before this session has set a mode,
+        // the mode in force is not known - and nothing writes a guess back.
+        //
+        // GetMode answers Default then, and three paths used to write that
+        // answer to the firmware: re-asserting the mode after a fan level,
+        // holding "the current mode" on the way back to Automatic, and
+        // restoring "the mode from before" when a program stopped. On a
+        // machine the firmware or the user had left in Performance each of
+        // them dropped the graphics limit from 80 W to 70 W.
+        private static void TestAnUnknownModeIsNeverWrittenBack() {
+
+            DeviceScenario board = DeviceCatalogue.Reference();
+            board.EcAccess = false;
+
+            System.Collections.Generic.SortedDictionary<byte, byte[]> steps =
+                new System.Collections.Generic.SortedDictionary<byte, byte[]>();
+            steps[0] = new byte[] { 30, 30 };
+
+            var previous = Config.FanProgram;
+
+            try {
+
+                Config.FanProgram =
+                    new System.Collections.Generic.SortedList<string, FanProgramData> {
+                        ["Quiet"] = new FanProgramData("Quiet",
+                            BiosData.FanMode.Cool,
+                            BiosData.GpuPowerLevel.Minimum, steps) };
+
+                using(new Installed(board)) {
+
+                    Platform platform = new Platform();
+                    FanProgram runner = new FanProgram(platform,
+                        delegate(FanProgram.Severity s, string m) { });
+
+                    SelfTest.Check(!platform.Fans.IsModeKnown,
+                        "with no register and nothing set, the mode is not known");
+
+                    board.Bios.WriteLog.Clear();
+                    FanControl.Apply(platform, runner, FanRequest.Constant, 40, 40, null);
+                    FanControl.Apply(platform, runner, FanRequest.Automatic, 0, 0, null);
+
+                    SelfTest.Check(!board.Bios.WriteLog.Exists(w => w.StartsWith("SetFanMode", StringComparison.Ordinal)),
+                        "a fan level and a return to Automatic leave the mode alone");
+
+                    runner.Run("Quiet");
+                    board.Bios.WriteLog.Clear();
+                    runner.Terminate();
+
+                    SelfTest.Check(!board.Bios.WriteLog.Exists(w => w.StartsWith("SetFanMode", StringComparison.Ordinal)),
+                        "and a program stopping does not put back a mode nobody knew");
+
+                    platform.SetFanModeSticky(BiosData.FanMode.Performance);
+                    SelfTest.Check(platform.Fans.IsModeKnown,
+                        "once this session sets a mode, it is known");
+
+                }
+
+            } finally {
+                Config.FanProgram = previous;
             }
 
         }

@@ -69,6 +69,11 @@ namespace StarMon.Hardware.Platform {
 
         // Last fan mode and GPU power data before the program started
         private BiosData.FanMode LastFanMode;
+
+        // Whether the mode above was known, rather than the guess a board
+        // without the mode register gives before anything has set one. A
+        // guess is not put back.
+        private bool LastFanModeKnown;
         private BiosData.GpuPowerData LastGpuPowerData;
 
         // Whether the level above was actually read, rather than the empty
@@ -116,6 +121,7 @@ namespace StarMon.Hardware.Platform {
             this.IsEnabled = false;
             this.IsSuspended = false;
             this.LastFanMode = BiosData.FanMode.Default;
+            this.LastFanModeKnown = false;
             this.LastGpuPowerData = default(BiosData.GpuPowerData);
             this.Levels = new List<byte>();
             this.Name = "";
@@ -190,6 +196,7 @@ namespace StarMon.Hardware.Platform {
             // used to record the first one's mode here, and stopping it then
             // left the machine in a profile the user never chose.
             if(!wasRunning) {
+                this.LastFanModeKnown = Platform.Fans.IsModeKnown;
                 this.LastFanMode = Platform.Fans.GetMode();
                 this.LastGpuPowerData = Platform.System.GetGpuPower(true);
                 this.LastGpuPowerKnown = Platform.System.GpuPowerSupported;
@@ -239,8 +246,9 @@ namespace StarMon.Hardware.Platform {
             if(Config.FanLevelNeedManual)
                 Platform.Fans.SetManual(false);
 
-            // Restore the previous fan mode
-            UpdateFanMode(true, this.LastFanMode);
+            // Restore the previous fan mode, where it was known
+            if(this.LastFanModeKnown)
+                UpdateFanMode(true, this.LastFanMode);
 
             RestoreGpuPower();
 
@@ -269,7 +277,9 @@ namespace StarMon.Hardware.Platform {
 
             // Restore the previous fan mode
             BiosData.FanMode restored = this.LastFanMode;
-            UpdateFanMode(true, restored);
+            bool known = this.LastFanModeKnown;
+            if(known)
+                UpdateFanMode(true, restored);
 
             RestoreGpuPower();
 
@@ -287,7 +297,8 @@ namespace StarMon.Hardware.Platform {
             // The mode put back, taken before Reset cleared it. Read after,
             // this said Default whatever had actually been restored.
             Logger.Info("Program", "Fan program stopped",
-                "fan mode put back to " + restored);
+                known ? "fan mode put back to " + restored
+                    : "fan mode left as the program set it; the one before was not known");
 
             // Report success
             return true;
@@ -491,6 +502,7 @@ namespace StarMon.Hardware.Platform {
 
             // Clear the last fan mode
             this.LastFanMode = BiosData.FanMode.Default;
+            this.LastFanModeKnown = false;
 
             // Note: do not clear the last program name since leaving it
             // is harmless, and also can be used to show a more meaningful
