@@ -168,6 +168,41 @@ namespace StarMon.Ui.Views {
             public string[][] Legends;
         }
 
+        // Every layout's rows checked against each other: as many widths as
+        // legends on every row, and the four letter rows the same length.
+        // Returns what is wrong, or "" where nothing is. The ANSI home row
+        // once had a width fewer than its legends, so its Enter was never
+        // drawn and the row ended a unit short.
+        internal static string CheckLayouts() {
+
+            Layout[] all = { TurkishQ, Qwertz, Azerty, IsoQwerty, AnsiQwerty };
+            string[] names = { "Turkish Q", "QWERTZ", "AZERTY", "ISO QWERTY", "ANSI QWERTY" };
+
+            for(int l = 0; l < all.Length; l++) {
+
+                if(all[l].Widths.Length != all[l].Legends.Length)
+                    return names[l] + ": rows of widths and of legends differ in number";
+
+                for(int r = 0; r < all[l].Widths.Length; r++)
+                    if(all[l].Widths[r].Length != all[l].Legends[r].Length)
+                        return names[l] + ", row " + r + ": " + all[l].Widths[r].Length
+                            + " widths for " + all[l].Legends[r].Length + " legends";
+
+                for(int r = 1; r <= 4; r++) {
+                    double sum = 0;
+                    foreach(double w in all[l].Widths[r])
+                        if(w > 0)
+                            sum += w;
+                    if(Math.Abs(sum - 15) > 0.001)
+                        return names[l] + ", row " + r + ": " + sum + " units wide, not 15";
+                }
+
+            }
+
+            return "";
+
+        }
+
         // The rows every layout shares: the function row across the top, and
         // the modifier row along the bottom
         private static readonly double[] FunctionWidths =
@@ -192,7 +227,7 @@ namespace StarMon.Ui.Views {
         // going into a wide Enter and a wide left Shift instead
         private static readonly double[] AnsiNumberWidths = { 1.0,1,1,1,1,1,1,1,1,1,1,1,1, 2.0 };
         private static readonly double[] AnsiUpperWidths  = { 1.5, 1,1,1,1,1,1,1,1,1,1,1,1, 1.5 };
-        private static readonly double[] AnsiHomeWidths   = { 1.75, 1,1,1,1,1,1,1,1,1,1, 2.25 };
+        private static readonly double[] AnsiHomeWidths   = { 1.75, 1,1,1,1,1,1,1,1,1,1,1, 2.25 };
         private static readonly double[] AnsiBottomWidths = { 2.25, 1,1,1,1,1,1,1,1,1,1, 2.75 };
 
         // Turkish Q, which is what the machine this was written on ships with

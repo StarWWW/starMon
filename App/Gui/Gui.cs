@@ -140,8 +140,24 @@ namespace StarMon.AppGui {
 
 #region Visual
         // Shows a dialog window with error information
+        // On the interface thread, and without waiting for it to be read
+        // where the error came from any other. A message box shown on the
+        // thread that hit the error holds that thread until it is dismissed -
+        // and the threads that report errors are the poller, the maintenance
+        // beat and the hardware queue, so one refused controller lock left
+        // the thermal guard and the fan program stopped behind a dialog.
         public static void ShowError(string message, Exception e = null) {
+
+            System.Windows.Application app = System.Windows.Application.Current;
+            System.Windows.Threading.Dispatcher dispatcher = app != null ? app.Dispatcher : null;
+
+            if(dispatcher != null && !dispatcher.CheckAccess() && !dispatcher.HasShutdownStarted) {
+                dispatcher.BeginInvoke((Action) (() => StarMon.Ui.Shell.Dialogs.Error(message, e)));
+                return;
+            }
+
             StarMon.Ui.Shell.Dialogs.Error(message, e);
+
         }
 
 #endregion

@@ -357,6 +357,16 @@ namespace StarMon.Ui.Windows {
             if(detail == "4 zones") return Config.Locale.Get("GuiCapZones4");
             if(detail == "single zone") return Config.Locale.Get("GuiCapZone1");
             if(detail == "set only") return Config.Locale.Get("GuiCapSetOnly");
+
+            // The counts the probe writes in English: "12 sensors" and the like
+            System.Text.RegularExpressions.Match count =
+                System.Text.RegularExpressions.Regex.Match(detail ?? "", @"^(\d+) (sensors|settings|zones)$");
+            if(count.Success)
+                return string.Format(Config.Locale.Get(
+                    count.Groups[2].Value == "sensors" ? "GuiCapCountSensors"
+                    : count.Groups[2].Value == "settings" ? "GuiCapCountSettings"
+                    : "GuiCapCountZones"), count.Groups[1].Value);
+
             return detail;
         }
 
@@ -1297,10 +1307,14 @@ namespace StarMon.Ui.Windows {
                     ApplyGpuMode();
                     break;
 
+                // These four reach the power scheme, the Task Scheduler, WMI
+                // and the firmware, so they go through the queue rather than
+                // holding the window while they answer - which for the
+                // scheduler and a first WMI session is a stall that shows
                 case "BoostMode":
-                    Guard(() => Hardware.CpuBoost.Set(this.SettingsModel.BoostMode),
-                        "Turbo boost: " + (this.SettingsModel.BoostMode == 0 ? "off"
-                            : this.SettingsModel.BoostMode == 2 ? "aggressive" : "on"));
+                    int boost = this.SettingsModel.BoostMode;
+                    Post(() => Hardware.CpuBoost.Set(boost),
+                        "Turbo boost: " + (boost == 0 ? "off" : boost == 2 ? "aggressive" : "on"));
                     break;
 
                 // A brightness drag raises a change per pixel, and each is a
@@ -1323,8 +1337,9 @@ namespace StarMon.Ui.Windows {
                 case "StartWithWindows":
                     // Not a value in a file: a scheduled task that exists or
                     // does not
-                    Guard(() => Hw.TaskSet(Config.TaskId.Gui, Config.AutoStartup),
-                        "Start with Windows: " + (Config.AutoStartup ? "on" : "off"));
+                    bool startup = Config.AutoStartup;
+                    Post(() => Hw.TaskSet(Config.TaskId.Gui, startup),
+                        "Start with Windows: " + (startup ? "on" : "off"));
                     break;
 
                 case "KeyIntercepted":
@@ -1333,18 +1348,26 @@ namespace StarMon.Ui.Windows {
                     // the message the task sends, a closed one is started by
                     // it - so without it the key does nothing at all.
                     bool intercept = this.SettingsModel.KeyIntercepted;
-                    Guard(() => Hw.TaskSet(Config.TaskId.Key, intercept),
-                        "Omen key handled by the application: " + (intercept ? "on" : "off"));
+                    Post(delegate {
 
-                    // Read back, so the switch shows what the scheduler holds
-                    // rather than what was asked of it
-                    bool registered = intercept;
-                    try { registered = Hw.TaskGet(Config.TaskId.Key); } catch { }
-                    if(registered != intercept) {
-                        this.IsApplyingReading = true;
-                        try { this.SettingsModel.KeyIntercepted = registered; }
-                        finally { this.IsApplyingReading = false; }
-                    }
+                        try {
+                            Hw.TaskSet(Config.TaskId.Key, intercept);
+                        } catch(Exception ex) {
+                            Logger.Error("Window", "Omen key task could not be changed", ex.Message);
+                        }
+
+                        // Read back, so the switch shows what the scheduler
+                        // holds rather than what was asked of it
+                        bool registered = intercept;
+                        try { registered = Hw.TaskGet(Config.TaskId.Key); } catch { }
+                        if(registered != intercept)
+                            this.Dispatcher.BeginInvoke((Action) delegate {
+                                this.IsApplyingReading = true;
+                                try { this.SettingsModel.KeyIntercepted = registered; }
+                                finally { this.IsApplyingReading = false; }
+                            });
+
+                    }, "Omen key handled by the application: " + (intercept ? "on" : "off"));
                     break;
 
                 case "ThemeAccent":
@@ -1410,29 +1433,34 @@ namespace StarMon.Ui.Windows {
             if(this.Host == null)
                 return;
 
-            bool applied = false;
+            Hardware.Bios.BiosData.GpuMode mode = this.SettingsModel.IsDiscrete
+                ? Hardware.Bios.BiosData.GpuMode.Discrete
+                : Hardware.Bios.BiosData.GpuMode.Optimus;
 
-            Guard(delegate {
-                this.Host.Platform.System.SetGpuMode(
-                    this.SettingsModel.IsDiscrete
-                        ? Hardware.Bios.BiosData.GpuMode.Discrete
-                        : Hardware.Bios.BiosData.GpuMode.Optimus);
-                applied = true;
-            }, "Setting the graphics mode");
+            // Through the queue like every other firmware call, and back here
+            // for what follows only once the firmware has taken it
+            Post(delegate {
 
-            if(!applied)
-                return;
+                this.Host.Platform.System.SetGpuMode(mode);
 
-            // The switch only takes effect on the next boot, so the panel says
-            // so rather than looking as though nothing happened
-            this.SettingsModel.GpuModeNote = Config.Locale.Get("GuiWpfRestartNeeded");
+                this.Dispatcher.BeginInvoke((Action) delegate {
 
-            // And offers the restart. The prompt has been in both locale files
-            // and behind a helper since the Windows Forms build, and nothing
-            // asked it: the one setting here that needs a reboot left the user
-            // to go and find one. Declining leaves the note above in place.
-            if(Dialogs.Confirm(Config.Locale.Get(Config.L_GUI + "PromptReboot")))
-                Guard(() => Os.RestartSystem(), "Restarting for the graphics mode");
+                    // The switch only takes effect on the next boot, so the
+                    // panel says so rather than looking as though nothing
+                    // happened
+                    this.SettingsModel.GpuModeNote = Config.Locale.Get("GuiWpfRestartNeeded");
+
+                    // And offers the restart. The prompt has been in both
+                    // locale files and behind a helper since the Windows Forms
+                    // build, and nothing asked it: the one setting here that
+                    // needs a reboot left the user to go and find one.
+                    // Declining leaves the note above in place.
+                    if(Dialogs.Confirm(Config.Locale.Get(Config.L_GUI + "PromptReboot")))
+                        Guard(() => Os.RestartSystem(), "Restarting for the graphics mode");
+
+                });
+
+            }, "Setting the graphics mode: " + mode);
 
         }
 
@@ -1441,9 +1469,9 @@ namespace StarMon.Ui.Windows {
             if(this.Host == null)
                 return;
 
-            Guard(() => Hardware.DisplayBrightness.Set(
-                (int) this.SettingsModel.Brightness),
-                "Display brightness: " + (int) this.SettingsModel.Brightness + " %");
+            int brightness = (int) this.SettingsModel.Brightness;
+            Post(() => Hardware.DisplayBrightness.Set(brightness),
+                "Display brightness: " + brightness + " %");
 
         }
 #endregion

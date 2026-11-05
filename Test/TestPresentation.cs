@@ -46,7 +46,9 @@ namespace StarMon.Test {
             TestTheThrottleBadgeNeedsAThrottle();
             TestBatteryFlowKeepsItsDirection();
             TestKeysAreNamedAsPrinted();
+            TestEveryKeyboardRowIsWhole();
             TestShippedPresetsAreNamedForReading();
+            TestTheProfileIsNotAssumed();
 
             SelfTest.Group("Presentation: durations and numbers");
             TestUptimeFormatting();
@@ -294,6 +296,38 @@ namespace StarMon.Test {
 
             SelfTest.Equal("", LogLineViewModel.SourceName(null),
                 "and no source is no text");
+
+            // The sources the start-up, the hardware queue, the watchdog, the
+            // platform and the shutdown log under, which had no entry and so
+            // showed their internal names in a Turkish log
+            // By the key rather than the text: "Platform" is the same word in
+            // both languages
+            foreach(string source in new[] { "Startup", "Hardware", "Watchdog", "Platform", "Shutdown" })
+                SelfTest.Check(Config.Locale.Get("GuiWpfSource" + source) != "GuiWpfSource" + source,
+                    "the " + source + " source has a name of its own");
+
+        }
+
+        // Every drawn keyboard has as many widths as legends on each row, and
+        // its letter rows line up
+        private static void TestEveryKeyboardRowIsWhole() {
+
+            string problem = KeyboardMap.CheckLayouts();
+            SelfTest.Check(problem == "",
+                "every layout's rows are whole" + (problem == "" ? "" : ": " + problem));
+
+        }
+
+        // The dashboard's performance profile starts as unknown, not as a
+        // Default that would be written to the firmware as if it were chosen
+        private static void TestTheProfileIsNotAssumed() {
+
+            DashboardViewModel model = new DashboardViewModel();
+
+            SelfTest.Equal("", model.PerformanceMode,
+                "the profile is empty until it is known");
+            SelfTest.Check(!model.IsPerfDefault && !model.IsPerfPerformance && !model.IsPerfCool,
+                "and no segment is shown as chosen");
 
         }
 

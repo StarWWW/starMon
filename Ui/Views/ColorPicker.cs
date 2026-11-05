@@ -197,6 +197,14 @@ namespace StarMon.Ui.Views {
 
             base.OnMouseMove(e);
 
+            // A drag whose button came up somewhere this control never heard
+            // about - over a dialog, after Alt+Tab - is over, not carrying on
+            // under a cursor that is only hovering
+            if(e.LeftButton != MouseButtonState.Pressed) {
+                this.DraggingField = false;
+                this.DraggingHue = false;
+            }
+
             if(!this.DraggingField && !this.DraggingHue)
                 return;
 
@@ -206,6 +214,14 @@ namespace StarMon.Ui.Views {
             else
                 UpdateHue(at);
 
+        }
+
+        // Capture taken away - a window coming up, the popup this sits in
+        // closing - ends the drag the same as letting go does
+        protected override void OnLostMouseCapture(MouseEventArgs e) {
+            base.OnLostMouseCapture(e);
+            this.DraggingField = false;
+            this.DraggingHue = false;
         }
 
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) {

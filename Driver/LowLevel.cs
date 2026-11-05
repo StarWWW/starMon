@@ -204,17 +204,15 @@ namespace StarMon.Driver {
                 return false;
             }
 
+            // A controller module that will not load is said, and the
+            // processor module loaded anyway. Giving up on both lost the
+            // processor's own temperature - the thermal guard's main input -
+            // for want of a module that has nothing to do with it; the
+            // controller's absence is what HasController reports, and the
+            // controller is set up against that.
             EcModule = controller ? PawnIo.Load("LpcACPIEC") : null;
-            if(controller && EcModule == null) {
-
-                // Without the Embedded Controller module there is no point
-                // keeping the rest: the processor registers alone would leave
-                // fan control and the backlight dead, which is the same
-                // outcome as no driver at all but reached less obviously
+            if(controller && EcModule == null)
                 Log.Append(PawnIo.GetStatus());
-                return false;
-
-            }
 
             // Each vendor module decides for itself whether this is its
             // processor and refuses if it is not, so asking both and keeping

@@ -74,6 +74,10 @@ namespace StarMon.Hardware.Platform {
         // without the mode register gives before anything has set one. A
         // guess is not put back.
         private bool LastFanModeKnown;
+
+        // Whether the fans have been handed to the firmware for want of a
+        // temperature, so it is done once rather than on every update
+        private bool BlindHandedBack;
         private BiosData.GpuPowerData LastGpuPowerData;
 
         // Whether the level above was actually read, rather than the empty
@@ -321,6 +325,30 @@ namespace StarMon.Hardware.Platform {
             // the temperature level for the given temperature,
             // and the target fan levels for the given level
             byte temperature = Platform.GetMaxTemperature(true);
+
+            // Nought is no sensor answering, not a cold machine. The curve
+            // took it as the coldest point there is and held its lowest step
+            // for as long as the sensors stayed quiet - with the controller
+            // left to Windows there is no firmware countdown to end that, and
+            // the thermal guard, given nought, has nothing to act on either.
+            // The fans go to the firmware, which reads its own sensors, until
+            // a temperature comes back; the mode and the graphics power are
+            // kept as they are.
+            if(temperature == 0) {
+
+                if(!this.BlindHandedBack) {
+                    SetFanLevel(new byte[] { Byte.MaxValue, Byte.MaxValue });
+                    this.BlindHandedBack = true;
+                    Logger.Warning("Program", "No temperature to follow",
+                        "the fans are left to the firmware until one is read again");
+                }
+
+                return true;
+
+            }
+
+            this.BlindHandedBack = false;
+
             byte level = GetTemperatureLevel(temperature);
             byte[] fans = GetFanLevel(level);
 

@@ -150,7 +150,7 @@ namespace StarMon.AppCli {
                 // Initialize a new color table
                 if(Config.ColorPreset.ContainsKey(param))
                     colorTable = Config.ColorPreset[param];
-                else if(param.Contains(" ") && Config.ColorPreset.ContainsKey(param.Replace('_', ' ')))
+                else if(param.Contains("_") && Config.ColorPreset.ContainsKey(param.Replace('_', ' ')))
                     colorTable = Config.ColorPreset[param.Replace('_', ' ')];
                 else
                     colorTable = new BiosData.ColorTable(param);

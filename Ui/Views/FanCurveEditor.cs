@@ -382,11 +382,22 @@ namespace StarMon.Ui.Views {
 
             base.OnMouseMove(e);
 
+            // A drag whose button came up where this control never heard
+            // about it is over, not carrying on under a hovering cursor
+            if(e.LeftButton != MouseButtonState.Pressed)
+                this.Dragging = -1;
+
             if(this.Dragging < 0 || this.ModelValue == null)
                 return;
 
             this.ModelValue[this.Dragging] = YToPercent(e.GetPosition(this).Y);
 
+        }
+
+        // Capture taken away ends the drag the same as letting go does
+        protected override void OnLostMouseCapture(MouseEventArgs e) {
+            base.OnLostMouseCapture(e);
+            this.Dragging = -1;
         }
 
         protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e) {

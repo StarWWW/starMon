@@ -3,6 +3,9 @@
 
 using System;
 using System.Windows;
+using System.Windows.Controls.Primitives;
+using System.Windows.Data;
+using System.Windows.Threading;
 using StarMon.Library;
 
 namespace StarMon.Ui.Shell {
@@ -68,7 +71,35 @@ namespace StarMon.Ui.Shell {
             // the lot
             Config.LocaleChangedHandler += Loc.Strings.Current.Refresh;
 
+            // A toggle switched off is shown what its source now holds.
+            //
+            // The segmented selectors - fan mode, profile, graphics power,
+            // language, theme - are toggle buttons whose sources take true and
+            // ignore false: clicking the segment already chosen pushes false,
+            // nothing changes and nothing is raised, and the segment went on
+            // showing as unselected while the machine still held that choice.
+            // Reading the source back once the click is over puts it right,
+            // and leaves alone a toggle whose source did take the false.
+            EventManager.RegisterClassHandler(typeof(ToggleButton),
+                ToggleButton.UncheckedEvent, new RoutedEventHandler(OnUnchecked));
+
             IsInitialized = true;
+
+        }
+
+        private static void OnUnchecked(object sender, RoutedEventArgs e) {
+
+            ToggleButton button = sender as ToggleButton;
+            if(button == null)
+                return;
+
+            BindingExpression binding =
+                button.GetBindingExpression(ToggleButton.IsCheckedProperty);
+            if(binding == null)
+                return;
+
+            button.Dispatcher.BeginInvoke(DispatcherPriority.Background,
+                (Action) (() => { try { binding.UpdateTarget(); } catch { } }));
 
         }
 

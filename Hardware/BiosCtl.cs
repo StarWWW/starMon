@@ -307,7 +307,11 @@ namespace StarMon.Hardware.Bios
         public GpuPowerData GetGpuPower()
         {
             byte[] outData;
-            Check(Send(Cmd.Default, 0x21, new byte[4] { 0x00, 0x00, 0x00, 0x00 }, 4, out outData));
+            // Checked whatever BiosErrorReporting says. A refusal let through
+            // comes back as four zero bytes, and those read as a level that
+            // was actually set - base power - which stopping a fan program
+            // then wrote back to the card as "the level from before".
+            Check(Send(Cmd.Default, 0x21, new byte[4] { 0x00, 0x00, 0x00, 0x00 }, 4, out outData), true);
             // See: GpuPowerData (struct)
             return new GpuPowerData(outData);
         }

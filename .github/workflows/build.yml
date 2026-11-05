@@ -37,9 +37,15 @@ jobs:
       # It runs under Windows PowerShell (shell: powershell) rather than
       # PowerShell 7, because that is what the script's own encoding note in
       # its header is written against.
+      #
+      # The version is build.ps1's own, with the run number as its last part,
+      # so a CI build says which release it is a build of. It was a fixed
+      # 1.0.2 that had not followed the project since that release.
       - name: Build and self-test
         shell: powershell
-        run: .\build.ps1 -Test -Version 1.0.2.${{ github.run_number }} -VersionWord CI
+        run: |
+          $base = (Select-String -Path build.ps1 -Pattern '\$Version = "(\d+\.\d+\.\d+)\.\d+"').Matches[0].Groups[1].Value
+          .\build.ps1 -Test -Version "$base.${{ github.run_number }}" -VersionWord CI
 
       # One file and its configuration template: the program is published as
       # a single framework-dependent executable, and StarMon.exe.config meant

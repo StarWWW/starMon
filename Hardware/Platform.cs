@@ -508,17 +508,28 @@ namespace StarMon.Hardware.Platform {
             // during initialization, or at retrieval time
         }
 
-        // Updates the temperature readings
+        // Updates the temperature readings.
+        //
+        // One update at a time. The poller and the maintenance beat both call
+        // this, each about once a second, and the miss counters, the dormant
+        // flags and each component's held-off nought were being stepped by
+        // both at once.
+        private readonly object TemperatureLock = new object();
+
         public void UpdateTemperature(bool onlyUsed = false) {
 
-            this.TemperatureTick++;
+            lock(this.TemperatureLock) {
 
-            if(onlyUsed) {
-                for(int i = 0; i < this.TemperatureUseIndices.Length; i++)
-                    UpdateSensor(this.TemperatureUseIndices[i]);
-            } else {
-                for(int i = 0; i < this.Temperature.Length; i++)
-                    UpdateSensor(i);
+                this.TemperatureTick++;
+
+                if(onlyUsed) {
+                    for(int i = 0; i < this.TemperatureUseIndices.Length; i++)
+                        UpdateSensor(this.TemperatureUseIndices[i]);
+                } else {
+                    for(int i = 0; i < this.Temperature.Length; i++)
+                        UpdateSensor(i);
+                }
+
             }
 
         }
