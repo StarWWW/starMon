@@ -32,11 +32,13 @@ namespace StarMon.Ui.Shell {
 
         }
 
+        // No unless Yes is chosen: what this asks is whether to restart the
+        // machine, and a stray Enter must not be the answer
         public static bool Confirm(string message) {
 
             return MessageBox.Show(message, Config.AppName,
                 MessageBoxButton.YesNo, MessageBoxImage.Question,
-                MessageBoxResult.Yes) == MessageBoxResult.Yes;
+                MessageBoxResult.No) == MessageBoxResult.Yes;
 
         }
 

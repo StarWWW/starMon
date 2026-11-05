@@ -41,6 +41,13 @@ namespace StarMon.Hardware {
         private static bool Queried;
         private static bool Present;
 
+        // When the zones last answered. An enumeration that comes back empty
+        // keeps the zones from before it, so the sensors page does not empty
+        // itself on one bad query - but a held reading is not a temperature
+        // for ever, and the guard is not given one older than this.
+        private static int FreshStamp;
+        private const int StaleAfterMs = 30000;
+
         // As for the published HP sensors: this is a WMI enumeration, not a
         // register read, so it is held rather than repeated
         private const int CacheMs = 4000;
@@ -86,6 +93,7 @@ namespace StarMon.Hardware {
                 if(fresh.Length > 0) {
                     Present = true;
                     EmptyRuns = 0;
+                    FreshStamp = now;
                 } else if(!Present && ++EmptyRuns >= GiveUpAfter) {
                     GivenUp = true;
                 }
@@ -115,11 +123,18 @@ namespace StarMon.Hardware {
 
         }
 
-        // The hottest zone, or 0 when there are none
+        // The hottest zone, or 0 when there are none, or none has answered
+        // for a while
         public static int GetMaxTemperature() {
 
+            Zone[] zones = Read();
+
+            lock(Lock)
+                if(unchecked(Environment.TickCount - FreshStamp) > StaleAfterMs)
+                    return 0;
+
             int max = 0;
-            foreach(Zone zone in Read())
+            foreach(Zone zone in zones)
                 if(zone.Celsius > max)
                     max = zone.Celsius;
 

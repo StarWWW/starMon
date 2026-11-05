@@ -336,6 +336,53 @@ namespace StarMon.Ui.Windows {
 
         }
 
+        // Set when the window is being replaced rather than dismissed - the
+        // theme rebuild - so that closing it really closes it
+        private bool Replacing;
+
+        // Closes this window for good, where it is being replaced by another
+        public void Replace() {
+            this.Replacing = true;
+            Close();
+        }
+
+        // Alt+F4, the taskbar's "Close window" and anything else that closes
+        // the window without going through the shell's own button.
+        //
+        // Only that button was routed to hide, so these destroyed the window
+        // instead - and a closed WPF window cannot be shown again. The
+        // controller kept handing the closed one out, Show() threw, the throw
+        // was swallowed, and from then on neither the tray icon nor the Omen
+        // key could bring a window up until the process was restarted. Now
+        // every close is the same request the button makes.
+        //
+        // The request itself runs once the close has been turned down, not
+        // inside it: ending the application from within a window's Closing
+        // closes that same window again, which WPF refuses. The application
+        // ending is not affected - its shutdown closes windows with the cancel
+        // ignored - and a window that did close by then is left alone.
+        protected override void OnClosing(System.ComponentModel.CancelEventArgs e) {
+
+            base.OnClosing(e);
+
+            if(this.Replacing || e.Cancel)
+                return;
+
+            e.Cancel = true;
+            this.Dispatcher.BeginInvoke((Action) delegate {
+                if(!this.IsClosed)
+                    OnCloseRequested();
+            });
+
+        }
+
+        private bool IsClosed;
+
+        protected override void OnClosed(EventArgs e) {
+            this.IsClosed = true;
+            base.OnClosed(e);
+        }
+
         // What the close button does. Hiding is the default, because a tray
         // application that stops running its fan program when its window is
         // dismissed is not doing what it was left to do.

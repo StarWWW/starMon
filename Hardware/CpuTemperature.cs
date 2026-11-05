@@ -423,15 +423,19 @@ namespace StarMon.Hardware.Cpu {
             if(IntelTjMax > 0)
                 return IntelTjMax;
 
-            int tjMax = 100;
+            // Kept only once the processor has answered. The 100 °C fallback
+            // was kept too, so one read that failed at start-up fixed it for
+            // the session - and on a part whose junction limit is 105 or 110
+            // every reading after it came out that much too cool.
             if(LowLevel.ReadMsr(MSR_IA32_TEMPERATURE_TARGET, out uint eax, out _)) {
                 int value = (int)((eax >> 16) & 0xFF);
-                if(value >= 60 && value <= 130)
-                    tjMax = value;
+                if(value >= 60 && value <= 130) {
+                    IntelTjMax = value;
+                    return value;
+                }
             }
 
-            IntelTjMax = tjMax;
-            return tjMax;
+            return 100;
         }
 
         // AMD (Zen, family 17h and later): read Tctl from the SMU thermal register

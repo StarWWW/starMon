@@ -124,12 +124,19 @@ namespace StarMon.Hardware.Platform {
 
         // Writes the desired level again at once, for a caller that has just
         // written something else over it. Does nothing where nothing was asked.
+        //
+        // Each of these reads the desired value once, into a local. The
+        // window's queue sets and clears it while the maintenance beat reads
+        // it, and testing HasValue and then reading Value is two reads: a
+        // clear between them threw out of the beat and took the rest of its
+        // work with it.
         public void ReassertGpuPower() {
 
-            if(!this.DesiredGpuPower.HasValue)
+            BiosData.GpuPowerLevel? desired = this.DesiredGpuPower;
+            if(!desired.HasValue)
                 return;
 
-            this.System.SetGpuPower(new BiosData.GpuPowerData(this.DesiredGpuPower.Value));
+            this.System.SetGpuPower(new BiosData.GpuPowerData(desired.Value));
             this.DesiredGpuPowerTimestamp = Environment.TickCount;
 
         }
@@ -138,7 +145,8 @@ namespace StarMon.Hardware.Platform {
         // where a transition that resets it has just happened
         public void MaintainGpuPowerSticky(bool now = false) {
 
-            if(!this.DesiredGpuPower.HasValue)
+            BiosData.GpuPowerLevel? desired = this.DesiredGpuPower;
+            if(!desired.HasValue)
                 return;
 
             int tick = Environment.TickCount;
@@ -149,7 +157,7 @@ namespace StarMon.Hardware.Platform {
             // Written blind rather than compared first: this board refuses the
             // read (GpuPowerSupported) while accepting the write, so there is
             // nothing to compare against on the machine that needs it most
-            this.System.SetGpuPower(new BiosData.GpuPowerData(this.DesiredGpuPower.Value));
+            this.System.SetGpuPower(new BiosData.GpuPowerData(desired.Value));
             this.DesiredGpuPowerTimestamp = tick;
 
         }
@@ -157,15 +165,16 @@ namespace StarMon.Hardware.Platform {
         // Re-applies the desired fan mode if needed, or at once where a
         // transition that resets it has just happened
         public void MaintainFanModeSticky(bool immediately = false) {
-            if(!this.DesiredFanMode.HasValue)
+            BiosData.FanMode? desired = this.DesiredFanMode;
+            if(!desired.HasValue)
                 return;
 
             int now = Environment.TickCount;
             bool shouldReapply = immediately
                 || unchecked(now - this.DesiredFanModeTimestamp) >= Config.FanModeKeepAliveMs;
 
-            if(shouldReapply || this.Fans.GetMode() != this.DesiredFanMode.Value) {
-                this.Fans.SetMode(this.DesiredFanMode.Value);
+            if(shouldReapply || this.Fans.GetMode() != desired.Value) {
+                this.Fans.SetMode(desired.Value);
                 this.DesiredFanModeTimestamp = now;
             }
         }
@@ -377,11 +386,10 @@ namespace StarMon.Hardware.Platform {
             if(forceUpdate)
                 UpdateTemperature(true);
 
-            // Quick return if there are no active sensors
-            if(this.TemperatureUseIndices.Length == 0) {
-                this.LastMaxTemperature = 0;
-                return 0;
-            }
+            // No quick return where none of the array's sensors is in use:
+            // the firmware's sensors and the thermal zones below are then the
+            // only sources there are, and returning nought before reaching them
+            // left the thermal guard with nothing on such a board.
 
             // The running maximum is built up in a local, and only published
             // once it is final. LastMaxTemperature is read from other threads
@@ -447,7 +455,19 @@ namespace StarMon.Hardware.Platform {
         // either would be taken as the machine's hottest point if it were
         // simply compared. The ceiling is the same one the sensor components
         // are constrained to.
+        //
+        // Readings a little over it are taken at the ceiling rather than
+        // thrown away. The thermal zones and the firmware's sensors bound
+        // their own readings higher, at 125 and 130, so a zone at 112 passed
+        // them and was then dropped here - the hottest point on the machine
+        // left out of the figure the guard acts on. Over that it is a sensor
+        // fault, and still ignored.
+        private const int MaxClampedTemperature = 125;
+
         private static byte Higher(byte current, int candidate) {
+
+            if(candidate > Config.MaxBelievableTemperature && candidate <= MaxClampedTemperature)
+                candidate = Config.MaxBelievableTemperature;
 
             return candidate > current && candidate <= Config.MaxBelievableTemperature
                 ? (byte) candidate : current;

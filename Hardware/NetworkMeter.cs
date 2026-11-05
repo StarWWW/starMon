@@ -2,6 +2,7 @@
 // Portions copyright © 2023-2024 Piotr Szczepański (GPL-3.0)
 
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Net.NetworkInformation;
 
@@ -11,9 +12,19 @@ namespace StarMon.Hardware {
     public static class NetworkMeter {
 
         private static bool HasSample;
-        private static long LastRx;
-        private static long LastTx;
         private static long LastTicks;
+
+        // The counters of each interface at the last sample, by its id.
+        //
+        // Per interface, not one sum. The sum of every interface's lifetime
+        // counters jumped by the whole of an adapter's history the moment
+        // one came up - Wi-Fi reconnecting, a VPN, a virtual switch - and the
+        // meter showed gigabits per second for one reading; and fell when one
+        // went away, which the clamp turned into nothing at all while the
+        // other links were busy. Only an interface seen at both samples adds
+        // to the rate, and only by its own change.
+        private static Dictionary<string, (long Rx, long Tx)> Last =
+            new Dictionary<string, (long Rx, long Tx)>();
 
         // Reject deltas spanning more than this (e.g. window hidden a long time)
         private const long MaxDeltaMs = 30000;
@@ -30,8 +41,8 @@ namespace StarMon.Hardware {
             downMbps = 0;
             upMbps = 0;
 
-            long rx = 0, tx = 0;
-            bool any = false;
+            Dictionary<string, (long Rx, long Tx)> current =
+                new Dictionary<string, (long Rx, long Tx)>();
             try {
                 foreach(NetworkInterface ni in NetworkInterface.GetAllNetworkInterfaces()) {
                     try {
@@ -50,40 +61,41 @@ namespace StarMon.Hardware {
                         // downloading. The general form counts both, and on
                         // an IPv4-only link returns the same numbers.
                         IPInterfaceStatistics s = ni.GetIPStatistics();
-                        rx += s.BytesReceived;
-                        tx += s.BytesSent;
-                        any = true;
+                        current[ni.Id] = (s.BytesReceived, s.BytesSent);
                     } catch { }
                 }
             } catch {
                 return false;
             }
 
-            if(!any)
+            if(current.Count == 0)
                 return false;
 
             long now = Stopwatch.GetTimestamp();
 
-            if(!HasSample) {
-                LastRx = rx;
-                LastTx = tx;
-                LastTicks = now;
-                HasSample = true;
-                return false;
-            }
+            Dictionary<string, (long Rx, long Tx)> previous = Last;
+            bool hadSample = HasSample;
+            Last = current;
+            HasSample = true;
 
             double seconds = (double)(now - LastTicks) / Stopwatch.Frequency;
-            long deltaRx = rx - LastRx;
-            long deltaTx = tx - LastTx;
-            LastRx = rx;
-            LastTx = tx;
             LastTicks = now;
+
+            if(!hadSample)
+                return false;
 
             if(seconds <= 0 || seconds * 1000 > MaxDeltaMs)
                 return false;
 
-            if(deltaRx < 0) deltaRx = 0; // counter reset / interface change
-            if(deltaTx < 0) deltaTx = 0;
+            long deltaRx = 0, deltaTx = 0;
+            foreach(KeyValuePair<string, (long Rx, long Tx)> entry in current) {
+                (long Rx, long Tx) before;
+                if(!previous.TryGetValue(entry.Key, out before))
+                    continue;
+                // A counter that went backwards was reset; it adds nothing
+                deltaRx += Math.Max(0, entry.Value.Rx - before.Rx);
+                deltaTx += Math.Max(0, entry.Value.Tx - before.Tx);
+            }
 
             downMbps = (deltaRx * 8.0) / (seconds * 1_000_000.0);
             upMbps = (deltaTx * 8.0) / (seconds * 1_000_000.0);

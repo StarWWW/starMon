@@ -875,7 +875,22 @@ namespace StarMon.Ui.Windows {
             // raises a change per pixel, and each is a write to the keyboard
             this.PendingColour.Stop();
             this.PendingColour.Start();
+            this.ColourPickedAt = Environment.TickCount;
+            this.HasPickedColour = true;
 
+        }
+
+        // When a colour was last picked here. The firmware's colours are read
+        // only every few readings and carried in between, so for a while after
+        // a pick the readings still hold the colour from before it - and put
+        // the swatch back to it. Colours read before the pick, or within a
+        // second of it while the write is still on its way, are not followed.
+        private int ColourPickedAt;
+        private bool HasPickedColour;
+
+        private bool IsBeforePick(Reading reading) {
+            return this.HasPickedColour
+                && unchecked(reading.KbdColorsReadAt - this.ColourPickedAt) < 1000;
         }
 
         private void ApplyColours() {
@@ -962,7 +977,7 @@ namespace StarMon.Ui.Windows {
             }
 
             if(reading.KbdColors == null || reading.KbdColors.Length == 0
-                || this.PendingColour.IsEnabled)
+                || this.PendingColour.IsEnabled || IsBeforePick(reading))
                 return;
 
             int[] cols = reading.KbdColors;
@@ -1084,12 +1099,31 @@ namespace StarMon.Ui.Windows {
 
             // Closed before the new one shows, so the placement it records
             // as it goes is the one already taken
-            old.Close();
+            old.Replace();
 
             if(visible) {
                 window.Show();
                 window.Activate();
             }
+
+        }
+
+        // Writes out what is still waiting to be written, as the application
+        // ends. The preferences are saved a moment after the last change, and
+        // the window's place as it is put away - neither of which happens to a
+        // choice made just before quitting, or to a window that is open when
+        // the application ends because closing it ends the application.
+        public void Flush() {
+
+            MainWindow window = this.Window;
+            if(window != null && window.IsVisible)
+                RememberPlacement(window, true);
+
+            if(!this.PendingSave.IsEnabled)
+                return;
+
+            this.PendingSave.Stop();
+            Guard(() => Config.Save(), "Preferences saved on exit");
 
         }
 
@@ -1441,7 +1475,10 @@ namespace StarMon.Ui.Windows {
                     }
                     break;
 
+                // Held against the readings like every other choice here, or
+                // one taken before the click puts the selector back
                 case "GraphicsPower":
+                    Requested();
                     ApplyGpuPower();
                     Remember(ref Config.GuiGpuPower,
                         this.DashboardModel.GraphicsPower.ToString());

@@ -51,6 +51,7 @@ namespace StarMon.AppService {
         private const int SlowEvery = 5;
         private int TickCount;
         private int[] KbdColorsCache;
+        private int KbdColorsReadAt;
         private bool GpuPowerSupportedCache;
         private GpuPower GpuPowerCache = GpuPower.Base;
         private int GpuPowerReadAt;
@@ -182,8 +183,16 @@ namespace StarMon.AppService {
 
                     // CPUT is the processor's own sensor; GPTM the graphics
                     // one. The rest are board sensors that go in the details.
-                    if(name == "CPUT") { reading.CpuTemperature = value; continue; }
-                    if(name == "GPTM") { reading.GpuTemperature = value; continue; }
+                    //
+                    // Neither is taken once it has gone quiet. A component
+                    // that fails keeps its last good value, so a sensor that
+                    // stopped answering went on showing that figure as live -
+                    // 62 °C on the card and the graph while the processor ran
+                    // at 95. The maximum the guard uses already leaves these
+                    // out; this is the same rule for what is shown.
+                    bool quiet = this.Platform.TemperatureDormant[i];
+                    if(name == "CPUT") { reading.CpuTemperature = quiet ? 0 : value; continue; }
+                    if(name == "GPTM") { reading.GpuTemperature = quiet ? 0 : value; continue; }
 
                     // A sensor this board does not carry is left out rather
                     // than shown as a permanent zero, which reads as a probe
@@ -463,11 +472,13 @@ namespace StarMon.AppService {
                             for(int i = 0; i < colours.Length; i++)
                                 colours[i] = (int) (table.Zone[i].ValueReverse & 0xFFFFFF);
                             this.KbdColorsCache = colours;
+                            this.KbdColorsReadAt = Environment.TickCount;
                         }
                     }
                 } catch { }
 
             reading.KbdColors = this.KbdColorsCache;
+            reading.KbdColorsReadAt = this.KbdColorsReadAt;
 
             // Whether the backlight is actually lit. The panel's switch was
             // written to the hardware and never read back from it, so it could

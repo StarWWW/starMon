@@ -241,6 +241,11 @@ namespace StarMon.AppService {
         // effect running, or after the tray menu changed a colour.
         public int[] KbdColors;
 
+        // When those colours were read from the firmware (Environment.TickCount).
+        // They are read only every few readings and carried between, so a
+        // reading can hold colours from before a change the window just made.
+        public int KbdColorsReadAt;
+
     }
 
 }

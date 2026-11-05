@@ -126,6 +126,7 @@ namespace StarMon.Hardware {
                 if(fresh.Length > 0) {
                     Present = true;
                     EmptyRuns = 0;
+                    FreshStamp = now;
                 } else if(!Present && ++EmptyRuns >= GiveUpAfter) {
                     GivenUp = true;
                     Logger.Info("HpSensors", "This machine publishes none",
@@ -141,11 +142,24 @@ namespace StarMon.Hardware {
 
         }
 
+        // When the firmware last answered. What is kept across a failed query
+        // is for the sensors page; the guard is not given a reading older than
+        // this as though it were current.
+        private static int FreshStamp;
+        private const int StaleAfterMs = 30000;
+
         // The hottest temperature the firmware reports, or 0 if it reports none
+        // or has not answered for a while
         public static int GetMaxTemperature() {
 
+            Sensor[] sensors = Read();
+
+            lock(Lock)
+                if(unchecked(Environment.TickCount - FreshStamp) > StaleAfterMs)
+                    return 0;
+
             int max = 0;
-            foreach(Sensor sensor in Read())
+            foreach(Sensor sensor in sensors)
                 if(sensor.Type == Kind.Temperature
                     && sensor.Reading > max
                     && sensor.Reading < 130)

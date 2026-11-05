@@ -351,7 +351,14 @@ namespace StarMon.Ui.ViewModels {
 #endregion
 
 #region Performance mode (the firmware's own profile)
-        private string PerformanceModeValue = "Default";
+        // Empty until the profile is known: remembered from the last session,
+        // read from the machine, or chosen here. It used to start as "Default",
+        // and that placeholder was then written to the firmware as if chosen -
+        // by Constant fans, by Automatic, by saving a curve - on a machine with
+        // no mode register, where nothing had read the real profile yet. A
+        // machine in Performance went to Default and its graphics power from
+        // 80 W to 70 W. With nothing selected, those leave the profile alone.
+        private string PerformanceModeValue = "";
 
         // The firmware's performance profile: Default, Performance, Cool or
         // Quiet. This is not the fan-speed control above — it is the power and

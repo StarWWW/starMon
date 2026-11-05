@@ -296,9 +296,15 @@ namespace StarMon.Ui.Shell {
             AppService.HardwareQueue.Default.Post(action, what);
         }
 
-        private BiosData.FanMode Current() {
-            try { return this.Host.Platform.Fans.GetMode(); }
-            catch { return BiosData.FanMode.Default; }
+        // The mode in force, or nothing where it is not known. Without the
+        // mode register, before this session has set one, GetMode's answer
+        // is a guessed Default, and ticking it said the machine was in a
+        // profile nobody had read.
+        private BiosData.FanMode? Current() {
+            try {
+                return this.Host.Platform.Fans.IsModeKnown
+                    ? this.Host.Platform.Fans.GetMode() : (BiosData.FanMode?) null;
+            } catch { return null; }
         }
 
         private MenuModel BuildGraphics() {

@@ -24,6 +24,7 @@ namespace StarMon.Hardware {
         }
 
         #region NVAPI interop
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("nvapi64.dll", EntryPoint = "nvapi_QueryInterface", CallingConvention = CallingConvention.Cdecl)]
         private static extern IntPtr NvAPI_QueryInterface(uint id);
 
@@ -224,15 +225,19 @@ namespace StarMon.Hardware {
         // NVML (the NVIDIA Management Library, nvml.dll) reliably exposes the GPU
         // board power draw, which NVAPI does not. Bound and used defensively: if
         // nvml.dll is missing or any call fails, the power simply stays unavailable.
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("nvml.dll", EntryPoint = "nvmlInit_v2", CallingConvention = CallingConvention.Cdecl)]
         private static extern int NvmlInit();
 
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetHandleByIndex_v2", CallingConvention = CallingConvention.Cdecl)]
         private static extern int NvmlGetHandle(uint index, out IntPtr device);
 
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetPowerUsage", CallingConvention = CallingConvention.Cdecl)]
         private static extern int NvmlGetPowerUsage(IntPtr device, out uint milliwatts);
 
+        [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
         [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetEnforcedPowerLimit", CallingConvention = CallingConvention.Cdecl)]
         private static extern int NvmlGetEnforcedPowerLimit(IntPtr device, out uint milliwatts);
 
@@ -463,7 +468,11 @@ namespace StarMon.Hardware {
                         Sensor = new NvThermalSensor[3],
                         Version = Version(8 + 3 * 20, 2)
                     };
-                    if(FnThermal(Gpu, THERMAL_TARGET_ALL, ref t) == 0 && t.Count > 0)
+                    // Bounded like every other temperature here: the guard
+                    // and the graph are both given this one
+                    if(FnThermal(Gpu, THERMAL_TARGET_ALL, ref t) == 0 && t.Count > 0
+                        && t.Sensor[0].CurrentTemp > 0
+                        && t.Sensor[0].CurrentTemp <= Library.Config.MaxBelievableTemperature)
                         info.TempC = t.Sensor[0].CurrentTemp;
                 }
             } catch { }
@@ -475,7 +484,8 @@ namespace StarMon.Hardware {
                         Utilization = new NvUtilization[8],
                         Version = Version(8 + 8 * 8, 1)
                     };
-                    if(FnPstates(Gpu, ref p) == 0 && (p.Utilization[0].IsPresent & 1) != 0)
+                    if(FnPstates(Gpu, ref p) == 0 && (p.Utilization[0].IsPresent & 1) != 0
+                        && p.Utilization[0].Percentage <= 100)
                         info.Load = (int)p.Utilization[0].Percentage;
                 }
             } catch { }

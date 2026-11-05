@@ -274,18 +274,23 @@ namespace StarMon.AppGui
                 }
             });
 
+            // Something to hand the fans back if this process ends without
+            // doing it - the firmware's countdown is a register, and the
+            // registers are left to Windows. Before anything below can set
+            // a fan level, not after.
+            if (Hw.HasBios)
+                StarMon.Watchdog.Start();
+
             // Put back the dashboard's graphics power and performance profile,
             // and apply the saved settings if that is enabled
             this.Op.AutoConfigRun();
 
-            // Something to hand the fans back if this process ends without
-            // doing it - the firmware's countdown is a register, and the
-            // registers are left to Windows
-            if (Hw.HasBios)
-                StarMon.Watchdog.Start();
-
             // Register the power-mode change event handler
             SystemEvents.PowerModeChanged += EventPowerChange;
+
+            // And the session ending, which ends this process without the
+            // orderly shutdown
+            SystemEvents.SessionEnded += EventSessionEnded;
 
         }
 
@@ -294,37 +299,78 @@ namespace StarMon.AppGui
         // The notification icon is the one that cannot be skipped: left
         // behind, it lingers in the tray as a ghost until the user happens to
         // wave the cursor over it.
+        //
+        // Every step is on its own. They ran one after another unguarded, so
+        // the first to throw skipped the rest - the fan program's own stop
+        // failing on a firmware call left the fans held, and on a machine the
+        // identity gate turns away, where this runs before the timer exists,
+        // the tray icon stayed behind. The hand-back comes last of the
+        // hardware steps and runs whatever happened before it.
         public void Shutdown()
         {
 
-            this.Timer.Stop();
+            Step(() => { if (this.Timer != null) this.Timer.Stop(); }, "timer");
 
             // Stopping the timer stops new beats being scheduled; it says
             // nothing about the one already running on a background thread.
             // That one has to be waited for before the fans are handed back,
             // or it re-asserts what the handback is about to clear.
-            this.Maintain.Drain();
+            Step(() => { if (this.Maintain != null) this.Maintain.Drain(); }, "maintenance");
 
             // And whatever the window asked for and has not been carried out
             // yet: done before the hand-back, never after it
-            HardwareQueue.Default.Drain(StarMon.AppService.Maintainer.DrainTimeoutMs);
+            Step(() => HardwareQueue.Default.Drain(StarMon.AppService.Maintainer.DrainTimeoutMs),
+                "hardware queue");
 
-            if (this.Tray != null)
-                this.Tray.Dispose();
+            Step(() => { if (this.Window != null) this.Window.Flush(); }, "preferences");
 
-            SystemEvents.PowerModeChanged -= EventPowerChange;
-            Gui.UnregisterSuspendResumeNotification();
+            Step(() => { if (this.Tray != null) this.Tray.Dispose(); }, "tray icon");
+
+            Step(() => {
+                SystemEvents.PowerModeChanged -= EventPowerChange;
+                SystemEvents.SessionEnded -= EventSessionEnded;
+                Gui.UnregisterSuspendResumeNotification();
+            }, "notifications");
 
             // Terminate the fan program, if any
-            if (this.Op != null && this.Op.Program.IsEnabled)
-                this.Op.Program.Terminate();
+            Step(() => {
+                if (this.Op != null && this.Op.Program.IsEnabled)
+                    this.Op.Program.Terminate();
+            }, "fan program");
 
-            ReleaseTheFans();
+            Step(ReleaseTheFans, "fan hand-back");
 
             // Release the global hotkey and its hidden window
-            if (this.Hotkey != null)
-                this.Hotkey.Destroy();
+            Step(() => { if (this.Hotkey != null) this.Hotkey.Destroy(); }, "hotkey");
 
+        }
+
+        private static void Step(Action step, string what)
+        {
+            try {
+                step();
+            } catch (Exception e) {
+                Logger.Error("Shutdown", "Step failed: " + what, e.Message);
+            }
+        }
+
+        // Logging off or shutting Windows down, once it is certain. Not the
+        // query before it, which another application can still turn down: a
+        // cancelled log-off must not have stopped the fan program.
+        //
+        // The process is ended soon after this - and the watchdog with it, as
+        // the session goes - so the fans are handed back here, first, rather
+        // than at the end of a shutdown that waits on the maintenance beat
+        // and the queue and may not be given the time to get there. Doing it
+        // again in Shutdown, should that still run, changes nothing.
+        private void EventSessionEnded(object sender, SessionEndedEventArgs e)
+        {
+            Logger.Info("Shutdown", "Windows session ended", e.Reason.ToString());
+            Step(() => {
+                if (this.Op != null && this.Op.Program.IsEnabled)
+                    this.Op.Program.Terminate();
+            }, "fan program");
+            Step(ReleaseTheFans, "fan hand-back");
         }
 
         // Hands the fans back to the firmware.

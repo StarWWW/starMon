@@ -462,8 +462,13 @@ namespace StarMon.Library {
                     if(GetWord(xml, XmlPrefix + "DisplayOffHotkeyKey", out value))
                         DisplayOffHotkeyKey = value;
 
-                    GpuPowerDefault =
-                        GetString(xml, XmlPrefix + "GpuPowerDefault");
+                    // Only a value that is there: an older file without the
+                    // node read as "", which replaced the compiled default,
+                    // was saved back, and left the start-up applying the
+                    // minimum through the unrecognised-value fallback
+                    string gpuPowerDefault = GetString(xml, XmlPrefix + "GpuPowerDefault");
+                    if(!string.IsNullOrEmpty(gpuPowerDefault))
+                        GpuPowerDefault = gpuPowerDefault;
 
                     if(GetBool(xml, XmlPrefix + "GpuNvidiaEnabled", out flag))
                         GpuNvidiaEnabled = flag;
@@ -732,8 +737,19 @@ namespace StarMon.Library {
 #endregion
 
 #region Configuration Saving
-        // Save the configuration data to the XML file
+        // Save the configuration data to the XML file.
+        //
+        // One save at a time: the window saves on the interface thread and
+        // the keyboard effects on the hardware queue's, and two at once share
+        // one temporary file and one replace.
+        private static readonly object SaveLock = new object();
+
         public static void Save() {
+            lock(SaveLock)
+                SaveLocked();
+        }
+
+        private static void SaveLocked() {
 
             // Proceed only if the filename is not empty
             if(FilePath != "") {
