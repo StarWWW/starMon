@@ -27,6 +27,7 @@ namespace StarMon.Ui.Views {
         Cooling,
         Keyboard,
         System,
+        Advanced,
         Log,
         Settings,
         About
@@ -65,6 +66,7 @@ namespace StarMon.Ui.Views {
             Register(this.NavCooling, Section.Cooling);
             Register(this.NavKeyboard, Section.Keyboard);
             Register(this.NavSystem, Section.System);
+            Register(this.NavAdvanced, Section.Advanced);
             Register(this.NavLog, Section.Log);
             Register(this.NavSettings, Section.Settings);
             Register(this.NavAbout, Section.About);

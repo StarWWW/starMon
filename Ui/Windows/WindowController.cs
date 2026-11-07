@@ -32,6 +32,7 @@ namespace StarMon.Ui.Windows {
         private LogView Log;
         private SettingsView Settings;
         private SystemView SystemPanel;
+        private AdvancedView AdvancedPanel;
         private AboutView AboutPanel;
 
         // Hardware writes are held back briefly rather than made as the user
@@ -62,6 +63,11 @@ namespace StarMon.Ui.Windows {
             this.CurveModel = new FanCurveViewModel();
             this.LogModel = new LogViewModel();
             this.SystemModel = new SystemViewModel();
+            this.AdvancedModel = new AdvancedViewModel();
+            this.Advanced = new AdvancedController(dispatcher, this.AdvancedModel,
+                () => this.Window != null && this.Window.IsVisible
+                    && this.Window.WindowState != WindowState.Minimized
+                    && this.CurrentSection == Section.Advanced);
             this.SettingsModel = new SettingsViewModel();
             this.SummaryModel = new SummaryViewModel();
             this.CoolingModel = new CoolingViewModel(this.CurveModel);
@@ -570,6 +576,10 @@ namespace StarMon.Ui.Windows {
         public KeyboardViewModel KeyboardModel { get; private set; }
         public LogViewModel LogModel { get; private set; }
         public SystemViewModel SystemModel { get; private set; }
+
+        // The Advanced page: the firmware commands only the command line had
+        public AdvancedViewModel AdvancedModel { get; private set; }
+        private readonly AdvancedController Advanced;
         public SettingsViewModel SettingsModel { get; private set; }
 
         // The strip under the tabs. Not a section: it is the shell's own data
@@ -1045,12 +1055,24 @@ namespace StarMon.Ui.Windows {
                     RememberPlacement(window, true);
             };
 
+            // The Advanced page reads the processor once a second only while
+            // it is on show; it stops by itself when it is not, and starts
+            // again here when the window comes back to it
+            EventHandler resume = (s, e) => {
+                if(window.IsVisible && window.WindowState != WindowState.Minimized
+                    && this.CurrentSection == Section.Advanced)
+                    this.Advanced.Shown();
+            };
+            window.StateChanged += resume;
+            window.IsVisibleChanged += (s, e) => resume(s, EventArgs.Empty);
+
             this.Dashboard = new DashboardView { DataContext = this.DashboardModel };
             this.Sensors = new SensorsView { DataContext = this.DashboardModel };
             this.Curve = new CoolingView { DataContext = this.CoolingModel };
             this.Log = new LogView { DataContext = this.LogModel };
             this.Settings = new SettingsView { DataContext = this.SettingsModel };
             this.SystemPanel = new SystemView { DataContext = this.SystemModel };
+            this.AdvancedPanel = new AdvancedView { DataContext = this.AdvancedModel };
             this.AboutPanel = new AboutView { DataContext = this.SystemModel };
 
             if(this.KeyboardModel != null)
@@ -1095,7 +1117,7 @@ namespace StarMon.Ui.Windows {
             // models they were bound to
             foreach(FrameworkElement view in new FrameworkElement[] {
                     this.Dashboard, this.Sensors, this.Curve, this.Log,
-                    this.Settings, this.SystemPanel, this.AboutPanel, this.Keyboard })
+                    this.Settings, this.SystemPanel, this.AdvancedPanel, this.AboutPanel, this.Keyboard })
                 if(view != null)
                     view.DataContext = null;
             old.View.DataContext = null;
@@ -1201,6 +1223,11 @@ namespace StarMon.Ui.Windows {
 
                 case Section.System:
                     this.Window.View.SetSection(section, Name("GuiWpfSystem"), this.SystemPanel);
+                    break;
+
+                case Section.Advanced:
+                    this.Window.View.SetSection(section, Name("GuiWpfAdvanced"), this.AdvancedPanel);
+                    this.Advanced.Shown();
                     break;
 
                 case Section.Log:

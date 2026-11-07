@@ -27,6 +27,59 @@ namespace StarMon.Test {
 
             TestPowerLimitDecodes();
 
+            SelfTest.Group("Advanced page: what is typed before it is sent");
+
+            TestAdvancedInputParses();
+
+        }
+
+        // The Advanced page sends what is typed into it to the firmware, after
+        // a confirmation. A parse that let a malformed value through would put
+        // something into the firmware nobody asked for.
+        private static void TestAdvancedInputParses() {
+
+            byte watts;
+            SelfTest.Check(StarMon.Ui.ViewModels.AdvancedViewModel.TryParseWatts(" 55 ", out watts) && watts == 55,
+                "a whole number of watts parses");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseWatts("0", out watts),
+                "nought watts is refused");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseWatts("255", out watts),
+                "255, the firmware's own \"no change\", is refused");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseWatts("55.5", out watts),
+                "a fraction is refused rather than rounded");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseWatts("", out watts),
+                "an empty field is refused");
+
+            Hardware.Bios.BiosData.FanTable table;
+            SelfTest.Check(StarMon.Ui.ViewModels.AdvancedViewModel.TryParseFanTable(
+                    "0,0,40:\r\n20, 22, 50:\r\n44,46,80", out table),
+                "a three-step table parses across lines and spaces");
+            SelfTest.Equal((byte) 3, table.LevelCount, "with three steps");
+            SelfTest.Equal((byte) 22, table.Level[1].Fan2Level, "the second fan's level is the second number");
+            SelfTest.Equal((byte) 80, table.Level[2].Temperature, "and the temperature the third");
+            SelfTest.Equal("0,0,40:\n20,22,50:\n44,46,80",
+                StarMon.Ui.ViewModels.AdvancedViewModel.FormatFanTable(table),
+                "a table read back is written out in the same syntax");
+
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseFanTable("20,22", out table),
+                "a step with two numbers is refused");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseFanTable("20,22,300", out table),
+                "a number past a byte is refused");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseFanTable(
+                    string.Join(":", System.Linq.Enumerable.Repeat("1,1,40", 15)), out table),
+                "fifteen steps are refused: the firmware's table holds fourteen");
+
+            Hardware.Bios.BiosData.AnimTable anim;
+            SelfTest.Check(StarMon.Ui.ViewModels.AdvancedViewModel.TryParseAnim("01ff 00", out anim)
+                    && anim.Raw[1] == 0xFF,
+                "hexadecimal pairs parse, spaces aside");
+            SelfTest.Equal("01FF", StarMon.Ui.ViewModels.AdvancedViewModel.FormatAnim(anim),
+                "and are written back without the table's unused zeroes");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseAnim("0G", out anim),
+                "a character that is not hexadecimal is refused");
+            SelfTest.Check(!StarMon.Ui.ViewModels.AdvancedViewModel.TryParseAnim("012", out anim),
+                "an odd number of digits is refused");
+
         }
 
         // -Msr is how a package held at a fixed wattage gets explained, so a
@@ -35,30 +88,30 @@ namespace StarMon.Test {
         private static void TestPowerLimitDecodes() {
 
             // 1/8 W, 1/16384 J and 1/1024 s: the units Intel client parts use
-            StarMon.AppCli.CliOp.RaplUnits units = StarMon.AppCli.CliOp.DecodeUnits(0x000A0E03);
+            StarMon.Hardware.Cpu.PowerRegisters.RaplUnits units = StarMon.Hardware.Cpu.PowerRegisters.DecodeUnits(0x000A0E03);
             SelfTest.Check(units.Watts == 0.125, "the power unit is an eighth of a watt");
             SelfTest.Check(units.Joules == 1.0 / 16384, "the energy unit is 1/16384 J");
             SelfTest.Check(units.Seconds == 1.0 / 1024, "the time unit is 1/1024 s");
 
             // 45 W, enabled, clamped, 28 s (2^14 × 1.75 / 1024)
             uint half = 360u | 0x8000u | 0x10000u | (14u << 17) | (3u << 22);
-            StarMon.AppCli.CliOp.LimitHalf limit = StarMon.AppCli.CliOp.DecodeLimitHalf(half, units);
+            StarMon.Hardware.Cpu.PowerRegisters.LimitHalf limit = StarMon.Hardware.Cpu.PowerRegisters.DecodeLimitHalf(half, units);
             SelfTest.Check(limit.Watts == 45, "360 eighths of a watt read as 45 W");
             SelfTest.Check(limit.Enabled, "the enable bit is read");
             SelfTest.Check(limit.Clamped, "the clamp bit is read");
             SelfTest.Check(Math.Abs(limit.WindowSeconds - 28) < 1e-9, "the time window reads 28 s");
 
-            limit = StarMon.AppCli.CliOp.DecodeLimitHalf(480u, units);
+            limit = StarMon.Hardware.Cpu.PowerRegisters.DecodeLimitHalf(480u, units);
             SelfTest.Check(limit.Watts == 60 && !limit.Enabled,
                 "a limit without its enable bit still shows its wattage, as disabled");
 
-            SelfTest.Equal("none", StarMon.AppCli.CliOp.DescribeLimitReasons(0),
+            SelfTest.Equal("none", StarMon.Hardware.Cpu.PowerRegisters.DescribeLimitReasons(0),
                 "no status bit names no reason");
             SelfTest.Equal("PL1 (package/platform)",
-                StarMon.AppCli.CliOp.DescribeLimitReasons(1u << 10),
+                StarMon.Hardware.Cpu.PowerRegisters.DescribeLimitReasons(1u << 10),
                 "bit 10 is the PL1 limit");
             SelfTest.Equal("Thermal, Other (EDP)",
-                StarMon.AppCli.CliOp.DescribeLimitReasons((1u << 1) | (1u << 8)),
+                StarMon.Hardware.Cpu.PowerRegisters.DescribeLimitReasons((1u << 1) | (1u << 8)),
                 "several reasons are listed in bit order");
 
         }

@@ -154,6 +154,9 @@
                         <RadioButton x:Name="NavSystem" GroupName="Tabs"
                                      Style="{StaticResource TopTab}"
                                      Content="{loc:Str GuiWpfSystem}" ToolTip="{loc:Str GuiWpfTipNavSystem}"/>
+                        <RadioButton x:Name="NavAdvanced" GroupName="Tabs"
+                                     Style="{StaticResource TopTab}"
+                                     Content="{loc:Str GuiWpfAdvanced}" ToolTip="{loc:Str GuiWpfTipNavAdvanced}"/>
                         <RadioButton x:Name="NavLog" GroupName="Tabs"
                                      Style="{StaticResource TopTab}"
                                      Content="{loc:Str GuiWpfLog}" ToolTip="{loc:Str GuiWpfTipNavLog}"/>

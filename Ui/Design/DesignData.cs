@@ -94,6 +94,65 @@ namespace StarMon.Ui.Design {
 
         }
 
+        // The Advanced page as it looks on this kind of machine: a processor
+        // held at 45 W by its platform limit, and the firmware's own answers
+        public static AdvancedViewModel Advanced() {
+
+            AdvancedViewModel model = new AdvancedViewModel();
+
+            Hardware.Cpu.PowerRegisters.RaplUnits units =
+                Hardware.Cpu.PowerRegisters.DecodeUnits(0x000A0E03);
+
+            Hardware.Cpu.PowerRegisters.Snapshot snapshot = new Hardware.Cpu.PowerRegisters.Snapshot {
+                Readable = true,
+                Units = units,
+                PackageWatts = 44.8,
+                Package = Hardware.Cpu.PowerRegisters.DecodeLimitRegister(
+                    (((ulong) (720u | 0x8000u | (16u << 17))) << 32) | (480u | 0x8000u | (21u << 17) | (3u << 22)), units),
+                Platform = Hardware.Cpu.PowerRegisters.DecodeLimitRegister(
+                    360u | 0x8000u | (14u << 17) | (3u << 22), units),
+                HasReasons = true,
+                ReasonsNow = 1u << 10,
+                ConfigTdpLevel = 0,
+                OverclockingLocked = 1
+            };
+
+            foreach(DetailRowViewModel row in Windows.AdvancedController.Describe(snapshot))
+                model.Registers.Add(row);
+
+            model.Firmware.Add(new DetailRowViewModel("Üretim tarihi", "2025/03/14"));
+            model.Firmware.Add(new DetailRowViewModel("Güç adaptörü", "MeetsRequirement"));
+            model.Firmware.Add(new DetailRowViewModel("Termal kısma", "Default"));
+            model.Firmware.Add(new DetailRowViewModel("Firmware sıcaklığı", "47 °C"));
+            model.Firmware.Add(new DetailRowViewModel("Hız aşırtma desteği", "hayır"));
+            model.Firmware.Add(new DetailRowViewModel("Bellek hız aşırtma desteği", "hayır"));
+            model.Firmware.Add(new DetailRowViewModel("Voltaj düşürme desteği", "hayır"));
+            model.Firmware.Add(new DetailRowViewModel("BIOS tanımlı hız aşırtma", "NotSupported"));
+            model.Firmware.Add(new DetailRowViewModel("Varsayılan PL4", "210 W"));
+
+            model.Pl1Text = "55";
+            model.Pl4Default = "Varsayılan: 210 W";
+            model.PlGpuDefault = "Varsayılan: tanımlı değil";
+            model.CpuPowerNote = "55 W PL1 gönderildi. Firmware bunu doğrulamıyor; yazmaçlara bakın.";
+            model.CanXmp = false;
+            model.MemoryNote = "Firmware bellek hız aşırtmayı desteklemediğini bildiriyor, bu yüzden XMP sunulmuyor.";
+
+            byte[,] steps = { { 0, 0, 40 }, { 20, 22, 50 }, { 28, 30, 60 }, { 36, 38, 70 }, { 44, 46, 80 }, { 52, 55, 90 } };
+            System.Text.StringBuilder text = new System.Text.StringBuilder();
+            for(int i = 0; i < steps.GetLength(0); i++) {
+                model.FanTableRows.Add(new DetailRowViewModel(steps[i, 2] + " °C",
+                    (steps[i, 0] * 100) + " · " + (steps[i, 1] * 100) + " rpm"));
+                text.Append(i > 0 ? ":" + System.Environment.NewLine : "")
+                    .Append(steps[i, 0]).Append(',').Append(steps[i, 1]).Append(',').Append(steps[i, 2]);
+            }
+            model.FanTableText = text.ToString();
+
+            model.AnimText = "0101FF00000000FF00FF0000";
+
+            return model;
+
+        }
+
         public static SystemViewModel SystemInfo() {
 
             SystemViewModel model = new SystemViewModel();

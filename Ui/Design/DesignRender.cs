@@ -42,6 +42,7 @@ namespace StarMon.Ui.Design {
                 { "keyboard-tkl", KeyboardTkl },
                 { "log",       Log },
                 { "system",    SystemSection },
+                { "advanced",  AdvancedSection },
                 { "sensors",   SensorsSection },
                 { "settings",  SettingsSection },
                 { "picker",    Picker },
@@ -228,6 +229,13 @@ namespace StarMon.Ui.Design {
 
         private static Brush Brush(string key) {
             return Application.Current.TryFindResource(key) as Brush;
+        }
+
+        private static FrameworkElement AdvancedSection() {
+
+            return Frame(Views.Section.Advanced, "Gelişmiş",
+                new Views.AdvancedView { DataContext = DesignData.Advanced() });
+
         }
 
         private static FrameworkElement SystemSection() {

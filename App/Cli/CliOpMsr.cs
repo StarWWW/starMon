@@ -7,6 +7,8 @@ using System.Diagnostics;
 using System.Text;
 using System.Threading;
 using StarMon.Driver;
+using StarMon.Hardware.Cpu;
+using static StarMon.Hardware.Cpu.PowerRegisters;
 using StarMon.Library;
 
 namespace StarMon.AppCli {
@@ -22,85 +24,9 @@ namespace StarMon.AppCli {
     // and which the processor reports as PL1 just the same, it does not.
     public static partial class CliOp {
 
-        // Intel's architectural and model-specific power registers
-        internal const uint MsrVrCurrentConfig  = 0x601;
-        internal const uint MsrRaplPowerUnit    = 0x606;
-        internal const uint MsrPkgPowerLimit    = 0x610;
-        internal const uint MsrPkgEnergyStatus  = 0x611;
-        internal const uint MsrConfigTdpNominal = 0x648;
-        internal const uint MsrConfigTdpLevel1  = 0x649;
-        internal const uint MsrConfigTdpLevel2  = 0x64A;
-        internal const uint MsrConfigTdpControl = 0x64B;
-        internal const uint MsrTurboActivation  = 0x64C;
-        internal const uint MsrCoreLimitReasons = 0x64F;
-        internal const uint MsrPlatformLimit    = 0x65C;
-        internal const uint MsrFlexRatio        = 0x194;
-        internal const uint MsrTemperatureTarget = 0x1A2;
-
         // The most a watch is allowed to run for, so a mistyped number
         // cannot leave it going for days [s]
         private const int MsrWatchMaxSeconds = 3600;
-
-        // The units the power registers count in, from MSR 0x606
-        internal struct RaplUnits {
-            public double Watts;    // One count of a power field [W]
-            public double Joules;   // One count of the energy counter [J]
-            public double Seconds;  // The base of a time window [s]
-        }
-
-        internal static RaplUnits DecodeUnits(ulong raw) {
-            return new RaplUnits {
-                Watts   = 1.0 / (1UL << (int) (raw & 0xF)),
-                Joules  = 1.0 / (1UL << (int) ((raw >> 8) & 0x1F)),
-                Seconds = 1.0 / (1UL << (int) ((raw >> 16) & 0xF))
-            };
-        }
-
-        // One half of a power-limit register: a 15-bit power, its enable and
-        // clamp bits, and a time window stored as 2^Y × (1 + Z/4) units
-        internal struct LimitHalf {
-            public double Watts;
-            public bool Enabled;
-            public bool Clamped;
-            public double WindowSeconds;
-        }
-
-        internal static LimitHalf DecodeLimitHalf(uint half, RaplUnits units) {
-            int y = (int) ((half >> 17) & 0x1F);
-            int z = (int) ((half >> 22) & 0x3);
-            return new LimitHalf {
-                Watts = (half & 0x7FFF) * units.Watts,
-                Enabled = (half & 0x8000) != 0,
-                Clamped = (half & 0x10000) != 0,
-                WindowSeconds = Math.Pow(2, y) * (1 + z / 4.0) * units.Seconds
-            };
-        }
-
-        // The status bits of MSR 0x64F, by bit. The log bits sit sixteen above
-        // each. "PL1" and "PL2" cover both the package and the platform limit:
-        // the register does not say which of the two was reached.
-        private static readonly KeyValuePair<int, string>[] LimitReasonBits = {
-            new KeyValuePair<int, string>(0,  "PROCHOT"),
-            new KeyValuePair<int, string>(1,  "Thermal"),
-            new KeyValuePair<int, string>(4,  "Residency"),
-            new KeyValuePair<int, string>(5,  "Average thermal"),
-            new KeyValuePair<int, string>(6,  "VR thermal alert"),
-            new KeyValuePair<int, string>(7,  "VR current (TDC)"),
-            new KeyValuePair<int, string>(8,  "Other (EDP)"),
-            new KeyValuePair<int, string>(10, "PL1 (package/platform)"),
-            new KeyValuePair<int, string>(11, "PL2 (package/platform)"),
-            new KeyValuePair<int, string>(12, "Max turbo"),
-            new KeyValuePair<int, string>(13, "Turbo attenuation"),
-        };
-
-        // Names the reasons set in a 16-bit field of MSR 0x64F
-        internal static string DescribeLimitReasons(uint bits) {
-            var names = new List<string>();
-            foreach(KeyValuePair<int, string> reason in LimitReasonBits)
-                if((bits & (1u << reason.Key)) != 0)
-                    names.Add(reason.Value);
-            return names.Count == 0 ? "none" : string.Join(", ", names);
-        }
 
         // Prints one power-limit register, both halves and its lock
         private static void PrintLimitRegister(string name, uint index, RaplUnits units) {

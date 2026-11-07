@@ -1,0 +1,273 @@
+<UserControl x:Class="StarMon.Ui.Views.AdvancedView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:loc="clr-namespace:StarMon.Ui.Loc">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="pack://application:,,,/Ui/Views/Cards.xaml"/>
+            </ResourceDictionary.MergedDictionaries>
+
+            <DataTemplate x:Key="PlainRow">
+                <Grid Height="19" ToolTip="{Binding Tip}">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Grid.Column="0" Text="{Binding Name}"
+                               Style="{StaticResource RowName}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Value}"
+                               Style="{StaticResource Readout}"
+                               FontSize="{StaticResource SizeLabel}"
+                               TextAlignment="Right" TextTrimming="CharacterEllipsis"
+                               Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </Grid>
+            </DataTemplate>
+
+            <!-- A small action button beside a field -->
+            <Style x:Key="RowButton" TargetType="Button" BasedOn="{StaticResource GhostButton}">
+                <Setter Property="MinWidth" Value="0"/>
+                <Setter Property="Padding" Value="12,4"/>
+                <Setter Property="Margin" Value="8,0,0,0"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="WattField" TargetType="TextBox" BasedOn="{StaticResource Field}">
+                <Setter Property="Width" Value="64"/>
+                <Setter Property="Padding" Value="8,3"/>
+                <Setter Property="TextAlignment" Value="Right"/>
+                <Setter Property="VerticalAlignment" Value="Center"/>
+            </Style>
+
+            <Style x:Key="RowLabel" TargetType="TextBlock" BasedOn="{StaticResource RowName}">
+                <Setter Property="VerticalAlignment" Value="Center"/>
+                <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            </Style>
+
+            <Style x:Key="Note" TargetType="TextBlock" BasedOn="{StaticResource Micro}">
+                <Setter Property="TextWrapping" Value="Wrap"/>
+                <Setter Property="Foreground" Value="{StaticResource TextSecondary}"/>
+            </Style>
+
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <!-- The firmware commands the command line could always send and the
+         window could not, with what the firmware and the processor say about
+         themselves beside them. Every write is confirmed first; nothing on
+         this page writes on a click alone. -->
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="18,14,18,14">
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="10"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0">
+
+                <!-- The processor's power limits, as HP's firmware takes them -->
+                <Border Style="{StaticResource CardSurface}">
+                    <StackPanel Margin="14,11,14,12">
+                        <TextBlock Text="{loc:Str GuiWpfAdvCpuCaption}"
+                                   Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource Micro}" TextWrapping="Wrap"
+                                   Margin="0,0,0,9" Text="{loc:Str GuiWpfAdvCpuHint}"/>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,8"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="{loc:Str GuiWpfAdvPl1}" Style="{StaticResource RowLabel}"/>
+                            </StackPanel>
+                            <TextBox Grid.Row="0" Grid.Column="1" Style="{StaticResource WattField}"
+                                     Text="{Binding Pl1Text, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{loc:Str GuiWpfAdvTipPl1}"/>
+                            <TextBlock Grid.Row="0" Grid.Column="2" Text="W" Style="{StaticResource Micro}"
+                                       VerticalAlignment="Center" Margin="5,0,0,0"/>
+                            <Button Grid.Row="0" Grid.Column="3" Style="{StaticResource RowButton}"
+                                    Content="{loc:Str GuiWpfAdvApply}" Command="{Binding ApplyPl1Command}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipPl1}"/>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" VerticalAlignment="Center" Margin="0,7,0,0">
+                                <TextBlock Text="{loc:Str GuiWpfAdvPl4}" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="{Binding Pl4Default}" Style="{StaticResource Micro}"/>
+                            </StackPanel>
+                            <TextBox Grid.Row="1" Grid.Column="1" Style="{StaticResource WattField}" Margin="0,7,0,0"
+                                     Text="{Binding Pl4Text, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{loc:Str GuiWpfAdvTipPl4}"/>
+                            <TextBlock Grid.Row="1" Grid.Column="2" Text="W" Style="{StaticResource Micro}"
+                                       VerticalAlignment="Center" Margin="5,7,0,0"/>
+                            <Button Grid.Row="1" Grid.Column="3" Style="{StaticResource RowButton}" Margin="8,7,0,0"
+                                    Content="{loc:Str GuiWpfAdvApply}" Command="{Binding ApplyPl4Command}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipPl4}"/>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" VerticalAlignment="Center" Margin="0,7,0,0">
+                                <TextBlock Text="{loc:Str GuiWpfAdvPlGpu}" Style="{StaticResource RowLabel}"/>
+                                <TextBlock Text="{Binding PlGpuDefault}" Style="{StaticResource Micro}"/>
+                            </StackPanel>
+                            <TextBox Grid.Row="2" Grid.Column="1" Style="{StaticResource WattField}" Margin="0,7,0,0"
+                                     Text="{Binding PlGpuText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{loc:Str GuiWpfAdvTipPlGpu}"/>
+                            <TextBlock Grid.Row="2" Grid.Column="2" Text="W" Style="{StaticResource Micro}"
+                                       VerticalAlignment="Center" Margin="5,7,0,0"/>
+                            <Button Grid.Row="2" Grid.Column="3" Style="{StaticResource RowButton}" Margin="8,7,0,0"
+                                    Content="{loc:Str GuiWpfAdvApply}" Command="{Binding ApplyPlGpuCommand}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipPlGpu}"/>
+                        </Grid>
+
+                        <TextBlock Text="{Binding CpuPowerNote}" Style="{StaticResource Note}" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Memory profile and idle mode: switches the firmware takes
+                     but will not report, so there is no state to show, only
+                     the two commands -->
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel Margin="14,11,14,12">
+                        <TextBlock Text="{loc:Str GuiWpfAdvMemoryCaption}"
+                                   Style="{StaticResource Caption}" Margin="0,0,0,7"/>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,8"/>
+
+                        <DockPanel>
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Style="{StaticResource RowButton}" Content="{loc:Str GuiWpfAdvOn}"
+                                        Command="{Binding XmpOnCommand}" ToolTip="{loc:Str GuiWpfAdvTipXmp}"/>
+                                <Button Style="{StaticResource RowButton}" Content="{loc:Str GuiWpfAdvOff}"
+                                        Command="{Binding XmpOffCommand}" ToolTip="{loc:Str GuiWpfAdvTipXmp}"/>
+                            </StackPanel>
+                            <TextBlock Text="{loc:Str GuiWpfAdvXmp}" Style="{StaticResource RowLabel}"/>
+                        </DockPanel>
+
+                        <DockPanel Margin="0,8,0,0">
+                            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Style="{StaticResource RowButton}" Content="{loc:Str GuiWpfAdvOn}"
+                                        Command="{Binding IdleOnCommand}" ToolTip="{loc:Str GuiWpfAdvTipIdle}"/>
+                                <Button Style="{StaticResource RowButton}" Content="{loc:Str GuiWpfAdvOff}"
+                                        Command="{Binding IdleOffCommand}" ToolTip="{loc:Str GuiWpfAdvTipIdle}"/>
+                            </StackPanel>
+                            <TextBlock Text="{loc:Str GuiWpfAdvIdle}" Style="{StaticResource RowLabel}"/>
+                        </DockPanel>
+
+                        <TextBlock Text="{Binding MemoryNote}" Style="{StaticResource Note}" Margin="0,10,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- The firmware's own fan table: the curve it follows in
+                     automatic mode -->
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel Margin="14,11,14,12">
+                        <TextBlock Text="{loc:Str GuiWpfAdvFanTableCaption}"
+                                   Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource Micro}" TextWrapping="Wrap"
+                                   Margin="0,0,0,9" Text="{loc:Str GuiWpfAdvFanTableHint}"/>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,8"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="10"/>
+                                <ColumnDefinition Width="132"/>
+                            </Grid.ColumnDefinitions>
+
+                            <Border Grid.Column="0" Style="{StaticResource InsetSurface}">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto" Height="150" Margin="10,7,6,7">
+                                    <ItemsControl ItemsSource="{Binding FanTableRows}"
+                                                  ItemTemplate="{StaticResource PlainRow}"/>
+                                </ScrollViewer>
+                            </Border>
+
+                            <TextBox Grid.Column="2" Style="{StaticResource Field}" Height="164"
+                                     Padding="8,5" AcceptsReturn="True" TextWrapping="NoWrap"
+                                     VerticalContentAlignment="Top"
+                                     VerticalScrollBarVisibility="Auto"
+                                     FontFamily="{StaticResource FontMono}" FontSize="11"
+                                     Text="{Binding FanTableText, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="{loc:Str GuiWpfAdvTipFanTable}"/>
+                        </Grid>
+
+                        <DockPanel Margin="0,9,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource RowButton}"
+                                    Content="{loc:Str GuiWpfAdvSend}" Command="{Binding ApplyFanTableCommand}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipFanTable}"/>
+                            <TextBlock Text="{Binding FanTableNote}" Style="{StaticResource Note}"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+
+            <StackPanel Grid.Column="2">
+
+                <!-- The processor's own registers, read live -->
+                <Border Style="{StaticResource CardSurface}">
+                    <StackPanel Margin="14,11,14,12">
+                        <TextBlock Text="{loc:Str GuiWpfAdvRegistersCaption}"
+                                   Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource Micro}" TextWrapping="Wrap"
+                                   Margin="0,0,0,9" Text="{loc:Str GuiWpfAdvRegistersHint}"/>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,5"/>
+                        <ItemsControl ItemsSource="{Binding Registers}"
+                                      ItemTemplate="{StaticResource PlainRow}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- What the firmware says about the machine -->
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel Margin="14,11,14,12">
+                        <DockPanel Margin="0,0,0,7">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource RowButton}"
+                                    Content="{loc:Str GuiWpfAdvReload}" Command="{Binding ReloadCommand}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipReload}"/>
+                            <TextBlock DockPanel.Dock="Right" Style="{StaticResource Micro}"
+                                       Text="{loc:Str GuiWpfProbing}" VerticalAlignment="Center"
+                                       Visibility="{Binding IsBusy, Converter={StaticResource ShowWhen}}"/>
+                            <TextBlock Text="{loc:Str GuiWpfAdvFirmwareCaption}"
+                                       Style="{StaticResource Caption}" VerticalAlignment="Center"/>
+                        </DockPanel>
+                        <Border Style="{StaticResource Rule}" Margin="0,0,0,5"/>
+                        <ItemsControl ItemsSource="{Binding Firmware}"
+                                      ItemTemplate="{StaticResource PlainRow}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- The keyboard's animation table, as raw bytes -->
+                <Border Style="{StaticResource CardSurface}" Margin="0,10,0,0">
+                    <StackPanel Margin="14,11,14,12">
+                        <TextBlock Text="{loc:Str GuiWpfAdvAnimCaption}"
+                                   Style="{StaticResource Caption}" Margin="0,0,0,4"/>
+                        <TextBlock Style="{StaticResource Micro}" TextWrapping="Wrap"
+                                   Margin="0,0,0,9" Text="{loc:Str GuiWpfAdvAnimHint}"/>
+                        <TextBox Style="{StaticResource Field}" Height="58"
+                                 Padding="8,5" AcceptsReturn="False" TextWrapping="Wrap"
+                                 VerticalContentAlignment="Top"
+                                 FontFamily="{StaticResource FontMono}" FontSize="11"
+                                 Text="{Binding AnimText, UpdateSourceTrigger=PropertyChanged}"
+                                 ToolTip="{loc:Str GuiWpfAdvTipAnim}"/>
+                        <DockPanel Margin="0,9,0,0">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource RowButton}"
+                                    Content="{loc:Str GuiWpfAdvSend}" Command="{Binding ApplyAnimCommand}"
+                                    ToolTip="{loc:Str GuiWpfAdvTipAnim}"/>
+                            <TextBlock Text="{Binding AnimNote}" Style="{StaticResource Note}"
+                                       VerticalAlignment="Center"/>
+                        </DockPanel>
+                    </StackPanel>
+                </Border>
+
+            </StackPanel>
+
+        </Grid>
+    </ScrollViewer>
+</UserControl>
