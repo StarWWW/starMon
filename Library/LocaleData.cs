@@ -93,6 +93,7 @@ namespace StarMon.Library.Locale
                 // CLI: Embedded Controller
                 ["CliEc"] = "Embedded Controller",
                 ["CliProbe"] = "Hardware Report",
+                ["CliMsr"] = "Processor Power Registers",
                 ["CliEcMon"] = "Embedded Controller Monitor",
                 ["CliEcByte"] = "Byte",
                 ["CliEcRegister"] = "Register",
@@ -124,6 +125,7 @@ namespace StarMon.Library.Locale
                     "  -Ec [<Reg>][=<Byte>]+     Get or set byte value(s) of one or more specific registers" + Environment.NewLine +
                     "  -Ec [<Reg>(2)][=<Word>]+  Get or set word value(s) of one or more pair(s) of consecutive specific registers" + Environment.NewLine +
                     "  -EcMon [FileName]         Monitor the values of all registers for changes and report, optionally save to file" + Environment.NewLine +
+                    "  -Msr [Seconds]            Read the processor's power limits; with a number, watch power and limit reasons" + Environment.NewLine +
                     "  -Prog                     List available fan control programs loaded from the configuration file" + Environment.NewLine +
                     "  -Prog <Name>              Run a specified fan control program" + Environment.NewLine +
                     "  -Run <TName> [<Args>]     Run a specified task (in headless mode, no console output)" + Environment.NewLine +

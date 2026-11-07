@@ -553,6 +553,19 @@ namespace StarMon.AppCli {
                     i--;
                     break;
 
+                // Read the processor's power-limit registers, and optionally
+                // watch the package power and its limit reasons for a number of
+                // seconds. Read-only, like -Probe, so not behind the gate.
+                case "-msr":
+                    Cli.PrintContext(Config.Locale.Get(Config.L_CLI + "Msr"), "-Msr");
+
+                    string watch = null;
+                    if(i + 1 < args.Length && !args[i + 1].StartsWith("-", StringComparison.Ordinal))
+                        watch = args[++i];
+
+                    Msr(watch);
+                    break;
+
                 // Write down everything this machine says about itself, so a
                 // board nobody here owns can still be diagnosed. Read-only,
                 // and so deliberately not behind the hardware gate: a machine

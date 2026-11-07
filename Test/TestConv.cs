@@ -23,6 +23,44 @@ namespace StarMon.Test {
             TestColor();
             TestBits();
 
+            SelfTest.Group("Processor power registers");
+
+            TestPowerLimitDecodes();
+
+        }
+
+        // -Msr is how a package held at a fixed wattage gets explained, so a
+        // field read from the wrong bits would send the explanation the wrong
+        // way. The register values are built from the figures they hold.
+        private static void TestPowerLimitDecodes() {
+
+            // 1/8 W, 1/16384 J and 1/1024 s: the units Intel client parts use
+            StarMon.AppCli.CliOp.RaplUnits units = StarMon.AppCli.CliOp.DecodeUnits(0x000A0E03);
+            SelfTest.Check(units.Watts == 0.125, "the power unit is an eighth of a watt");
+            SelfTest.Check(units.Joules == 1.0 / 16384, "the energy unit is 1/16384 J");
+            SelfTest.Check(units.Seconds == 1.0 / 1024, "the time unit is 1/1024 s");
+
+            // 45 W, enabled, clamped, 28 s (2^14 × 1.75 / 1024)
+            uint half = 360u | 0x8000u | 0x10000u | (14u << 17) | (3u << 22);
+            StarMon.AppCli.CliOp.LimitHalf limit = StarMon.AppCli.CliOp.DecodeLimitHalf(half, units);
+            SelfTest.Check(limit.Watts == 45, "360 eighths of a watt read as 45 W");
+            SelfTest.Check(limit.Enabled, "the enable bit is read");
+            SelfTest.Check(limit.Clamped, "the clamp bit is read");
+            SelfTest.Check(Math.Abs(limit.WindowSeconds - 28) < 1e-9, "the time window reads 28 s");
+
+            limit = StarMon.AppCli.CliOp.DecodeLimitHalf(480u, units);
+            SelfTest.Check(limit.Watts == 60 && !limit.Enabled,
+                "a limit without its enable bit still shows its wattage, as disabled");
+
+            SelfTest.Equal("none", StarMon.AppCli.CliOp.DescribeLimitReasons(0),
+                "no status bit names no reason");
+            SelfTest.Equal("PL1 (package/platform)",
+                StarMon.AppCli.CliOp.DescribeLimitReasons(1u << 10),
+                "bit 10 is the PL1 limit");
+            SelfTest.Equal("Thermal, Other (EDP)",
+                StarMon.AppCli.CliOp.DescribeLimitReasons((1u << 1) | (1u << 8)),
+                "several reasons are listed in bit order");
+
         }
 
         private static void TestBool() {

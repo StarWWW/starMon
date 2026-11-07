@@ -89,6 +89,7 @@ namespace StarMon.Library.Locale
                 // CLI: Embedded Controller
                 ["CliEc"] = "Gömülü Denetleyici",
                 ["CliProbe"] = "Donanım Raporu",
+                ["CliMsr"] = "İşlemci Güç Yazmaçları",
                 ["CliEcMon"] = "Gömülü Denetleyici İzleyicisi",
                 ["CliEcByte"] = "Bayt",
                 ["CliEcRegister"] = "Yazmaç",
@@ -120,6 +121,7 @@ namespace StarMon.Library.Locale
                     "  -Ec [<Reg>][=<Byte>]+     Belirli yazmaçların bayt değerlerini oku veya yaz" + Environment.NewLine +
                     "  -Ec [<Reg>(2)][=<Word>]+  Ardışık yazmaç çiftlerinin sözcük değerlerini oku veya yaz" + Environment.NewLine +
                     "  -EcMon [DosyaAdı]         Tüm yazmaçları değişiklik için izle ve bildir, isteğe bağlı olarak dosyaya kaydet" + Environment.NewLine +
+                    "  -Msr [Saniye]             İşlemcinin güç sınırlarını oku; sayı verilirse gücü ve kısma nedenlerini izle" + Environment.NewLine +
                     "  -Prog                     Yapılandırma dosyasından yüklenen fan denetim programlarını listele" + Environment.NewLine +
                     "  -Prog <Ad>                Belirtilen fan denetim programını çalıştır" + Environment.NewLine +
                     "  -Run <TName> [<Args>]     Belirtilen görevi çalıştır (arayüzsüz kipte, konsol çıktısı olmadan)" + Environment.NewLine +
